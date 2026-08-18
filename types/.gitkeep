@@ -1,0 +1,3 @@
+Pasta reservada para tipos TypeScript compartilhados (ex.: tipos gerados a
+partir do schema do Supabase quando as tabelas definitivas existirem).
+Vazia na Sprint 0.

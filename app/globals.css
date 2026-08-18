@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+/*
+ * Tokens de design ainda nao foram definidos - esta e uma pagina de
+ * infraestrutura (Sprint 0), sem UI de produto. Quando as telas reais
+ * comecarem a ser desenhadas, os tokens (cores, tipografia) devem ser
+ * declarados aqui dentro de um bloco @theme, conforme o modelo CSS-first
+ * do Tailwind v4.
+ */

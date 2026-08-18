@@ -1,0 +1,38 @@
+name: CI
+
+# NAO validado rodando de verdade (exige repositorio remoto no GitHub) -
+# ver docs/DECISIONS.md e a lista de itens nao validados. As versoes das
+# actions abaixo (checkout@v4, setup-node@v4) sao as amplamente usadas
+# no momento da escrita deste arquivo, mas nao foram conferidas contra o
+# marketplace do GitHub por falta de acesso a internet neste ambiente.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
