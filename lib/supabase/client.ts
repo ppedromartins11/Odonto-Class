@@ -1,13 +1,10 @@
-import { createClient } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
 
 /**
- * Cliente Supabase para uso em componentes client-side.
+ * Cliente Supabase para Client Components.
  *
- * Sprint 0: apenas o client base, sem gestao de sessao/autenticacao.
- * A estrategia de autenticacao (RF-01/RF-02) e RLS (ver docs/SECURITY.md)
- * sera implementada na Sprint 1 - provavelmente evoluindo este arquivo
- * para usar @supabase/ssr, que trata cookies de sessao no App Router.
- * Isso e uma decisao tecnica em aberto, nao uma implementacao definitiva.
+ * Sprint 1: sessao via cookies (@supabase/ssr), substituindo o client
+ * base do Sprint 0 que nao gerenciava sessao nenhuma.
  */
 export function createSupabaseBrowserClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -20,5 +17,5 @@ export function createSupabaseBrowserClient() {
     );
   }
 
-  return createClient(supabaseUrl, supabaseAnonKey);
+  return createBrowserClient(supabaseUrl, supabaseAnonKey);
 }

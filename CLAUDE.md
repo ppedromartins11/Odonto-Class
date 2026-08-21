@@ -90,7 +90,37 @@ sinalize e aguarde confirmacao.
 
 ## Estado atual do projeto
 
-- **Sprint 0 (infraestrutura)**: concluida nesta etapa. Nenhuma tabela
-  definitiva, nenhuma autenticacao, nenhuma funcionalidade implementada.
-- **Proxima etapa**: Sprint 1 - Autenticacao e usuarios (RF-01, RF-02).
-  Aguardando aprovacao explicita antes de iniciar.
+- **Sprint 0 (infraestrutura)**: concluida.
+- **Sprint 1 (autenticacao e usuarios)**: concluida nesta etapa.
+  - Autenticacao real (Supabase Auth, sessao via cookies, middleware de
+    protecao de rota) + recuperacao de senha.
+  - Layout global (Sidebar/Header) adaptado do prototipo Figma Make -
+    "Atendimentos" e "Configuracoes" removidos do menu por decisao
+    aprovada; modulos sem rota aparecem desabilitados ("em breve"), nao
+    como paginas placeholder.
+  - Modulo Usuarios (RF-02) com dado real e criacao via convite
+    administrativo.
+  - Tabelas `usuarios` e `profissionais` criadas com RLS desde o
+    inicio - ver docs/DATABASE.md e docs/SECURITY.md.
+  - Build/lint NAO foram executados com sucesso neste ambiente (sem
+    internet) - ver docs/DECISIONS.md para o resultado exato da
+    tentativa.
+- **Proxima etapa**: Sprint 2 - Pacientes (RF-04, RF-05). Aguardando
+  aprovacao explicita antes de iniciar.
+
+## Convencao estabelecida na Sprint 1 (seguir nas proximas sprints)
+
+- Itens do menu lateral sem rota implementada ficam desabilitados com
+  marcador "em breve", nunca como link morto nem pagina placeholder
+  vazia.
+- Nenhuma tela nova entra no menu ativo antes de ter dado real por tras -
+  nao copiar dado mockado do prototipo para dar aparencia de
+  funcionalidade que nao existe.
+- Toda pagina/rota protegida usa requireUser()/requireAdmin() de
+  lib/auth/session.ts, ALEM do middleware - nunca uma camada so.
+- Toda tabela nova nasce com RLS habilitada na mesma migration que a
+  cria, nunca depois.
+- Operacoes que exigem a service role key (lib/supabase/admin.ts) so
+  podem ser chamadas depois de uma checagem explicita de perfil no
+  server action - a service role ignora RLS, entao a autorizacao vira
+  responsabilidade exclusiva desse cheque.

@@ -28,11 +28,26 @@ validados.
 3. **Criar o projeto no Supabase** (supabase.com) e copiar, em
    Project Settings > API: URL, anon key e service role key.
 
+3.1. **Rodar a migration** `supabase/migrations/0001_usuarios_profissionais.sql`
+   contra esse projeto (SQL Editor do Supabase ou `supabase db push` via
+   CLI) - ainda nao foi executada em nenhum banco real.
+
+3.2. **Configurar Auth > URL Configuration no painel do Supabase**:
+   adicionar `<sua-url>/redefinir-senha` como Redirect URL permitida.
+   Sem isso, o link de recuperacao de senha (RF-01) nao funciona.
+
+3.3. **Criar o primeiro usuário administrador manualmente** (Auth > Users
+   no painel, "Invite user", depois inserir a linha correspondente na
+   tabela `usuarios` com `perfil = 'administrador'`). Não há
+   autocadastro - o primeiro admin precisa existir antes de qualquer
+   convite pela própria aplicação.
+
 4. **Preencher `.env.local`** (nunca commitar este arquivo):
    ```
    cp .env.local.example .env.local
    ```
-   e colar os valores copiados no passo 3.
+   e colar os valores copiados no passo 3, alem de
+   `NEXT_PUBLIC_SITE_URL=http://localhost:3000` para desenvolvimento.
 
 5. **Conectar o repositorio na Vercel** (Import Project, apontando para
    o repositorio criado no passo 2) e adicionar as mesmas variaveis de

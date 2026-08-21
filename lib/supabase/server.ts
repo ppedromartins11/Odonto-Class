@@ -1,15 +1,19 @@
-import { createClient } from "@supabase/supabase-js";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 
 /**
- * Cliente Supabase para uso em Server Components / Server Actions.
+ * Cliente Supabase para Server Components / Server Actions / Route Handlers.
  *
- * Sprint 0: apenas o client base, usando a anon key. Nao implementa
- * autenticacao nem propaga sessao de usuario ainda (isso e trabalho da
- * Sprint 1). A service role key (SUPABASE_SERVICE_ROLE_KEY) fica
- * reservada para scripts administrativos especificos e NAO deve ser
- * usada aqui de forma geral - ver docs/SECURITY.md.
+ * Sprint 1: usa @supabase/ssr para ler/escrever a sessao via cookies do
+ * Next.js. Em Server Components (render), a escrita de cookies pode ser
+ * ignorada silenciosamente pelo Next - por isso o refresh de sessao real
+ * acontece no middleware (ver middleware.ts na raiz do projeto), nao aqui.
+ *
+ * Continua usando a anon key (RLS aplica as regras por usuario). A
+ * service role key tem cliente proprio, isolado, em lib/supabase/admin.ts,
+ * e nunca deve ser usada aqui.
  */
-export function createSupabaseServerClient() {
+export async function createSupabaseServerClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -20,5 +24,25 @@ export function createSupabaseServerClient() {
     );
   }
 
-  return createClient(supabaseUrl, supabaseAnonKey);
+  const cookieStore = await cookies();
+
+  return createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set(name, value, options);
+          });
+        } catch {
+          // Chamado a partir de um Server Component durante o render -
+          // o Next nao permite escrever cookies nesse contexto. Isso e
+          // esperado e inofensivo porque o middleware ja cuida do
+          // refresh de sessao em toda navegacao.
+        }
+      },
+    },
+  });
 }

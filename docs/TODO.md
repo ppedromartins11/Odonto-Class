@@ -5,8 +5,12 @@
       pastas, documentacao, `CLAUDE.md`, Git local + commit, CI, pagina
       placeholder, empacotamento. Conclusao real do deploy/repos remotos
       depende do checklist em `docs/DEPLOYMENT.md`.
-- [ ] **Sprint 1** - Autenticacao e usuarios (RF-01, RF-02). Tabelas:
-      `usuarios`, `profissionais`.
+- [x] **Sprint 1** - Autenticacao e usuarios (RF-01, RF-02). Tabelas:
+      `usuarios`, `profissionais` (RLS desde a criacao). Layout global
+      (Sidebar/Header) adaptado do prototipo Figma Make. Login,
+      recuperacao de senha, listagem e criacao de usuario (convite
+      administrativo) implementados. Build/lint nao executados de fato
+      neste ambiente (sem internet) - ver `docs/DECISIONS.md`.
 - [ ] **Sprint 2** - Pacientes (RF-04, RF-05). Tabela: `pacientes`.
 - [ ] **Sprint 3** - Agenda (RF-07, RF-08). Tabela: `agendamentos`.
 - [ ] **Sprint 4** - Atendimento (RF-09, RF-06 parcial). Tabelas:
