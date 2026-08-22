@@ -1,7 +1,7 @@
 /// <reference types="next" />
 /// <reference types="next/image-types/global" />
+import "./.next/types/routes.d.ts";
+import "./.next/types/root-params.d.ts";
 
-// NOTE: Este arquivo normalmente e gerado/atualizado automaticamente por
-// `next dev` ou `next build`. Foi criado manualmente na Sprint 0 porque
-// esses comandos ainda nao rodaram neste ambiente (sem acesso a internet
-// para instalar dependencias). Nao deve ser editado a mao depois disso.
+// NOTE: This file should not be edited
+// see https://nextjs.org/docs/app/api-reference/config/typescript for more information.

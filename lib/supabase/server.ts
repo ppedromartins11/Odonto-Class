@@ -7,7 +7,7 @@ import { cookies } from "next/headers";
  * Sprint 1: usa @supabase/ssr para ler/escrever a sessao via cookies do
  * Next.js. Em Server Components (render), a escrita de cookies pode ser
  * ignorada silenciosamente pelo Next - por isso o refresh de sessao real
- * acontece no middleware (ver middleware.ts na raiz do projeto), nao aqui.
+ * acontece no proxy (ver proxy.ts na raiz do projeto), nao aqui.
  *
  * Continua usando a anon key (RLS aplica as regras por usuario). A
  * service role key tem cliente proprio, isolado, em lib/supabase/admin.ts,

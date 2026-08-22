@@ -8,7 +8,7 @@ import { signInWithPassword, type LoginState } from "./actions";
 
 const initialState: LoginState = { error: null };
 
-export function LoginForm() {
+export function LoginForm({ initialError = null }: { initialError?: string | null }) {
   const [state, formAction, isPending] = useActionState(
     signInWithPassword,
     initialState
@@ -52,9 +52,9 @@ export function LoginForm() {
         />
       </div>
 
-      {state.error && (
+      {(state.error || initialError) && (
         <p role="alert" className="text-sm text-destructive">
-          {state.error}
+          {state.error ?? initialError}
         </p>
       )}
 

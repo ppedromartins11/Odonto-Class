@@ -1,37 +1,40 @@
 {
   "name": "clinica-odonto-mvp",
-  "version": "0.0.0-sprint0",
+  "version": "0.0.0-sprint1.5",
   "private": true,
   "description": "Sistema de gestao para clinica odontologica - MVP v1. Sprint 0: infraestrutura, sem funcionalidades.",
   "engines": {
-    "node": ">=20.0.0"
+    "node": "24.x"
   },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.mts"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.10.3",
+    "@supabase/supabase-js": "^2.112.3",
+    "lucide-react": "^1.0.0",
     "next": "^16.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "@supabase/supabase-js": "^2.0.0",
-    "@supabase/ssr": "^0.10.0",
-    "lucide-react": "^1.0.0",
     "server-only": "^0.0.1"
   },
   "devDependencies": {
-    "typescript": "^5.0.0",
-    "@types/node": "^20.0.0",
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "tailwindcss": "^4.0.0",
-    "@tailwindcss/postcss": "^4.0.0",
-    "postcss": "^8.4.0",
     "eslint": "^9.0.0",
     "eslint-config-next": "^16.0.0",
-    "@eslint/eslintrc": "^3.0.0"
+    "postcss": "^8.4.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^4.0.0"
   }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useState, useTransition } from "react";
 import { X, Plus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -16,17 +16,28 @@ const PERFIS = [
 
 export function NovoUsuarioDialog() {
   const [open, setOpen] = useState(false);
-  const [state, formAction, isPending] = useActionState(createUsuario, initialState);
+  const [state, setState] = useState(initialState);
+  const [isPending, startTransition] = useTransition();
 
-  useEffect(() => {
-    if (state.success) {
-      setOpen(false);
-    }
-  }, [state.success]);
+  function openDialog() {
+    setState(initialState);
+    setOpen(true);
+  }
+
+  function submitAction(formData: FormData) {
+    startTransition(async () => {
+      const nextState = await createUsuario(initialState, formData);
+      setState(nextState);
+
+      if (nextState.success) {
+        setOpen(false);
+      }
+    });
+  }
 
   return (
     <>
-      <Button onClick={() => setOpen(true)} size="sm">
+      <Button onClick={openDialog} size="sm">
         <Plus className="w-3.5 h-3.5" />
         Novo usuário
       </Button>
@@ -48,7 +59,7 @@ export function NovoUsuarioDialog() {
               </button>
             </div>
 
-            <form action={formAction} className="space-y-4">
+            <form action={submitAction} className="space-y-4">
               <div>
                 <label htmlFor="nome" className="block mb-1.5 text-foreground">
                   Nome completo

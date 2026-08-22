@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getCurrentUserState } from "@/lib/auth/session";
 
 export type LoginState = { error: string | null };
 
@@ -23,6 +24,17 @@ export async function signInWithPassword(
     // Mensagem generica de proposito - nao confirmar se o e-mail existe
     // ou nao evita dar pista util para tentativa de acesso indevido.
     return { error: "E-mail ou senha inválidos." };
+  }
+
+  const state = await getCurrentUserState();
+  if (state.kind !== "authenticated") {
+    await supabase.auth.signOut();
+    return {
+      error:
+        state.kind === "error"
+          ? "Não foi possível validar o acesso agora. Tente novamente."
+          : "Acesso indisponível. Contate o administrador da clínica.",
+    };
   }
 
   redirect("/dashboard");

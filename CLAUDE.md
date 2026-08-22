@@ -64,8 +64,11 @@ Nunca implemente uma sprint inteira de uma vez sem checkpoints.
 | PAV-15 | `atendimentos.agendamento_id` e opcional (atendimento pode existir sem agendamento previo). |
 | PAV-16 | Notacao de dente proposta: FDI. Campo continua texto livre. Pendente apenas de confirmacao dos dentistas antes do preenchimento em producao. |
 | PAV-17 | Sem exclusao fisica de prontuario. Prazo de retencao formal ainda depende de validacao profissional/juridica. |
+| PAV-18 | Auditoria minima com eventos fechados por sprint; a Sprint 1.5 cobre identidade e acesso antes de qualquer dado clinico. |
+| PAV-20 | MFA e obrigatorio para administrador antes do go-live; continua como gate enquanto nao estiver configurado e testado. |
+| PAV-21 | Recepcao ve apenas o financeiro operacional necessario ao atendimento; indicadores agregados/gerenciais ficam restritos ao administrador. |
 
-Pontos ainda em aberto (RBAC detalhado, PAV-01 a PAV-08, PAV-18 a PAV-21):
+Pontos ainda em aberto (PAV-03 a PAV-08 e PAV-19):
 ver `docs/DECISIONS.md` e `docs/REQUIREMENTS.md`. Nao resolva sozinho -
 sinalize e aguarde confirmacao.
 
@@ -91,8 +94,8 @@ sinalize e aguarde confirmacao.
 ## Estado atual do projeto
 
 - **Sprint 0 (infraestrutura)**: concluida.
-- **Sprint 1 (autenticacao e usuarios)**: concluida nesta etapa.
-  - Autenticacao real (Supabase Auth, sessao via cookies, middleware de
+- **Sprint 1 (autenticacao e usuarios)**: concluida.
+  - Autenticacao real (Supabase Auth, sessao via cookies, proxy de
     protecao de rota) + recuperacao de senha.
   - Layout global (Sidebar/Header) adaptado do prototipo Figma Make -
     "Atendimentos" e "Configuracoes" removidos do menu por decisao
@@ -102,11 +105,13 @@ sinalize e aguarde confirmacao.
     administrativo.
   - Tabelas `usuarios` e `profissionais` criadas com RLS desde o
     inicio - ver docs/DATABASE.md e docs/SECURITY.md.
-  - Build/lint NAO foram executados com sucesso neste ambiente (sem
-    internet) - ver docs/DECISIONS.md para o resultado exato da
-    tentativa.
-- **Proxima etapa**: Sprint 2 - Pacientes (RF-04, RF-05). Aguardando
-  aprovacao explicita antes de iniciar.
+  - Build/lint originais foram posteriormente validados na Sprint 1.5.
+- **Sprint 1.5 (hardening)**: validacao tecnica concluida, inclusive
+  migration/RLS em homologacao isolada. Inclui Node 24, ESLint flat config,
+  `proxy.ts`, callbacks SSR/PKCE, estado fail-closed de conta, onboarding/
+  offboarding atomico, funcoes SQL endurecidas e auditoria minima.
+- **Proxima etapa**: registrar o fechamento da Sprint 1.5. Pacientes/
+  Sprint 2 continua fora deste escopo e exige inicio explicito separado.
 
 ## Convencao estabelecida na Sprint 1 (seguir nas proximas sprints)
 
@@ -117,7 +122,7 @@ sinalize e aguarde confirmacao.
   nao copiar dado mockado do prototipo para dar aparencia de
   funcionalidade que nao existe.
 - Toda pagina/rota protegida usa requireUser()/requireAdmin() de
-  lib/auth/session.ts, ALEM do middleware - nunca uma camada so.
+  lib/auth/session.ts, ALEM do proxy - nunca uma camada so.
 - Toda tabela nova nasce com RLS habilitada na mesma migration que a
   cria, nunca depois.
 - Operacoes que exigem a service role key (lib/supabase/admin.ts) so

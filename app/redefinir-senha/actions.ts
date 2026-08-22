@@ -1,6 +1,11 @@
 "use server";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import {
+  clearAuthFlowCookie,
+  getVerifiedAuthFlow,
+} from "@/lib/auth/flow-cookie";
+import { recordAuditEvent } from "@/lib/audit/server";
 
 export type ResetPasswordState = { success: boolean; error: string | null };
 
@@ -19,6 +24,14 @@ export async function updatePassword(
     return { success: false, error: "As senhas não coincidem." };
   }
 
+  const flow = await getVerifiedAuthFlow();
+  if (!flow) {
+    return {
+      success: false,
+      error: "O link é inválido ou expirou. Solicite uma nova redefinição.",
+    };
+  }
+
   const supabase = await createSupabaseServerClient();
 
   // Supabase estabelece uma sessao de recuperacao temporaria quando o
@@ -34,5 +47,14 @@ export async function updatePassword(
     };
   }
 
+  await recordAuditEvent({
+    usuarioId: flow.sub,
+    evento: flow.flow === "invite" ? "convite_aceito" : "senha_redefinida",
+    entidade: "usuarios",
+    entidadeId: flow.sub,
+  });
+
+  await clearAuthFlowCookie();
+  await supabase.auth.signOut();
   return { success: true, error: null };
 }

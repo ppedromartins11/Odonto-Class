@@ -1,7 +1,7 @@
 "use server";
 
-import { headers } from "next/headers";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getSiteUrl } from "@/lib/config/site";
 
 export type ForgotPasswordState = { submitted: boolean; error: string | null };
 
@@ -16,17 +16,19 @@ export async function requestPasswordReset(
   }
 
   const supabase = await createSupabaseServerClient();
-  const headerList = await headers();
-  const origin = headerList.get("origin") ?? process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  const siteUrl = getSiteUrl();
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/redefinir-senha`,
+    redirectTo: `${siteUrl}/auth/callback?flow=recovery`,
   });
 
   // Sempre retorna sucesso, mesmo se o e-mail nao existir na base - evita
   // que a tela seja usada para descobrir quais e-mails tem conta.
   if (error) {
-    console.error("Erro ao solicitar redefinição de senha:", error.message);
+    console.error("Falha ao solicitar redefinicao de senha", {
+      status: error.status,
+      code: error.code,
+    });
   }
 
   return { submitted: true, error: null };

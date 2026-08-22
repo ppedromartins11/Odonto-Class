@@ -30,18 +30,21 @@ Orcamentos, Validade/Esterilizacao, Usuarios e Permissoes. Objetivo,
 telas e dependencias de cada modulo estao descritos no documento de
 especificacao aprovado (secao 4) - a implementar a partir da Sprint 2.
 
-## Estado na Sprint 0
+## Estado na Sprint 1.5
 
-Nenhum modulo funcional foi implementado. Existe apenas:
-- Scaffold do projeto (Next.js + TypeScript + Tailwind configurados).
-- Clientes Supabase base (`lib/supabase/client.ts` e `server.ts`), sem
-  logica de autenticacao/sessao.
-- Pagina inicial placeholder para validar o deploy vazio.
+- Monolito Next.js 16 em Node 24, com Server Components/Actions e
+  `proxy.ts` para renovacao de sessao SSR.
+- Tres clientes Supabase separados por confianca: browser (anon), server
+  SSR (anon + cookies/RLS) e admin server-only (service role).
+- Identidade em `auth.users`; perfil/estado em `public.usuarios`; dados
+  de dentista em `profissionais`. Provisionamento e sincronizacao ficam
+  no banco para evitar estado parcial.
+- Autorizacao de dados permanece no Postgres/RLS. Guards da aplicacao
+  melhoram UX, mas nao substituem `is_active_user()`/policies.
+- Auditoria minima append-only existe antes dos modulos clinicos.
 
 ## Itens de arquitetura ainda nao validados
 
-Ver `docs/DECISIONS.md`, secao "Itens nao validados por falta de
-internet" - inclui versoes exatas de dependencias e compatibilidade real
-do toolchain (Next 16 + React 19 + Tailwind v4 + TypeScript 5.x), que so
-serao confirmadas quando `npm install` for executado em um ambiente com
-acesso a rede.
+Toolchain e build foram validados localmente. Falta executar `0001` +
+`0002`, lint SQL e a suite RLS em Supabase de homologacao ficticia; este
+e o gate arquitetural antes da Sprint 2.

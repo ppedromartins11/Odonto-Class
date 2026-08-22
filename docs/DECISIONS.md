@@ -14,10 +14,36 @@
 | PAV-16 | Notacao FDI proposta para o campo `dente` (texto livre). | Notacao Universal. Pendente confirmacao dos dentistas. |
 | PAV-17 | Sem exclusao fisica de prontuario; exclusao logica por padrao. | Definir prazo tecnico provisorio de retencao. Prazo formal ainda requer validacao profissional/juridica. |
 
-Itens ainda abertos (nao fazem parte desta revisao): PAV-01 a PAV-08
-(hipoteses originais do documento-fonte, incluindo RBAC detalhado),
-PAV-18 (lista de eventos de auditoria), PAV-19 (limites de upload),
-PAV-20 (MFA), PAV-21 (visibilidade financeira da recepcao).
+Itens ainda abertos: PAV-03 a PAV-08 e PAV-19 (limites de upload).
+
+## Sprint 1.5 - decisoes aprovadas de seguranca
+
+| Tema | Decisao aprovada |
+|---|---|
+| RBAC (PAV-01/PAV-02) | Negacao por padrao. Admin ativo gerencia usuarios e consulta auditoria; dentista e recepcao leem o proprio perfil; somente usuario ativo lista profissionais. Cada modulo futuro deve adicionar a propria matriz por acao/campo antes da migration, sem herdar acesso generico. |
+| Auditoria (PAV-18) | Antes de dados clinicos, registrar: convite/aceite, ativacao/desativacao, mudanca de perfil, tentativa administrativa negada, redefinicao de senha e mudanca de configuracao de acesso. Eventos clinicos serao adicionados junto do modulo correspondente. |
+| MFA (PAV-20) | Obrigatorio para administrador antes do go-live. Nao bloqueia validacao local, mas bloqueia producao enquanto configuracao e teste AAL2 nao estiverem concluidos. |
+| Financeiro da recepcao (PAV-21) | Acesso operacional necessario para registrar e consultar pagamentos do atendimento; sem indicadores agregados, resultado ou visao gerencial da clinica. |
+| Desativacao | Bloquear dados imediatamente por `usuarios.status`/RLS e suspender a conta Auth. Tokens ainda validos nao concedem dados; reativacao remove a suspensao e so entao restaura status, com compensacao em caso de falha. |
+| Ultimo administrador | Nao permitir autodesativacao/autodowngrade nem qualquer mudanca que deixe zero administradores ativos. Regra atomica no banco, nao somente na UI. |
+| Profissional | Ao mudar para dentista, criar/reativar `profissionais`; ao sair do perfil ou desativar, preservar o historico e inativar o registro. |
+| Provisionamento | Convite carrega metadados assinados pelo contexto administrativo; trigger provisiona `auth.users` -> `usuarios` -> `profissionais` + auditoria na mesma transacao. |
+
+## Sprint 1.5 - decisoes tecnicas
+
+- Runtime suportado: Node.js 24 (`engines`, `.node-version` e CI).
+- ESLint 9 usa flat config nativo do `eslint-config-next` 16.
+- `middleware.ts` foi substituido por `proxy.ts`; cookies e headers
+  devolvidos pelo `setAll` do `@supabase/ssr` sao preservados inclusive
+  nos redirects.
+- Convite e recuperacao terminam em handlers SSR/PKCE. A pagina de nova
+  senha exige sessao Supabase e cookie HttpOnly assinado, valido por 10
+  minutos e vinculado ao usuario/fluxo.
+- `is_admin()` e `is_active_user()` sao `SECURITY DEFINER`, usam
+  `search_path = ''`, nomes qualificados e `EXECUTE` somente para
+  `authenticated`/roles tecnicas necessarias.
+- `package-lock.json` e artefato versionado; `.env.local.example` contem
+  somente placeholders.
 
 ## Decisoes de arquitetura
 
@@ -51,37 +77,18 @@ Isso NAO e o mesmo que validar a instalacao. Decisoes tomadas:
   a versao "correta" a longo prazo - revisar quando o ecossistema
   estabilizar em torno do TS7.
 
-## Itens NAO validados por falta de internet neste ambiente
+## Estado de validacao atualizado na Sprint 1.5
 
-Nada abaixo foi confirmado por uma execucao real (`npm install`,
-`npm run build`, `npm run lint`, push para um repositorio remoto, ou
-qualquer chamada a uma API externa). Sao decisoes de boa-fe, baseadas em
-padroes documentados publicamente, mas que precisam de confirmacao no
-seu primeiro `npm install` local:
-
-1. Se as versoes por major listadas em `package.json` realmente
-   resolvem para um conjunto de pacotes compativel entre si (sem
-   conflito de peer dependencies).
-2. Se a sintaxe exata de `next.config.ts`, `postcss.config.mjs` e
-   `eslint.config.mjs` usada aqui corresponde exatamente ao que as
-   versões finais instaladas esperam (foram escritas com base em
-   padroes documentados, sem execucao real para confirmar).
-3. Se `eslint-config-next` e `@eslint/eslintrc` resolvem sem conflito
-   junto com ESLint 9 flat config.
-4. Se as versoes das GitHub Actions usadas no CI
-   (`actions/checkout@v4`, `actions/setup-node@v4`) sao as mais atuais
-   disponiveis no marketplace - nao houve acesso ao GitHub para
-   conferir.
-5. Se o `next-env.d.ts` criado manualmente corresponde exatamente ao
-   que a versao final do Next.js geraria (normalmente e
-   autogerado/sobrescrito no primeiro `next dev`/`next build`).
-6. Nenhum `package-lock.json` foi gerado - isso so acontece no primeiro
-   `npm install` real.
-7. Nenhuma credencial, projeto Supabase ou deploy na Vercel foi criado
-   ou testado.
-
-Ate que o item 1 seja confirmado, trate o `package.json` como uma
-proposta razoavel, nao como uma configuracao definitiva.
+- Dependencias foram instaladas e `package-lock.json` foi gerado.
+- ESLint/Next 16, tipos, testes unitarios e build foram executados com
+  sucesso em Node.js 24.
+- Migrations `0001`/`0002`, lint SQL e sete testes RLS passaram em
+  Supabase de homologacao com dados ficticios em 22/08/2026. Como a
+  `0001` havia sido aplicada manualmente sem historico, o catalogo foi
+  comparado e sua versao foi reparada como `applied` antes do push da
+  `0002`.
+- SMTP, Redirect URLs e MFA/AAL2 tambem exigem validacao no painel do
+  ambiente de homologacao antes do go-live.
 
 ---
 
@@ -103,9 +110,9 @@ dos conflitos identificados e aprovados por voce:
 
 ## Decisoes tecnicas novas desta sprint
 
-- **Sessao via `@supabase/ssr`** (cookies), com refresh no
-  `middleware.ts` - resolve a decisao que ficara em aberto na Sprint 0.
-- **Protecao de rota em duas camadas independentes**: middleware (edge,
+- **Sessao via `@supabase/ssr`** (cookies), originalmente com refresh no
+  middleware e migrada para `proxy.ts` na Sprint 1.5.
+- **Protecao de rota em duas camadas independentes**: proxy,
   antes de qualquer render) + `requireUser()`/`requireAdmin()` dentro de
   cada pagina/layout protegido. Nenhuma das duas sozinha seria
   suficiente por padrao do projeto (nunca depender so de uma checagem).
@@ -138,49 +145,9 @@ dos conflitos identificados e aprovados por voce:
 - **Modo escuro do prototipo nao foi portado** - nao e requisito do MVP;
   evita CSS morto.
 
-## Tentativa de validacao nesta sprint (lint/build)
+## Validacao posterior do codigo da Sprint 1
 
-Com o projeto completo, tentei rodar `npm install`, `npm run lint` e
-`npm run build` neste ambiente, como pedido. Resultado exato:
-
-- `npm install`: falhou de fato, comando executado nesta sprint.
-  Saida real: `npm error code E403` / `403 Forbidden - GET
-  https://registry.npmjs.org/@eslint%2feslintrc`. Confirma de novo a
-  mesma restricao de rede do Sprint 0.
-- `npm run build`: executado, saida real: `sh: 1: next: not found`
-  (esperado - sem `node_modules`).
-- `npm run lint`: executado, saida real: `sh: 1: eslint: not found`
-  (esperado - sem `node_modules`). TypeScript e React estao disponiveis
-  globalmente neste ambiente, mas rodar `tsc` contra o projeto usando
-  apenas os pacotes globais resolveria os tipos do `react` e nada mais -
-  `next/navigation`, `next/headers`, `@supabase/ssr`, `lucide-react` não
-  seriam encontrados de qualquer forma, entao o erro seria sobre
-  dependencia ausente, nao sobre um problema real de tipo. Preferi nao
-  rodar essa validacao parcial para nao dar a falsa impressao de que o
-  codigo foi conferido quando na pratica so confirmaria a mesma
-  limitacao de rede ja conhecida.
-- **O que isso significa na pratica**: todo o codigo desta sprint foi
-  revisado manualmente (imports, tipos, convencoes do App Router,
-  Server/Client Component boundaries), mas **nenhuma linha foi
-  compilada ou executada de fato**. O primeiro `npm install` +
-  `npm run build` local e o verdadeiro teste - qualquer erro de digitacao
-  ou import incorreto só aparecerá nesse momento.
-
-## Itens NAO validados por falta de internet neste ambiente (atualizado)
-
-Alem dos itens ja listados na Sprint 0 (que continuam validos), a Sprint
-1 adiciona:
-
-8. Se `@supabase/ssr` versao `^0.10.0` e de fato compativel com Next 16
-   App Router (API `createServerClient`/`createBrowserClient` usada
-   aqui) - baseada em padrao documentado publicamente, nao testada.
-9. Se `useActionState` (React 19) funciona exatamente como escrito nos
-   formularios (`app/login/LoginForm.tsx` e afins) sem ajuste.
-10. Se a migration `0001_usuarios_profissionais.sql` roda sem erro de
-    sintaxe/permissao no Postgres real do Supabase - nunca foi executada.
-11. Se o ícone `Cross` existe na versao final do `lucide-react` que for
-    instalada (existia na versao usada pelo prototipo).
-12. Fluxo de convite (`inviteUserByEmail`) e de recuperacao de senha
-    dependem de configuracao de e-mail (SMTP) e Redirect URLs no painel
-    do Supabase, que nao existem neste ambiente - ver checklist em
-    `docs/DEPLOYMENT.md`.
+As incompatibilidades que nao puderam ser verificadas no ambiente
+original foram resolvidas e testadas na Sprint 1.5. Permanecem externos
+somente a execucao do banco/RLS, SMTP/redirects e MFA descritos no gate
+acima.

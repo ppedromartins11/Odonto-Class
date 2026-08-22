@@ -1,10 +1,7 @@
 name: CI
 
-# NAO validado rodando de verdade (exige repositorio remoto no GitHub) -
-# ver docs/DECISIONS.md e a lista de itens nao validados. As versoes das
-# actions abaixo (checkout@v4, setup-node@v4) sao as amplamente usadas
-# no momento da escrita deste arquivo, mas nao foram conferidas contra o
-# marketplace do GitHub por falta de acesso a internet neste ambiente.
+# A execucao local equivalente (lint, typecheck, testes e build) foi
+# validada na Sprint 1.5. O workflow remoto depende do GitHub configurado.
 
 on:
   push:
@@ -22,7 +19,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: "npm"
 
       - name: Install dependencies
@@ -33,6 +30,9 @@ jobs:
 
       - name: Type check
         run: npm run typecheck
+
+      - name: Test
+        run: npm test
 
       - name: Build
         run: npm run build

@@ -1,8 +1,9 @@
 # Modelo de Dados
 
-> Sprint 1: primeira migration real criada -
-> `supabase/migrations/0001_usuarios_profissionais.sql` (`usuarios` e
-> `profissionais`, com RLS habilitada desde o inicio). As demais 14
+> Sprint 1.5: migrations `0001_usuarios_profissionais.sql` e
+> `0002_sprint_1_5_hardening.sql`. A segunda endurece funcoes/RLS,
+> provisionamento e cria `auditoria`. Ambas foram executadas e validadas
+> em homologacao ficticia em 22/08/2026. As demais 13
 > tabelas continuam apenas descritas neste documento, sem migration -
 > serao criadas incrementalmente, sprint por sprint.
 
@@ -182,27 +183,31 @@ erDiagram
     ORCAMENTOS ||--o{ PAGAMENTOS : "vinculo opcional"
 ```
 
-## RLS implementada (Sprint 1)
+## RLS e consistencia (Sprint 1.5)
 
 `usuarios` e `profissionais` tem RLS habilitada desde a criacao (nunca
 existiu um momento em que essas tabelas ficaram sem RLS). Padrao usado:
 
-- Funcao `public.is_admin()` (`SECURITY DEFINER`) para permitir que
+- Funcoes `public.is_admin()` e `public.is_active_user()` (`SECURITY
+  DEFINER`, `search_path = ''`) para permitir que
   policies de `usuarios` verifiquem o perfil do usuario logado sem cair
   em recursao de avaliacao de RLS (a policy nao pode consultar
   diretamente a propria tabela que ela protege).
-- `usuarios`: SELECT do proprio registro (qualquer autenticado) + SELECT
-  de todos os registros (admin) + UPDATE (admin). Sem policy de
-  INSERT/DELETE para o role `authenticated` - criacao de usuario
-  acontece via `lib/supabase/admin.ts` (service role, contorna RLS),
-  sempre atras de `requireAdmin()` no server action correspondente.
-- `profissionais`: SELECT para qualquer autenticado (nomes de
-  profissionais serao necessarios em telas futuras como Agenda) + UPDATE
-  restrito a admin. Mesma logica de INSERT via service role.
+- `usuarios`: SELECT proprio para autenticado e SELECT geral para admin.
+  Sem `INSERT/UPDATE/DELETE` direto para `authenticated`; alteracao passa
+  por `update_user_access()`, que protege o ultimo admin e audita.
+- `profissionais`: SELECT apenas para usuario ativo. Escritas diretas de
+  usuario foram revogadas; a RPC sincroniza perfil/status.
+- Trigger em `auth.users` provisiona convite em uma unica transacao e
+  sincroniza alteracao de e-mail. A migration recusa contas Auth
+  preexistentes sem perfil para impedir saneamento silencioso.
+- `auditoria`: append-only; somente admin le, usuario autenticado nao
+  escreve nem altera. Indices cobrem usuario/tempo e entidade/tempo.
 
 Ver `docs/SECURITY.md` para o racional completo.
 
 ## Proxima etapa
 
-Sprint 2 (Pacientes) cria a tabela `pacientes` com o mesmo padrao: RLS
-desde a criacao, sem excecao.
+`0001` + `0002`, lint SQL e a suite RLS foram validados em homologacao
+ficticia. A Sprint 2, quando iniciada explicitamente, cria `pacientes`
+com RLS desde a criacao.

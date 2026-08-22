@@ -1,5 +1,7 @@
 import { Cross } from "lucide-react";
 import { CLINIC_NAME, CLINIC_TAGLINE } from "@/lib/config/clinic";
+import { getCurrentUser } from "@/lib/auth/session";
+import { redirect } from "next/navigation";
 import { LoginForm } from "./LoginForm";
 
 /**
@@ -9,7 +11,31 @@ import { LoginForm } from "./LoginForm";
  * mesmos tokens (cores, radius, tipografia) do restante do sistema para
  * manter consistencia visual.
  */
-export default function LoginPage() {
+type LoginPageProps = {
+  searchParams: Promise<{
+    reason?: string;
+    auth_error?: string;
+  }>;
+};
+
+const REASON_MESSAGES: Record<string, string> = {
+  access_unavailable: "Acesso indisponível. Contate o administrador da clínica.",
+  temporary_error: "Não foi possível validar o acesso agora. Tente novamente.",
+  session_required: "Entre para acessar o sistema.",
+  invalid_link: "O link de acesso é inválido.",
+  expired_link: "O link de acesso expirou. Solicite um novo.",
+};
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const usuario = await getCurrentUser();
+  if (usuario) {
+    redirect("/dashboard");
+  }
+
+  const params = await searchParams;
+  const reasonKey = params.auth_error ?? params.reason ?? "";
+  const initialError = REASON_MESSAGES[reasonKey] ?? null;
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm">
@@ -23,7 +49,7 @@ export default function LoginPage() {
 
         <div className="bg-card border border-border rounded-lg p-6 shadow-sm">
           <h2 className="text-base font-medium text-card-foreground mb-4">Entrar</h2>
-          <LoginForm />
+          <LoginForm initialError={initialError} />
         </div>
       </div>
     </div>

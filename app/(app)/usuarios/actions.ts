@@ -3,9 +3,16 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getSiteUrl } from "@/lib/config/site";
+import { recordAuditEvent } from "@/lib/audit/server";
 import type { PerfilUsuario } from "@/lib/auth/session";
 
 export type CreateUsuarioState = { error: string | null; success: boolean };
+export type UpdateUsuarioAccessState = {
+  error: string | null;
+  success: boolean;
+};
 
 const PERFIS_VALIDOS: PerfilUsuario[] = ["administrador", "dentista", "recepcao"];
 
@@ -15,15 +22,16 @@ const PERFIS_VALIDOS: PerfilUsuario[] = ["administrador", "dentista", "recepcao"
  * privilegiada, e nao apenas por este formulario estar escondido na UI
  * para quem nao e admin (ver lib/auth/session.ts).
  *
- * Fluxo: convite por e-mail via Supabase Admin API (o usuario define a
- * propria senha ao aceitar) + criacao do registro correspondente em
- * `usuarios`. Nao ha autocadastro no sistema.
+ * Fluxo: convite por e-mail via Supabase Admin API. O trigger
+ * `handle_new_auth_user` provisiona `usuarios`, `profissionais` (quando
+ * dentista) e a auditoria na mesma transacao da criacao em auth.users.
+ * Nao ha autocadastro no sistema.
  */
 export async function createUsuario(
   _prevState: CreateUsuarioState,
   formData: FormData
 ): Promise<CreateUsuarioState> {
-  await requireAdmin();
+  const actor = await requireAdmin();
 
   const nome = String(formData.get("nome") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim();
@@ -39,47 +47,147 @@ export async function createUsuario(
 
   const admin = createSupabaseAdminClient();
 
-  const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(
-    email
-  );
-
-  if (inviteError || !invited.user) {
-    return {
-      error: `Não foi possível convidar o usuário: ${inviteError?.message ?? "erro desconhecido"}.`,
-      success: false,
-    };
-  }
-
-  const { error: insertError } = await admin.from("usuarios").insert({
-    id: invited.user.id,
-    nome,
-    email,
-    perfil,
-  });
-
-  if (insertError) {
-    // O convite ja foi enviado, mas o perfil de aplicacao falhou ao
-    // salvar - isso deixa o usuario "orfao" (existe no auth, nao em
-    // `usuarios`). getCurrentUser() trata esse caso como nao-autenticado
-    // por seguranca, mas o certo e revisar manualmente no Supabase.
-    return {
-      error: `Convite enviado, mas houve erro ao salvar o perfil: ${insertError.message}. Verifique manualmente no Supabase.`,
-      success: false,
-    };
-  }
-
-  // Usuarios com perfil "dentista" ganham um registro correspondente em
-  // `profissionais` (relacao 1:1 do schema aprovado - docs/DATABASE.md).
-  // registro_profissional (CRO) fica em branco por enquanto - PAV em
-  // aberto se e obrigatorio; preencher isso nao e parte desta sprint.
-  if (perfil === "dentista") {
-    const { error: profissionalError } = await admin.from("profissionais").insert({
-      usuario_id: invited.user.id,
+  const { data: invited, error: inviteError } =
+    await admin.auth.admin.inviteUserByEmail(email, {
+      data: {
+        nome,
+        perfil,
+        created_by: actor.id,
+      },
+      redirectTo: `${getSiteUrl()}/auth/confirm`,
     });
 
-    if (profissionalError) {
+  if (inviteError || !invited.user) {
+    console.error("Falha ao convidar usuario", {
+      status: inviteError?.status,
+      code: inviteError?.code,
+    });
+    return {
+      error: "Não foi possível enviar o convite. Verifique o e-mail e tente novamente.",
+      success: false,
+    };
+  }
+
+  revalidatePath("/usuarios");
+  return { error: null, success: true };
+}
+
+function isPerfilUsuario(value: string): value is PerfilUsuario {
+  return PERFIS_VALIDOS.includes(value as PerfilUsuario);
+}
+
+/**
+ * Altera perfil e/ou status por uma RPC security definer que valida admin
+ * ativo, protege o ultimo administrador e sincroniza profissionais.
+ *
+ * A desativacao bloqueia primeiro os dados via RLS e depois suspende a
+ * conta Auth. Assim, uma falha na API administrativa nunca reabre acesso
+ * aos dados da clinica. A reativacao usa compensacao para manter o estado
+ * anterior caso a RPC falhe.
+ */
+export async function updateUsuarioAccess(
+  formData: FormData
+): Promise<UpdateUsuarioAccessState> {
+  const actor = await requireAdmin();
+
+  const usuarioId = String(formData.get("usuarioId") ?? "").trim();
+  const perfilRaw = String(formData.get("perfil") ?? "").trim();
+  const statusRaw = String(formData.get("status") ?? "").trim();
+
+  if (!usuarioId) {
+    return { error: "Usuário inválido.", success: false };
+  }
+
+  const perfil = perfilRaw ? perfilRaw : null;
+  const status = statusRaw ? statusRaw : null;
+
+  if (perfil !== null && !isPerfilUsuario(perfil)) {
+    return { error: "Perfil inválido.", success: false };
+  }
+
+  if (status !== null && status !== "ativo" && status !== "inativo") {
+    return { error: "Status inválido.", success: false };
+  }
+
+  if (perfil === null && status === null) {
+    return { error: "Nenhuma alteração foi informada.", success: false };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const admin = createSupabaseAdminClient();
+
+  if (status === "ativo") {
+    const { error: unbanError } = await admin.auth.admin.updateUserById(usuarioId, {
+      ban_duration: "none",
+    });
+
+    if (unbanError) {
+      console.error("Falha ao reativar conta Auth", {
+        status: unbanError.status,
+        code: unbanError.code,
+      });
       return {
-        error: `Usuário criado, mas houve erro ao registrar o profissional: ${profissionalError.message}. Verifique manualmente no Supabase.`,
+        error: "Não foi possível reativar a conta de acesso.",
+        success: false,
+      };
+    }
+  }
+
+  const { error: accessError } = await supabase.rpc("update_user_access", {
+    p_usuario_id: usuarioId,
+    p_perfil: perfil,
+    p_status: status,
+  });
+
+  if (accessError) {
+    if (status === "ativo") {
+      const { error: compensationError } =
+        await admin.auth.admin.updateUserById(usuarioId, {
+          ban_duration: "876000h",
+        });
+      if (compensationError) {
+        console.error("Falha na compensacao da reativacao Auth", {
+          status: compensationError.status,
+          code: compensationError.code,
+        });
+      }
+    }
+
+    console.error("Falha na RPC update_user_access", {
+      code: accessError.code,
+    });
+    if (accessError.code === "23514" || accessError.code === "42501") {
+      await recordAuditEvent({
+        usuarioId: actor.id,
+        evento: "acao_administrativa_negada",
+        entidade: "usuarios",
+        entidadeId: usuarioId,
+        dados: { motivo_codigo: accessError.code },
+      });
+    }
+    return {
+      error:
+        accessError.code === "23514" || accessError.code === "42501"
+          ? "A alteração foi recusada pelas regras de segurança administrativa."
+          : "Não foi possível alterar o acesso do usuário.",
+      success: false,
+    };
+  }
+
+  if (status === "inativo") {
+    const { error: banError } = await admin.auth.admin.updateUserById(usuarioId, {
+      ban_duration: "876000h",
+    });
+
+    if (banError) {
+      console.error("Falha ao suspender conta Auth", {
+        status: banError.status,
+        code: banError.code,
+      });
+      revalidatePath("/usuarios");
+      return {
+        error:
+          "O acesso aos dados foi bloqueado, mas a suspensão da conta precisa ser tentada novamente.",
         success: false,
       };
     }

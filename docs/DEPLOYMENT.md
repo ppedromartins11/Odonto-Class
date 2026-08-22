@@ -1,12 +1,11 @@
 # Deploy
 
-## Ambiente de geracao (este sandbox)
+## Gate da Sprint 1.5
 
-Este projeto foi montado em um ambiente sem acesso a internet. Isso
-significa que `npm install`, criacao de repositorio remoto, criacao do
-projeto Supabase e o deploy real na Vercel **nao foram executados
-aqui** - ver `docs/DECISIONS.md` para a lista completa de itens nao
-validados.
+Dependencias, lint, tipos, testes unitarios, build, migrations, lint SQL
+e RLS foram validados com Node.js 24 e Supabase de homologacao ficticia.
+Producao permanece bloqueada pelos gates manuais de e-mail/redirects,
+MFA administrativo, backup/restauracao e configuracao de ambiente.
 
 ## Checklist para concluir a Sprint 0 (fora deste ambiente)
 
@@ -28,13 +27,15 @@ validados.
 3. **Criar o projeto no Supabase** (supabase.com) e copiar, em
    Project Settings > API: URL, anon key e service role key.
 
-3.1. **Rodar a migration** `supabase/migrations/0001_usuarios_profissionais.sql`
-   contra esse projeto (SQL Editor do Supabase ou `supabase db push` via
-   CLI) - ainda nao foi executada em nenhum banco real.
+3.1. **Rodar as migrations `0001` e `0002`, em ordem**, primeiro em
+   homologacao. `0002` falha deliberadamente se encontrar conta Auth sem
+   perfil; saneie essa inconsistencia sem inventar perfil e tente de novo.
 
-3.2. **Configurar Auth > URL Configuration no painel do Supabase**:
-   adicionar `<sua-url>/redefinir-senha` como Redirect URL permitida.
-   Sem isso, o link de recuperacao de senha (RF-01) nao funciona.
+3.2. **Configurar Auth > URL Configuration e templates**:
+   permitir `<sua-url>/auth/callback` e `<sua-url>/auth/confirm`.
+   O template de convite deve apontar `token_hash`/`type=invite` para
+   `/auth/confirm`; recuperacao usa `ConfirmationURL` e retorna ao
+   callback PKCE informado pela aplicacao.
 
 3.3. **Criar o primeiro usuário administrador manualmente** (Auth > Users
    no painel, "Invite user", depois inserir a linha correspondente na
@@ -47,7 +48,8 @@ validados.
    cp .env.local.example .env.local
    ```
    e colar os valores copiados no passo 3, alem de
-   `NEXT_PUBLIC_SITE_URL=http://localhost:3000` para desenvolvimento.
+   `NEXT_PUBLIC_SITE_URL=http://localhost:3000` e um
+   `AUTH_FLOW_COOKIE_SECRET` aleatorio de no minimo 32 caracteres.
 
 5. **Conectar o repositorio na Vercel** (Import Project, apontando para
    o repositorio criado no passo 2) e adicionar as mesmas variaveis de
@@ -58,6 +60,13 @@ validados.
 
 6. Confirmar que a URL publica gerada pela Vercel mostra a mesma pagina
    placeholder validada no passo 1.
+
+7. Em homologacao, preencher `.env.test.local` a partir de
+   `.env.test.example`, aplicar/lintar as migrations pela URI Postgres e
+   executar `npm run test:integration`.
+
+8. Antes do go-live, configurar e testar MFA/AAL2 para todo
+   administrador. Enquanto isso nao ocorrer, producao nao esta aprovada.
 
 ## Backup e recuperacao (RNF-07)
 

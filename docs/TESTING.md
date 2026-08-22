@@ -2,7 +2,7 @@
 
 ## Estrategia
 
-- CI (`.github/workflows/ci.yml`) roda lint, typecheck e build em todo
+- CI (`.github/workflows/ci.yml`) roda lint, typecheck, testes e build em todo
   push/PR para `main`. Testes automatizados especificos por
   funcionalidade sao adicionados a partir da Sprint 1.
 - Toda funcionalidade que toca dado clinico ou financeiro precisa de
@@ -32,8 +32,27 @@
 | RF-20 | Acao critica (lista em `docs/SECURITY.md`, PAV-18) gera registro em `auditoria` com usuario e timestamp. |
 | Transversal | Usuario sem permissao nao consegue visualizar dado restrito de outro perfil, mesmo alterando a URL/requisicao diretamente. |
 
-## Estado na Sprint 0
+## Sprint 1.5
 
-Nenhum teste automatizado foi criado ainda - nao ha funcionalidade para
-testar. O pipeline de CI existe, mas so sera executado de fato apos o
-primeiro push para um repositorio remoto (ver `docs/DEPLOYMENT.md`).
+- `npm test`: testes unitarios do token assinado de convite/recuperacao
+  (valido, expirado, adulterado e segredo invalido).
+- `npm run test:integration`: suite real de autorizacao contra Supabase,
+  cobrindo administrador, dentista, recepcao, usuario inativo e usuario
+  Auth sem perfil; tambem testa RPC administrativa, consistencia de
+  profissional, protecao da propria conta e leitura da auditoria.
+- A suite de integracao cria identidades ficticias descartaveis e as
+  remove no `afterAll`. Ela se recusa a iniciar sem o marcador explicito
+  `SUPABASE_TEST_HOMOLOGATION=I_ACKNOWLEDGE_FAKE_DATA_ONLY`.
+
+Para executar:
+
+1. Aplicar `0001` e `0002` em uma homologacao isolada.
+2. Copiar `.env.test.example` para `.env.test.local` e preencher apenas
+   credenciais da homologacao, a URI Postgres e um administrador de teste.
+3. Rodar `npm run test:integration`.
+4. Confirmar que nao ficaram usuarios `sprint15-*` apos o teste.
+
+Estado em 22/08/2026: lint, typecheck, 3 testes unitarios, build e os 7
+testes Supabase passam. O lint SQL remoto nao encontrou erros; migrations
+`0001`/`0002` estao alinhadas no historico da homologacao. As identidades
+criadas pela suite sao removidas no cleanup.

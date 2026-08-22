@@ -12,6 +12,13 @@ export type UsuarioAtual = {
   status: "ativo" | "inativo";
 };
 
+export type CurrentUserState =
+  | { kind: "authenticated"; user: UsuarioAtual }
+  | { kind: "unauthenticated" }
+  | { kind: "inactive"; user: UsuarioAtual }
+  | { kind: "profile_missing"; authUserId: string }
+  | { kind: "error" };
+
 /**
  * Retorna o usuario autenticado (auth + perfil da tabela `usuarios`), ou
  * null se nao houver sessao valida. Nao redireciona - quem chama decide
@@ -22,7 +29,7 @@ export type UsuarioAtual = {
  * confia apenas no cookie decodificado localmente (getSession) - getUser
  * revalida o token no backend do Supabase.
  */
-export async function getCurrentUser(): Promise<UsuarioAtual | null> {
+export async function getCurrentUserState(): Promise<CurrentUserState> {
   const supabase = await createSupabaseServerClient();
 
   const {
@@ -30,25 +37,39 @@ export async function getCurrentUser(): Promise<UsuarioAtual | null> {
     error: authError,
   } = await supabase.auth.getUser();
 
-  if (authError || !user) {
-    return null;
+  if (authError && authError.status !== 401) {
+    return { kind: "error" };
+  }
+
+  if (!user) {
+    return { kind: "unauthenticated" };
   }
 
   const { data: perfil, error: perfilError } = await supabase
     .from("usuarios")
     .select("id, nome, email, perfil, status")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
 
-  if (perfilError || !perfil) {
-    // Usuario existe no Supabase Auth mas nao tem registro correspondente
-    // em `usuarios` (nao deveria acontecer no fluxo normal - ver
-    // app/(app)/usuarios/actions.ts, que cria os dois juntos). Tratamos
-    // como nao autenticado por seguranca, em vez de assumir um perfil.
-    return null;
+  if (perfilError) {
+    return { kind: "error" };
   }
 
-  return perfil as UsuarioAtual;
+  if (!perfil) {
+    return { kind: "profile_missing", authUserId: user.id };
+  }
+
+  const usuario = perfil as UsuarioAtual;
+  if (usuario.status !== "ativo") {
+    return { kind: "inactive", user: usuario };
+  }
+
+  return { kind: "authenticated", user: usuario };
+}
+
+export async function getCurrentUser(): Promise<UsuarioAtual | null> {
+  const state = await getCurrentUserState();
+  return state.kind === "authenticated" ? state.user : null;
 }
 
 /**
@@ -60,13 +81,19 @@ export async function getCurrentUser(): Promise<UsuarioAtual | null> {
  * deveria nem tentar.
  */
 export async function requireUser(): Promise<UsuarioAtual> {
-  const usuario = await getCurrentUser();
+  const state = await getCurrentUserState();
 
-  if (!usuario || usuario.status !== "ativo") {
-    redirect("/login");
+  if (state.kind !== "authenticated") {
+    const reason =
+      state.kind === "inactive" || state.kind === "profile_missing"
+        ? "access_unavailable"
+        : state.kind === "error"
+          ? "temporary_error"
+          : "session_required";
+    redirect(`/login?reason=${reason}`);
   }
 
-  return usuario;
+  return state.user;
 }
 
 /**

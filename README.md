@@ -4,12 +4,12 @@ Sistema de gestao para uma clinica odontologica real (agenda, pacientes,
 prontuario, documentos, retornos, tarefas, pagamentos, orcamento e
 controle de validade/esterilizacao).
 
-> Status atual: **Sprint 1 concluída** (autenticação + usuários).
-> Login, recuperação de senha, layout global (Sidebar/Header) e o módulo
-> de Usuários estão implementados e funcionais assim que as credenciais
-> reais do Supabase forem configuradas. Os demais módulos aparecem no
-> menu como "em breve". Ver `CLAUDE.md` para as regras do projeto e
-> `docs/TODO.md` para o roadmap completo.
+> Status atual: **Sprint 1.5 tecnicamente validada**. Toolchain,
+> autenticação SSR/PKCE, autorização, onboarding, offboarding e auditoria
+> mínima passaram em lint, tipos, testes unitários, build, lint SQL e sete
+> testes RLS em Supabase de homologação com dados fictícios. MFA de
+> administrador e validação manual dos e-mails/redirects continuam como
+> gates de go-live. Ver `docs/TODO.md`.
 
 ## Stack
 
@@ -37,7 +37,7 @@ lib/
   auth/            helpers de sessao/RBAC (session.ts) e logout (actions.ts)
   config/          lib/config/clinic.ts - nome da clinica (ver nota abaixo)
   supabase/        clientes Supabase (client/server/admin)
-middleware.ts      protecao de rota + refresh de sessao
+proxy.ts           protecao de rota + refresh de sessao (Next.js 16)
 supabase/          migrations e seed
 docs/           documentacao viva do projeto
 ```
@@ -48,7 +48,7 @@ docs/           documentacao viva do projeto
 porque o nome real não foi informado em nenhuma fonte do projeto. Edite
 esse arquivo com o nome real antes de ir para produção.
 
-## Como rodar localmente (apos a Sprint 0)
+## Como rodar localmente
 
 Estes passos precisam ser executados por voce, fora deste ambiente de
 geracao de codigo, pois exigem acesso a internet e a suas credenciais:
@@ -65,19 +65,32 @@ geracao de codigo, pois exigem acesso a internet e a suas credenciais:
    ```
    cp .env.local.example .env.local
    ```
-4. Rodar a migration `supabase/migrations/0001_usuarios_profissionais.sql`
-   contra o projeto Supabase (SQL Editor ou CLI).
-5. Configurar em Auth > URL Configuration (painel do Supabase) a
-   Redirect URL `<sua-url>/redefinir-senha` - necessária para a
-   recuperação de senha funcionar.
-6. Criar manualmente o primeiro usuário administrador (Auth > Invite
-   user no painel + inserir a linha correspondente em `usuarios` com
-   `perfil = 'administrador'`) - não há autocadastro pela aplicação.
+4. Usar Node.js 24 e rodar, em ordem, as migrations `0001` e `0002` de
+   `supabase/migrations/`. Não editar migrations já aplicadas.
+5. Configurar em Auth > URL Configuration as URLs permitidas
+   `<sua-url>/auth/callback` e `<sua-url>/auth/confirm`. Os templates de
+   convite devem enviar `token_hash` para `/auth/confirm`; recuperação
+   usa o callback PKCE `/auth/callback?flow=recovery`.
+6. Para um banco vazio, criar manualmente o primeiro usuário Auth e sua
+   linha `usuarios` como administrador ativo. Depois disso, somente o
+   convite administrativo da aplicação pode provisionar contas.
 7. Rodar o projeto:
    ```
    npm run dev
    ```
 8. Abrir `http://localhost:3000` - deve redirecionar para `/login`.
+
+Validacao local:
+
+```text
+npm run lint
+npm run typecheck
+npm test
+npm run build
+```
+
+Os testes RLS usam `.env.test.local`, conforme `.env.test.example`, e só
+rodam com `npm run test:integration` em homologação isolada.
 
 ## Documentacao
 

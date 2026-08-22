@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/Badge";
 import { NovoUsuarioDialog } from "./NovoUsuarioDialog";
+import { UsuarioAccessControls } from "./UsuarioAccessControls";
 import type { PerfilUsuario } from "@/lib/auth/session";
 
 /**
@@ -12,9 +13,8 @@ import type { PerfilUsuario } from "@/lib/auth/session";
  *  - Colunas "Telefone" e "Ultimo acesso" removidas - nao existem no
  *    schema aprovado (docs/DATABASE.md); adicionar exigiria inventar
  *    requisito.
- *  - Botao de acoes "..." removido - editar/desativar usuario nao e
- *    parte desta sprint, e um botao sem funcao real seria a mesma
- *    "funcionalidade ficticia" que foi pedido para evitar no header.
+ *  - Acoes administrativas alteram perfil/status pela RPC endurecida;
+ *    desativacao tambem suspende a conta no Supabase Auth.
  *  - Bloco "Permissoes por perfil" mantido como referencia ilustrativa
  *    (texto estatico, como no prototipo) - o RBAC de verdade esta na
  *    RLS do banco, nao aqui.
@@ -52,7 +52,7 @@ function initials(nome: string) {
 }
 
 export default async function UsuariosPage() {
-  await requireAdmin();
+  const currentAdmin = await requireAdmin();
 
   const supabase = await createSupabaseServerClient();
   const { data: usuarios, error } = await supabase
@@ -124,6 +124,9 @@ export default async function UsuariosPage() {
                 <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">
                   Status
                 </th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Acesso
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -157,6 +160,14 @@ export default async function UsuariosPage() {
                       <Badge tone={usuario.status === "ativo" ? "success" : "neutral"}>
                         {usuario.status === "ativo" ? "Ativo" : "Inativo"}
                       </Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <UsuarioAccessControls
+                        usuarioId={usuario.id}
+                        perfilAtual={usuario.perfil as PerfilUsuario}
+                        statusAtual={usuario.status as "ativo" | "inativo"}
+                        isCurrentUser={usuario.id === currentAdmin.id}
+                      />
                     </td>
                   </tr>
                 );
