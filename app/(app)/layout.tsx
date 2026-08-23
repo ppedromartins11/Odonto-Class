@@ -19,8 +19,8 @@ export default async function AppLayout({
     <>
       <Sidebar usuario={usuario} />
       <Header usuario={usuario} />
-      <main className="ml-56 pt-14 min-h-screen bg-background">
-        <div className="p-6">{children}</div>
+      <main className="min-h-screen bg-background pb-14 pt-14 md:ml-56 md:pb-0">
+        <div className="p-3 sm:p-6">{children}</div>
       </main>
     </>
   );

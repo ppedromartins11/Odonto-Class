@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import Link from "next/link";
 import { Search, Bell, Plus } from "lucide-react";
 import type { UsuarioAtual } from "@/lib/auth/session";
 import { UserMenu } from "./UserMenu";
@@ -8,15 +9,18 @@ import { UserMenu } from "./UserMenu";
 const ROUTE_TITLES: Record<string, string> = {
   dashboard: "Dashboard",
   usuarios: "Usuários",
+  pacientes: "Pacientes",
+  agenda: "Agenda",
+  atendimentos: "Atendimento",
 };
 
 /**
  * Adaptado de src/app/components/Header.tsx do prototipo. Ajustes
  * aprovados nesta sprint (ver Conflito 4 da analise):
- *  - Busca global: presente visualmente, mas desabilitada - sem
- *    funcionalidade ficticia. Buscar paciente de verdade fica para a
- *    Sprint 2 (modulo Pacientes).
- *  - "Nova consulta": desabilitada - Agenda ainda nao existe.
+ *  - Busca global: conecta a busca real de pacientes por nome/telefone
+ *    implementada na Sprint 2. Consultas continuam fora do escopo.
+ *  - "Novo agendamento": ativo para administrador/recepcao depois do bloco
+ *    integrado de Agenda; dentista inicia atendimento a partir da propria agenda.
  *  - Sino de notificacao: SEM o indicador vermelho fixo do prototipo,
  *    que sugeria notificacao nao lida sem nenhum sistema real por tras.
  *    Sera conectado a retornos/tarefas/alertas quando esses modulos
@@ -31,30 +35,27 @@ export function Header({ usuario }: { usuario: UsuarioAtual }) {
   const title = ROUTE_TITLES[segment] ?? "Dashboard";
 
   return (
-    <header className="fixed top-0 left-56 right-0 h-14 bg-card border-b border-border flex items-center gap-4 px-6 z-10">
+    <header className="fixed left-0 right-0 top-0 z-10 flex h-14 items-center gap-2 border-b border-border bg-card px-3 sm:gap-4 md:left-56 md:px-6">
       <h1 className="text-sm font-semibold text-foreground">{title}</h1>
 
-      <div className="flex-1 max-w-xs relative ml-4">
+      <form action="/pacientes" className="relative ml-2 hidden max-w-xs flex-1 sm:block md:ml-4">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
         <input
-          type="text"
-          disabled
-          placeholder="Buscar paciente, consulta... (em breve)"
-          title="Busca disponível a partir da Sprint 2"
-          className="w-full pl-9 pr-3 py-1.5 text-sm bg-secondary border border-border rounded-md text-muted-foreground placeholder:text-muted-foreground cursor-not-allowed"
+          type="search"
+          name="q"
+          maxLength={100}
+          placeholder="Buscar paciente por nome ou telefone"
+          aria-label="Buscar paciente por nome ou telefone"
+          className="w-full pl-9 pr-3 py-1.5 text-sm bg-secondary border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         />
-      </div>
+      </form>
 
       <div className="flex items-center gap-2 ml-auto">
-        <button
-          type="button"
-          disabled
-          title="Disponível quando o módulo Agenda existir"
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/50 text-primary-foreground rounded-md text-sm cursor-not-allowed"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Nova consulta
-        </button>
+        {usuario.perfil === "administrador" || usuario.perfil === "recepcao" ? (
+          <Link href="/agenda/novo" aria-label="Novo agendamento" className="flex items-center gap-1.5 rounded-md bg-primary px-2.5 py-1.5 text-sm text-primary-foreground hover:bg-primary/90 sm:px-3">
+            <Plus className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Novo agendamento</span><span className="sm:hidden">Novo</span>
+          </Link>
+        ) : null}
 
         <button
           type="button"
