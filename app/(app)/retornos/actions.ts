@@ -1,0 +1,10 @@
+"use server";
+import { revalidatePath } from "next/cache";
+import { requireUser } from "@/lib/auth/session";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import type { DomainActionState, ReturnStatus } from "@/lib/operational/types";
+
+const state = (error: string | null): DomainActionState => ({ success: !error, error });
+export async function createReturn(_: DomainActionState, form: FormData): Promise<DomainActionState> { const user=await requireUser(); if(user.perfil!=="dentista") return state("Você não tem permissão para criar retorno clínico."); const s=await createSupabaseServerClient(); const {error}=await s.rpc("create_return",{p_atendimento_id:String(form.get("attendanceId")??""),p_data_prevista:String(form.get("dueDate")??""),p_observacao_administrativa:String(form.get("note")??"")||null}); if(error) return state("Não foi possível criar o retorno."); revalidatePath("/retornos"); return state(null); }
+export async function linkReturnAppointment(_: DomainActionState, form: FormData): Promise<DomainActionState> { const user=await requireUser(); if(user.perfil==="dentista") return state("Você não tem permissão para agendar retorno."); const s=await createSupabaseServerClient(); const {error}=await s.rpc("link_return_appointment",{p_retorno_id:String(form.get("returnId")??""),p_agendamento_id:String(form.get("appointmentId")??"")}); if(error)return state("Não foi possível vincular o agendamento."); revalidatePath("/retornos"); return state(null); }
+export async function setReturnStatus(_: DomainActionState, form: FormData): Promise<DomainActionState> { const user=await requireUser(); if(user.perfil==="dentista") return state("Você não tem permissão para concluir retorno."); const status=String(form.get("status")??"") as ReturnStatus; if(status!=="concluido"&&status!=="cancelado")return state("Status inválido."); const s=await createSupabaseServerClient();const {error}=await s.rpc("set_return_status",{p_retorno_id:String(form.get("returnId")??""),p_status:status,p_observacao_administrativa:null});if(error)return state("Não foi possível atualizar o retorno.");revalidatePath("/retornos");return state(null); }

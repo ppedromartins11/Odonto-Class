@@ -1,0 +1,3 @@
+import { describe, expect, it } from "vitest";
+import { MAX_UPLOAD_BYTES, safeUpload } from "./validation";
+describe("upload validation",()=>{it("requires allowlisted MIME, extension, signature and 10 MiB",()=>{expect(safeUpload({name:"a.pdf",type:"application/pdf",size:5},new Uint8Array([37,80,68,70,45]),"administrativo").ok).toBe(true);expect(safeUpload({name:"a.jpg",type:"image/png",size:8},new Uint8Array([137,80,78,71,13,10,26,10]),"clinico").ok).toBe(false);expect(safeUpload({name:"a.png",type:"image/png",size:MAX_UPLOAD_BYTES+1},new Uint8Array([137,80,78,71,13,10,26,10]),"clinico").ok).toBe(false);expect(safeUpload({name:"a.pdf",type:"application/pdf",size:5},new Uint8Array([1,2,3,4,5]),"administrativo").ok).toBe(false)});});
