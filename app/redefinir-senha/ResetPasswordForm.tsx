@@ -4,7 +4,8 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { updatePassword, type ResetPasswordState } from "./actions";
+import { updatePassword } from "./actions";
+import type { ResetPasswordState } from "./types";
 
 const initialState: ResetPasswordState = { success: false, error: null };
 

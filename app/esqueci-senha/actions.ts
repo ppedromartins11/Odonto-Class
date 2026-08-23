@@ -2,8 +2,7 @@
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getSiteUrl } from "@/lib/config/site";
-
-export type ForgotPasswordState = { submitted: boolean; error: string | null };
+import type { ForgotPasswordState } from "./types";
 
 export async function requestPasswordReset(
   _prevState: ForgotPasswordState,

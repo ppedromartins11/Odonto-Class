@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useActionState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { signInWithPassword, type LoginState } from "./actions";
+import { signInWithPassword } from "./actions";
+import type { LoginState } from "./types";
 
 const initialState: LoginState = { error: null };
 

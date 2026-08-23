@@ -4,7 +4,8 @@ import { useState, useTransition } from "react";
 import { X, Plus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { createUsuario, type CreateUsuarioState } from "./actions";
+import { createUsuario } from "./actions";
+import type { CreateUsuarioState } from "./types";
 
 const initialState: CreateUsuarioState = { error: null, success: false };
 

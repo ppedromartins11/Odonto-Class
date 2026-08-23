@@ -3,8 +3,7 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getCurrentUserState } from "@/lib/auth/session";
-
-export type LoginState = { error: string | null };
+import type { LoginState } from "./types";
 
 export async function signInWithPassword(
   _prevState: LoginState,

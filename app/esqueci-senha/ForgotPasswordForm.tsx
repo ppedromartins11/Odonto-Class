@@ -4,7 +4,8 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { requestPasswordReset, type ForgotPasswordState } from "./actions";
+import { requestPasswordReset } from "./actions";
+import type { ForgotPasswordState } from "./types";
 
 const initialState: ForgotPasswordState = { submitted: false, error: null };
 

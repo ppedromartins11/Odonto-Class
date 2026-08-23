@@ -6,8 +6,7 @@ import {
   getVerifiedAuthFlow,
 } from "@/lib/auth/flow-cookie";
 import { recordAuditEvent } from "@/lib/audit/server";
-
-export type ResetPasswordState = { success: boolean; error: string | null };
+import type { ResetPasswordState } from "./types";
 
 export async function updatePassword(
   _prevState: ResetPasswordState,

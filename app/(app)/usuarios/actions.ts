@@ -7,12 +7,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getSiteUrl } from "@/lib/config/site";
 import { recordAuditEvent } from "@/lib/audit/server";
 import type { PerfilUsuario } from "@/lib/auth/session";
-
-export type CreateUsuarioState = { error: string | null; success: boolean };
-export type UpdateUsuarioAccessState = {
-  error: string | null;
-  success: boolean;
-};
+import type { CreateUsuarioState, UpdateUsuarioAccessState } from "./types";
 
 const PERFIS_VALIDOS: PerfilUsuario[] = ["administrador", "dentista", "recepcao"];
 
