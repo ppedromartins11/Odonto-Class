@@ -8,9 +8,11 @@ type PatientOption = { id: string; nome: string; telefone_contato: string | null
 export function PatientPicker({
   initialPatient,
   error,
+  searchLabel = "Buscar paciente para agendamento",
 }: {
   initialPatient?: PatientOption | null;
   error?: string;
+  searchLabel?: string;
 }) {
   const [selected, setSelected] = useState<PatientOption | null>(initialPatient ?? null);
   const [query, setQuery] = useState("");
@@ -70,7 +72,7 @@ export function PatientPicker({
               setLoading(false);
             }}
             placeholder="Digite nome ou telefone"
-            aria-label="Buscar paciente para agendamento"
+            aria-label={searchLabel}
             className={`h-10 w-full rounded-md border bg-input-background pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring ${error ? "border-destructive" : "border-border"}`}
           />
           {query.trim().length >= 2 && (
