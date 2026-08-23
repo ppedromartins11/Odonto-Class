@@ -110,8 +110,13 @@ sinalize e aguarde confirmacao.
   migration/RLS em homologacao isolada. Inclui Node 24, ESLint flat config,
   `proxy.ts`, callbacks SSR/PKCE, estado fail-closed de conta, onboarding/
   offboarding atomico, funcoes SQL endurecidas e auditoria minima.
-- **Proxima etapa**: registrar o fechamento da Sprint 1.5. Pacientes/
-  Sprint 2 continua fora deste escopo e exige inicio explicito separado.
+- **Sprint 2 (Pacientes)**: concluida e validada em homologacao ficticia,
+  com migration `0003` aditiva, cadastro/busca/ficha, alertas clinicos
+  segregados, lint SQL e testes RLS/RPC por perfil.
+- **Bloco clinico integrado (Agenda/Atendimento/Procedimentos)**:
+  implementado em migration aditiva `0004`; lint SQL e 23 testes remotos
+  de Auth/Pacientes/RLS/RPC aprovados em homologacao ficticia. Aguarda
+  homologacao manual antes do fechamento funcional.
 
 ## Convencao estabelecida na Sprint 1 (seguir nas proximas sprints)
 

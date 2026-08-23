@@ -1,5 +1,46 @@
 # Changelog
 
+## Bloco clinico integrado - Agenda, Atendimento e Procedimentos
+
+- Migration aditiva `0004` com agenda sem sobreposicao concorrente,
+  atendimentos e procedimentos preservados sem `DELETE` de aplicacao.
+- Agenda real diaria/semanal, filtro profissional, busca server-side de
+  paciente e estados agendado/confirmado/atendido/cancelado/faltou.
+- Atendimento proprio do dentista vindo de agendamento ou direto; evolucao
+  sensivel, procedimentos simples e finalizacao atomica da consulta.
+- RLS deny-by-default, RPCs transacionais e auditoria sem conteudo clinico.
+- Shell responsivo com navegacao inferior em telas pequenas; sem dependencia
+  adicional de calendario.
+- Testes unitarios e suite remota de autorizacao do fluxo completo adicionados.
+- `0004` aplicada na homologacao ficticia; lint SQL sem erros e 23 testes
+  de integracao/RLS/RPC aprovados, com cleanup residual zerado.
+
+
+## Sprint 2 - correcao pos-homologacao
+
+- Estado inicial de formularios e tipos compartilhados foram removidos dos
+  modulos `"use server"`; esses arquivos agora exportam exclusivamente
+  funcoes `async` compativeis com Server Actions.
+- Teste preventivo percorre `app/` e `lib/` e falha se um modulo
+  `"use server"` voltar a exportar objeto, constante, tipo ou outro valor.
+
+## Sprint 2 - Pacientes
+
+- Migration aditiva `0003_pacientes.sql` com `pacientes`, alertas clinicos
+  1:1, busca normalizada, RLS, privilegios minimos e RPCs transacionais.
+- Cadastro, edicao, ficha, inativacao/reativacao administrativa, listagem
+  paginada e busca por nome/telefone.
+- Alertas clinicos consultados e alterados somente por dentista ativo com
+  vinculo profissional ativo; administrador puro e recepcao ficam negados.
+- Auditoria de mutacoes sem conteudo clinico, telefone ou documento.
+- Estados de loading, vazio, sem resultado, erro e 404; Sidebar/Header
+  conectados somente a dados reais.
+- Migration aplicada, lint SQL sem erros e suites opt-in validadas na
+  homologacao ficticia: 15 testes de integracao/autorizacao passaram e o
+  cleanup deixou zero identidades/pacientes de teste residuais.
+- Credenciais preexistentes foram removidas de `.env.test.example`, que
+  voltou a conter somente placeholders.
+
 ## Sprint 1.5 - Hardening (implementacao local)
 
 - Toolchain alinhado ao Next.js 16: ESLint flat config nativo, Node 24,

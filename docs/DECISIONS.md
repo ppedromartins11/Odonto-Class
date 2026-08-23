@@ -14,7 +14,15 @@
 | PAV-16 | Notacao FDI proposta para o campo `dente` (texto livre). | Notacao Universal. Pendente confirmacao dos dentistas. |
 | PAV-17 | Sem exclusao fisica de prontuario; exclusao logica por padrao. | Definir prazo tecnico provisorio de retencao. Prazo formal ainda requer validacao profissional/juridica. |
 
-Itens ainda abertos: PAV-03 a PAV-08 e PAV-19 (limites de upload).
+Itens ainda abertos: PAV-03 a PAV-08.
+
+## PAV-19 - upload de arquivos (aprovada)
+
+- Bucket privado `arquivos-paciente`; nunca publico.
+- PDF, JPEG e PNG somente, com validacao server-side de MIME, extensao e limite de 10 MiB.
+- Categorias fechadas: `administrativo` e `clinico`; paths usam UUID e nao contem PII.
+- Download ocorre somente por rota autenticada/autorizada, com signed URL de cinco minutos que nao e persistida.
+- Sem overwrite; remocao e logica, auditada e sem purga automatica.
 
 ## Sprint 1.5 - decisoes aprovadas de seguranca
 
@@ -44,6 +52,33 @@ Itens ainda abertos: PAV-03 a PAV-08 e PAV-19 (limites de upload).
   `authenticated`/roles tecnicas necessarias.
 - `package-lock.json` e artefato versionado; `.env.local.example` contem
   somente placeholders.
+
+## Sprint 2 - Pacientes
+
+| Tema | Decisao aprovada |
+|---|---|
+| Cadastro | Nome obrigatorio; data de nascimento, telefone e documento opcionais. Data nao pode estar no futuro; documento nao tem formato obrigatorio. |
+| Busca | Server-side e paginada por nome acento-insensivel ou telefone normalizado. Documento fica fora. |
+| Dado clinico | `paciente_alertas_clinicos` 1:1 separa alergias, intolerancias e medicamentos da entidade administrativa; apenas retrato atual. |
+| Acesso clinico | Somente dentista ativo com profissional ativo. Administrador puro e recepcao nao recebem acesso clinico. Multiplo papel admin+dentista fica pendente se a clinica realmente precisar. |
+| Status/exclusao | Somente administrador inativa/reativa; nenhuma exclusao fisica pela aplicacao. |
+| Auditoria | Criacao, atualizacao, status e mudanca de alertas; apenas IDs e nomes de campos, sem valores sensiveis. Leituras nao sao auditadas nesta fase. |
+| Escopo | Sem observacao generica, prontuario, agenda, atendimento, documento, financeiro, arquivo ou outro modulo futuro. |
+
+## Bloco clinico integrado - decisoes aplicadas
+
+| Tema | Decisao |
+|---|---|
+| Consulta/agendamento | Uma unica entidade `agendamentos`; nao existe tabela duplicada de consulta operacional. |
+| Conflito | Exclusion constraint GiST no banco, rigida e concorrente; sem encaixe (PAV-13). |
+| Remarcacao | Preserva o mesmo ID e registra antes/depois na auditoria; se estava confirmado, volta a agendado para nova confirmacao. |
+| Atendimento direto | Permitido com `agendamento_id` nulo (PAV-15). |
+| Acesso clinico | Papel unico vigente: apenas dentista ativo acessa os proprios atendimentos. Admin puro e recepcao recebem zero linhas. |
+| Evolucao historica | Editavel apenas em andamento. Finalizacao torna o registro e seus procedimentos imutaveis; sem apagamento silencioso. |
+| Dente/regiao | Campo `dente` textual opcional, com FDI sugerida e sem validacao bloqueante/odontograma (PAV-16). |
+| Procedimentos | Texto simples; sem catalogo, estoque, financeiro ou exclusao fisica. |
+| Fuso | Entrada e visualizacao em `America/Cuiaba`; persistencia em `timestamptz`. |
+| Dependencias | Agenda responsiva implementada sem biblioteca externa de calendario. |
 
 ## Decisoes de arquitetura
 

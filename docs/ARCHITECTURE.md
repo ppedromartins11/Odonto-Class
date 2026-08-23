@@ -28,9 +28,9 @@ Dashboard, Agenda, Pacientes, Prontuario/Historico, Atendimentos/
 Procedimentos, Documentos e Atestados, Retornos, Tarefas, Pagamentos,
 Orcamentos, Validade/Esterilizacao, Usuarios e Permissoes. Objetivo,
 telas e dependencias de cada modulo estao descritos no documento de
-especificacao aprovado (secao 4) - a implementar a partir da Sprint 2.
+especificacao aprovado (secao 4) - implementados incrementalmente.
 
-## Estado na Sprint 1.5
+## Estado apos a implementacao local da Sprint 2
 
 - Monolito Next.js 16 em Node 24, com Server Components/Actions e
   `proxy.ts` para renovacao de sessao SSR.
@@ -42,9 +42,21 @@ especificacao aprovado (secao 4) - a implementar a partir da Sprint 2.
 - Autorizacao de dados permanece no Postgres/RLS. Guards da aplicacao
   melhoram UX, mas nao substituem `is_active_user()`/policies.
 - Auditoria minima append-only existe antes dos modulos clinicos.
+- Pacientes usa Server Components/Actions para UI e RPCs transacionais
+  para escrita. Dados administrativos e alertas clinicos atuais ficam em
+  tabelas distintas, permitindo RLS por finalidade sem criar prontuario.
+- Busca por nome/telefone roda no banco, paginada e compativel com RLS.
+- Agenda, atendimento e procedimentos permanecem no mesmo monolito modular.
+  A UI usa Server Components/Actions e um endpoint interno no-store apenas
+  para a busca incremental de pacientes; nenhuma lista grande vai ao client.
+- A concorrencia de agenda e resolvida no PostgreSQL por exclusion constraint,
+  nao por estado em memoria. RPCs concentram transicoes e auditoria atomica.
+- Tabelas clinicas ficam separadas da agenda administrativa; o banco nao
+  retorna evolucao/procedimentos a admin, recepcao ou outro dentista.
 
 ## Itens de arquitetura ainda nao validados
 
-Toolchain e build foram validados localmente. Falta executar `0001` +
-`0002`, lint SQL e a suite RLS em Supabase de homologacao ficticia; este
-e o gate arquitetural antes da Sprint 2.
+`0001`, `0002` e `0003` estao aplicadas na homologacao ficticia. O lint SQL
+nao encontrou erros e as suites RLS/RPC por perfil passaram. O modelo atual
+nao representa multiplos papeis simultaneos; por isso administrador puro nao
+recebe acesso clinico.

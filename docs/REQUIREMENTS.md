@@ -36,6 +36,50 @@ de memoria/manual, documentos preenchidos repetidamente.
 | RF-19 | Arquivos/fotos | P1 |
 | RF-20 | Auditoria | P1 |
 
+## Recorte implementado na Sprint 2
+
+- **RF-04**: cadastro, edicao administrativa, ficha e inativacao logica
+  de paciente. Nome obrigatorio; data de nascimento, telefone de contato
+  e documento de identificacao opcionais.
+- **RF-05**: busca server-side paginada por nome (sem diferenciar acento/
+  caixa) e telefone normalizado para comparacao.
+- **RF-06 parcial**: ficha-base com dados administrativos e retrato atual
+  de alergias, intolerancias e medicamentos para dentista ativo. Historico
+  clinico, consultas e demais relacionamentos dependem das proximas etapas.
+- **RF-20 incremental**: mutacoes do modulo Pacientes entram na auditoria;
+  buscas e aberturas de ficha nao sao auditadas nesta fase.
+
+Nao fazem parte deste recorte: observacoes genericas, anamnese, prontuario,
+deduplicacao automatica e busca por documento.
+
+## Bloco clinico integrado - Agenda, Atendimento e Procedimentos
+
+- **RF-07/RF-08**: agenda diaria/semanal por profissional; criar, editar,
+  remarcar, confirmar, cancelar e registrar falta. `agendamentos` representa
+  o unico evento operacional, sem duplicacao artificial de consulta.
+- **RN-02**: sobreposicao para o mesmo profissional e bloqueada no banco,
+  inclusive sob concorrencia. Nao existe encaixe excepcional (PAV-13).
+- **RF-09**: dentista ativo inicia atendimento proprio a partir da agenda ou
+  diretamente a partir do paciente (PAV-15), registra evolucao e finaliza.
+  Finalizar marca o agendamento relacionado como atendido na mesma transacao.
+- **Procedimentos**: descricao obrigatoria e campos opcionais de dente/regiao,
+  material, cor e detalhes minimos. Sem catalogo, odontograma, estoque ou
+  cobranca automatica.
+- **RF-20 incremental**: eventos operacionais e clinicos sao auditados apenas
+  por IDs, estados e nomes de campos; evolucao e detalhes clinicos nunca sao
+  copiados para `auditoria`.
+
+Matriz vigente: administrador/recepcao operam a agenda geral; dentista ve
+somente a propria agenda e somente os proprios atendimentos/procedimentos.
+Administrador puro e recepcao nao recebem conteudo clinico.
+
+## Bloco operacional - Retornos, Tarefas, Documentos e Arquivos
+
+- **RF-10/RF-11**: atestado e declaracao gerados no servidor como PDF e gravados no historico do paciente; sem HTML arbitrario nem URL publica persistida.
+- **RF-12**: dentista cria retorno do atendimento proprio; recepcao/admin vinculam o novo agendamento e o retorno e concluido quando a consulta vinculada e atendida.
+- **RF-13**: tarefas simples com titulo, prazo, responsavel e vinculos opcionais, sem recorrencia ou kanban.
+- **RF-19**: arquivos privados PDF/JPEG/PNG ate 10 MiB, com categoria administrativa/clinica, path UUID e acesso autorizado por perfil/vinculo.
+
 Regras de negocio (RN-01 a RN-10) e requisitos nao-funcionais (RNF-01 a
 RNF-10) do documento-fonte aplicam-se integralmente. Destaques:
 

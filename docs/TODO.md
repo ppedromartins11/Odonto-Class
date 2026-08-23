@@ -15,12 +15,13 @@
       lint/typecheck/test/build, lint SQL e 7 testes RLS passam em
       homologacao ficticia. MFA admin e validacao manual dos templates/
       redirects permanecem gates separados de go-live.
-- [ ] **Sprint 2** - Pacientes (RF-04, RF-05). Tabela: `pacientes`.
-      Deve ser iniciada somente por pedido explicito; nao foi iniciada
-      durante o hardening.
-- [ ] **Sprint 3** - Agenda (RF-07, RF-08). Tabela: `agendamentos`.
-- [ ] **Sprint 4** - Atendimento (RF-09, RF-06 parcial). Tabelas:
-      `atendimentos`, `procedimentos`.
+- [x] **Sprint 2** - Pacientes (RF-04, RF-05, RF-06 parcial, RF-20).
+      `pacientes`, `paciente_alertas_clinicos`, busca nome/telefone, ficha,
+      RPCs, RLS e auditoria validados. Migration `0003`, lint SQL e 15
+      testes de integracao/autorizacao passaram em homologacao ficticia.
+- [ ] **Bloco clinico integrado (substitui Sprints 3/4 separadas)** - Agenda,
+      atendimento e procedimentos implementados e validados remotamente em
+      uma entrega; aguarda somente homologacao manual do usuario.
 - [ ] **Sprint 5** - Documentos (RF-10, RF-11). Tabela: `documentos`.
 - [ ] **Sprint 6** - Retornos e tarefas (RF-12, RF-13, RF-03 dashboard).
       Tabelas: `retornos`, `tarefas`.
@@ -42,3 +43,13 @@ Ver `docs/DECISIONS.md`. Prioridade para os que afetam modelagem de
 dados: PAV-19 (limites de upload, antes da Sprint 5). A matriz de cada
 modulo futuro ainda precisa ser detalhada antes de sua migration, sob a
 regra deny-by-default aprovada na Sprint 1.5.
+# Bloco clinico integrado
+
+- [x] Agenda dia/semana e filtro por profissional.
+- [x] Agendamento, remarcacao e estados operacionais.
+- [x] Atendimento agendado/direto, evolucao e finalizacao.
+- [x] Procedimentos simples sem odontograma/estoque/financeiro.
+- [x] RLS/RPC/auditoria e testes locais.
+- [x] Aplicar `0004` e executar suite RLS/RPC na homologacao ficticia
+  (lint SQL sem erros; 23 testes de integracao aprovados).
+- [ ] Homologacao manual pelo usuario apos validacao remota.

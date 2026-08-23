@@ -1,11 +1,11 @@
 # Modelo de Dados
 
-> Sprint 1.5: migrations `0001_usuarios_profissionais.sql` e
-> `0002_sprint_1_5_hardening.sql`. A segunda endurece funcoes/RLS,
-> provisionamento e cria `auditoria`. Ambas foram executadas e validadas
-> em homologacao ficticia em 22/08/2026. As demais 13
-> tabelas continuam apenas descritas neste documento, sem migration -
-> serao criadas incrementalmente, sprint por sprint.
+> As migrations `0001` e `0002` foram executadas e validadas em
+> homologacao ficticia em 22/08/2026. A Sprint 2 adiciona a migration
+> `0003_pacientes.sql`, aplicada e validada em homologacao ficticia.
+> O bloco clinico adiciona a migration aditiva
+> `0004_agenda_atendimentos_procedimentos.sql`; `0001`-`0003` permanecem
+> imutaveis.
 
 ## Premissas
 
@@ -19,9 +19,10 @@
 - Campos de auditoria padrao: `created_at`, `updated_at`, `created_by`,
   `updated_by`.
 
-## Tabelas (16)
+## Tabelas planejadas/implementadas (17)
 
-`usuarios`, `profissionais`, `pacientes`, `agendamentos`, `atendimentos`,
+`usuarios`, `profissionais`, `pacientes`, `paciente_alertas_clinicos`,
+`agendamentos`, `atendimentos`,
 `procedimentos`, `documentos`, `retornos`, `tarefas`, `pagamentos`,
 `orcamentos`, `orcamento_itens`, `controle_validade`,
 `arquivos_paciente`, `auditoria`.
@@ -32,6 +33,12 @@ os ajustes das decisoes PAV-09 a PAV-17:
 
 - **pacientes.documento_identificacao**: nullable, sem validacao de
   formato (PAV-09).
+- **pacientes.telefone_contato**: nullable e em formato livre; uma coluna
+  gerada somente com digitos apoia a busca sem alterar a apresentacao.
+- **paciente_alertas_clinicos**: relacao 1:1 com `pacientes`; alergias,
+  intolerancias e medicamentos em uso representam apenas o estado atual.
+  O acesso e exclusivo de dentista ativo com vinculo profissional ativo.
+  Administrador puro e recepcao nao recebem essas colunas.
 - **pagamentos**: `atendimento_id` e `orcamento_id` nullable, com CHECK
   garantindo no maximo um dos dois preenchido (PAV-10).
 - **orcamento_itens**: `descricao` texto livre + `quantidade` +
@@ -52,6 +59,24 @@ os ajustes das decisoes PAV-09 a PAV-17:
   usar `ativo=false`/status equivalente.
 - **auditoria**: append-only - RLS deve impedir `UPDATE`/`DELETE` por
   qualquer perfil de aplicacao.
+
+## Modelo implementado no bloco clinico
+
+- `agendamentos`: paciente/profissional, `inicio`/`fim` em `timestamptz`,
+  status fechado e observacao exclusivamente administrativa. Exclusion
+  constraint GiST em `[inicio,fim)` bloqueia concorrencia para estados
+  agendado/confirmado/atendido; cancelado e falta preservam o registro e
+  liberam o intervalo.
+- `atendimentos`: paciente/profissional, agendamento opcional, estado
+  `em_andamento|finalizado`, evolucao sensivel e timestamps. Um agendamento
+  origina no maximo um atendimento. Atendimento finalizado e imutavel.
+- `procedimentos`: pertence ao atendimento; descricao, dente/regiao em texto
+  livre, material, cor e detalhes opcionais. So pode mudar enquanto o
+  atendimento estiver em andamento; nenhuma exclusao fisica pela aplicacao.
+- Indices cobrem agenda por inicio/profissional/paciente, historico de
+  atendimento por paciente/profissional e procedimentos por atendimento.
+- Escritas diretas e `DELETE` estao revogados. RPCs fazem autorizacao,
+  validacao, auditoria e transicoes atomicas.
 
 ## ERD
 
@@ -76,6 +101,12 @@ erDiagram
         date data_nascimento
         text documento_identificacao
         bool ativo
+    }
+    PACIENTE_ALERTAS_CLINICOS {
+        uuid paciente_id PK,FK
+        text alergias
+        text intolerancias
+        text medicamentos_em_uso
     }
     AGENDAMENTOS {
         uuid id PK
@@ -163,6 +194,7 @@ erDiagram
     USUARIOS ||--o{ ARQUIVOS_PACIENTE : "faz upload"
     USUARIOS ||--o{ CONTROLE_VALIDADE : responsavel
     PACIENTES ||--o{ AGENDAMENTOS : possui
+    PACIENTES ||--o| PACIENTE_ALERTAS_CLINICOS : "alertas atuais"
     PACIENTES ||--o{ ATENDIMENTOS : possui
     PACIENTES ||--o{ DOCUMENTOS : possui
     PACIENTES ||--o{ RETORNOS : possui
@@ -206,8 +238,8 @@ existiu um momento em que essas tabelas ficaram sem RLS). Padrao usado:
 
 Ver `docs/SECURITY.md` para o racional completo.
 
-## Proxima etapa
+## Estado de validacao
 
-`0001` + `0002`, lint SQL e a suite RLS foram validados em homologacao
-ficticia. A Sprint 2, quando iniciada explicitamente, cria `pacientes`
-com RLS desde a criacao.
+`0003` e `0004`, lint SQL e as suites RLS/RPC foram validados na homologacao
+ficticia. A `0004` foi a unica migration aplicada neste bloco; as migrations
+anteriores permanecem imutaveis.

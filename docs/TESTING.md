@@ -32,6 +32,22 @@
 | RF-20 | Acao critica (lista em `docs/SECURITY.md`, PAV-18) gera registro em `auditoria` com usuario e timestamp. |
 | Transversal | Usuario sem permissao nao consegue visualizar dado restrito de outro perfil, mesmo alterando a URL/requisicao diretamente. |
 
+## Sprint 2 - Pacientes
+
+- Busca por nome sem acento, por telefone normalizado e sem interpretacao
+  de `%`/`_` como curingas fornecidos pelo usuario.
+- Homonimos permitidos; documento opcional e fora da busca.
+- Administrador, dentista e recepcao ativos podem manter dados
+  administrativos; somente administrador altera status.
+- Somente dentista ativo com `profissionais.status=ativo` recebe alertas
+  clinicos. Administrador puro e recepcao recebem zero linhas, inclusive
+  em chamada direta ao Supabase.
+- Escrita direta, alteracao de metadados e `DELETE` sao recusados.
+- Usuario inativo e autenticado sem perfil permanecem fail-closed.
+- Auditoria registra somente IDs/campos alterados, nunca telefone,
+  documento ou conteudo clinico.
+- Suite remota e opt-in e limpa somente os UUIDs ficticios que criou.
+
 ## Sprint 1.5
 
 - `npm test`: testes unitarios do token assinado de convite/recuperacao
@@ -56,3 +72,30 @@ Estado em 22/08/2026: lint, typecheck, 3 testes unitarios, build e os 7
 testes Supabase passam. O lint SQL remoto nao encontrou erros; migrations
 `0001`/`0002` estao alinhadas no historico da homologacao. As identidades
 criadas pela suite sao removidas no cleanup.
+
+Estado da Sprint 2 em 22/08/2026: migration `0003` aplicada, lint SQL sem
+erros, 9 testes unitarios e 15 testes de integracao/RLS passando. A suite
+cobre busca, RPCs, escrita direta, `DELETE`, metadados, status, auditoria e
+segregacao dos alertas clinicos. O cleanup foi conferido com zero usuarios e
+zero pacientes de teste residuais.
+
+## Bloco Agenda / Atendimento / Procedimentos
+
+- Unitarios: datas/semana/fuso, intervalo de agenda, evolucao obrigatoria ao
+  finalizar, limites e procedimento com/sem dente.
+- Integracao/RLS: administrador, dois dentistas, recepcao, inativo e conta
+  Auth sem perfil; agenda propria/geral; conflito concorrente; remarcacao;
+  confirmacao/cancelamento/falta; atendimento agendado/direto; isolamento de
+  evolucao; procedimentos; imutabilidade; escrita direta/DELETE e auditoria
+  sem conteudo sensivel.
+- Regressao: suites anteriores de Auth e Pacientes continuam no mesmo
+  `npm run test:integration` e usam somente identidades/pacientes ficticios
+  descartaveis.
+- Manual: agenda dia/semana, busca remota de paciente, fluxo agendamento ->
+  atendimento -> procedimento -> finalizacao -> status atendido, mais
+  remarcacao/cancelamento/falta.
+
+Depois de autorizacao explicita, a `0004` foi aplicada na homologacao: lint
+SQL sem erros e 23 testes de integracao/RLS/RPC passaram (Auth, Pacientes e
+bloco clinico). O cleanup terminou com zero usuarios, pacientes e agendamentos
+ficticios residuais dos prefixos da suite.

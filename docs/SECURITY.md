@@ -17,7 +17,7 @@ serem tratados como definitivos.
 | Sessoes | Gerenciadas pelo Supabase Auth (JWT + refresh token); logout explicito. |
 | Logs | Nunca registrar dado clinico sensivel em logs de aplicacao/erro. |
 | Auditoria | Tabela `auditoria` append-only criada na migration `0002`. Eventos de identidade/acesso da Sprint 1.5 estao fechados em PAV-18; eventos clinicos entram antes do modulo correspondente. |
-| Uploads | Buckets privados no Supabase Storage; acesso via URL assinada/temporaria. Tamanho/tipos permitidos ainda em definicao (PAV-19). |
+| Uploads | Bucket privado `arquivos-paciente`; PDF/JPEG/PNG ate 10 MiB, URL assinada temporaria de cinco minutos e autorizacao server-side. |
 | Backups | Backups automaticos do Postgres gerenciado; teste de restauracao obrigatorio antes de producao (RNF-07). |
 | Retencao | Prontuario odontologico normalmente tem prazo minimo de retencao legal - **prazo exato requer validacao profissional**. |
 | Exclusao | Exclusao logica por padrao; exclusao fisica de prontuario esta desabilitada por decisao (PAV-17) e **requer validacao profissional** antes de qualquer mudanca. |
@@ -89,3 +89,48 @@ Todo recurso de Sprint 2 em diante nasce negado e recebe matriz por
 modulo/acao/campo antes de sua migration. A recepcao tera somente
 financeiro operacional; indicadores gerenciais serao exclusivos do
 administrador, conforme PAV-21.
+
+## Matriz do modulo Pacientes (Sprint 2)
+
+| Recurso/acao | Administrador ativo | Dentista ativo + profissional ativo | Recepcao ativa | Inativo/sem perfil |
+|---|---:|---:|---:|---:|
+| Listar/buscar dados administrativos | Sim | Sim | Sim | Nao |
+| Criar/editar dados administrativos | Sim | Sim | Sim | Nao |
+| Ler/alterar alertas clinicos atuais | Nao | Sim | Nao | Nao |
+| Inativar/reativar paciente | Sim | Nao | Nao | Nao |
+| Excluir fisicamente pela aplicacao | Nao | Nao | Nao | Nao |
+
+Administrador nao recebe autorizacao clinica por inferencia. O modelo atual
+tem um unico perfil e inativa `profissionais` quando o usuario deixa de ser
+dentista; representar administrador + dentista e uma pendencia futura, caso
+a clinica confirme a necessidade.
+
+As escritas passam pelas RPCs `create_patient`, `update_patient`,
+`update_patient_clinical_alerts` e `set_patient_active`, com autorizacao e
+auditoria na mesma transacao. Escrita direta e `DELETE` estao revogados.
+A UI nao consulta `paciente_alertas_clinicos` para administrador/recepcao,
+e a RLS repete o bloqueio contra chamadas diretas.
+
+## Matriz do bloco Agenda / Atendimento / Procedimentos
+
+| Recurso/acao | Administrador ativo | Dentista ativo + profissional ativo | Recepcao ativa | Inativo/sem perfil |
+|---|---:|---:|---:|---:|
+| Ver agenda geral | Sim | Nao | Sim | Nao |
+| Ver propria agenda | Sim | Sim | Sim | Nao |
+| Criar/editar/remarcar/confirmar/cancelar/falta | Sim | Nao | Sim | Nao |
+| Iniciar atendimento agendado proprio | Nao | Sim | Nao | Nao |
+| Criar atendimento direto proprio | Nao | Sim | Nao | Nao |
+| Ler/alterar evolucao e procedimentos proprios | Nao | Sim | Nao | Nao |
+| Ler clinico de outro dentista | Nao | Nao | Nao | Nao |
+| Escrita direta ou DELETE | Nao | Nao | Nao | Nao |
+
+Agenda e dado administrativo. Evolucao e procedimentos sao segregados em
+tabelas com RLS propria; consultas de administrador/recepcao retornam zero
+linhas, portanto o conteudo nao chega a HTML, payload ou CSS oculto. As RPCs
+clinicas derivam o profissional de `auth.uid()` e nao aceitam profissional
+arbitrario. Finalizacao, auditoria e mudanca para `agendamento.atendido`
+ocorrem na mesma transacao.
+
+Auditoria nunca armazena evolucao, descricao/material/detalhes do procedimento
+ou observacao administrativa. Apenas IDs, transicoes, horarios e nomes de
+campos necessarios para rastreabilidade operacional.

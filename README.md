@@ -4,12 +4,10 @@ Sistema de gestao para uma clinica odontologica real (agenda, pacientes,
 prontuario, documentos, retornos, tarefas, pagamentos, orcamento e
 controle de validade/esterilizacao).
 
-> Status atual: **Sprint 1.5 tecnicamente validada**. Toolchain,
-> autenticação SSR/PKCE, autorização, onboarding, offboarding e auditoria
-> mínima passaram em lint, tipos, testes unitários, build, lint SQL e sete
-> testes RLS em Supabase de homologação com dados fictícios. MFA de
-> administrador e validação manual dos e-mails/redirects continuam como
-> gates de go-live. Ver `docs/TODO.md`.
+> Status atual: **Sprint 2 homologada com dados ficticios**. Pacientes,
+> busca nome/telefone, ficha, alertas clinicos segregados, RPCs e RLS
+> passaram no lint SQL e em testes de autorizacao por perfil. MFA de
+> administrador continua gate de go-live. Ver `docs/TODO.md`.
 
 ## Stack
 
@@ -30,6 +28,7 @@ app/            rotas Next.js (App Router)
   (app)/                area autenticada (layout com Sidebar+Header)
     dashboard/           casca minima autenticada
     usuarios/             RF-02 - listagem e criacao de usuario
+    pacientes/            RF-04/RF-05 e fundacao do RF-06
 components/
   layout/          Sidebar, Header, UserMenu (adaptados do prototipo Figma Make)
   ui/              Button, Input, Badge - componentes proprios, sem shadcn/Radix
@@ -65,7 +64,7 @@ geracao de codigo, pois exigem acesso a internet e a suas credenciais:
    ```
    cp .env.local.example .env.local
    ```
-4. Usar Node.js 24 e rodar, em ordem, as migrations `0001` e `0002` de
+4. Usar Node.js 24 e rodar, em ordem, as migrations `0001`, `0002` e `0003` de
    `supabase/migrations/`. Não editar migrations já aplicadas.
 5. Configurar em Auth > URL Configuration as URLs permitidas
    `<sua-url>/auth/callback` e `<sua-url>/auth/confirm`. Os templates de

@@ -9,7 +9,12 @@ export type AuditEvent =
   | "perfil_alterado"
   | "acao_administrativa_negada"
   | "senha_redefinida"
-  | "configuracao_acesso_alterada";
+  | "configuracao_acesso_alterada"
+  | "paciente_criado"
+  | "paciente_atualizado"
+  | "paciente_inativado"
+  | "paciente_reativado"
+  | "alertas_clinicos_atualizados";
 
 type AuditEntry = {
   usuarioId: string | null;
