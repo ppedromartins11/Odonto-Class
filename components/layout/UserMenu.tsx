@@ -29,7 +29,14 @@ export function UserMenu({ usuario }: { usuario: UsuarioAtual }) {
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
   }, []);
 
   return (
@@ -38,19 +45,21 @@ export function UserMenu({ usuario }: { usuario: UsuarioAtual }) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex items-center gap-2 pl-2 pr-1 py-1 rounded-md hover:bg-secondary transition-colors"
+        aria-haspopup="menu"
+        aria-label={`Menu de ${usuario.nome}`}
+        className="flex items-center gap-2 rounded-md py-1 pl-1 pr-1 transition-colors hover:bg-secondary sm:pl-2"
       >
         <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
           <span className="text-[10px] text-white font-semibold">
             {initials(usuario.nome)}
           </span>
         </div>
-        <span className="text-sm font-medium text-foreground">{usuario.nome}</span>
-        <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+        <span className="hidden max-w-36 truncate text-sm font-medium text-foreground md:block">{usuario.nome}</span>
+        <ChevronDown className="hidden h-3.5 w-3.5 text-muted-foreground sm:block" />
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-1 w-48 bg-popover border border-border rounded-md shadow-md py-1 z-30">
+        <div role="menu" className="absolute right-0 z-30 mt-1 w-52 rounded-md border border-border bg-popover py-1 shadow-lg">
           <div className="px-3 py-2 border-b border-border">
             <p className="text-xs font-medium text-popover-foreground truncate">
               {usuario.nome}
@@ -62,7 +71,8 @@ export function UserMenu({ usuario }: { usuario: UsuarioAtual }) {
           <form action={signOut}>
             <button
               type="submit"
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-secondary text-left"
+              role="menuitem"
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-destructive hover:bg-secondary"
             >
               <LogOut className="w-3.5 h-3.5" />
               Sair

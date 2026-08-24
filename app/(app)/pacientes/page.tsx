@@ -5,10 +5,12 @@ import { listPatients } from "@/lib/patients/queries";
 import { normalizeSearchInput } from "@/lib/patients/validation";
 import { PatientList } from "./PatientList";
 import { PatientSearch } from "./PatientSearch";
+import type { PatientListFilter } from "@/lib/patients/types";
 
 type SearchParams = Promise<{
   q?: string | string[];
   page?: string | string[];
+  status?: string | string[];
   inativos?: string | string[];
 }>;
 
@@ -22,9 +24,16 @@ export default async function PatientsPage({ searchParams }: { searchParams: Sea
   const query = normalizeSearchInput(first(params.q));
   const rawPage = Number(first(params.page) ?? "1");
   const page = Number.isSafeInteger(rawPage) && rawPage > 0 ? rawPage : 1;
-  const includeInactive =
-    user.perfil === "administrador" && first(params.inativos) === "1";
-  const result = await listPatients({ query, page, includeInactive });
+  const requestedFilter = first(params.status);
+  const filter: PatientListFilter =
+    user.perfil === "administrador"
+      ? requestedFilter === "inativos" || requestedFilter === "todos"
+        ? requestedFilter
+        : first(params.inativos) === "1"
+          ? "todos"
+          : "ativos"
+      : "ativos";
+  const result = await listPatients({ query, page, filter });
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
@@ -45,8 +54,8 @@ export default async function PatientsPage({ searchParams }: { searchParams: Sea
 
       <PatientSearch
         query={query}
-        includeInactive={includeInactive}
-        canIncludeInactive={user.perfil === "administrador"}
+        filter={filter}
+        canManageInactive={user.perfil === "administrador"}
       />
       <PatientList
         patients={result.patients}
@@ -54,7 +63,7 @@ export default async function PatientsPage({ searchParams }: { searchParams: Sea
         page={page}
         pageSize={result.pageSize}
         total={result.total}
-        includeInactive={includeInactive}
+        filter={filter}
       />
     </div>
   );

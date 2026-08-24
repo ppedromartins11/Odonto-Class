@@ -89,4 +89,13 @@
     @apply text-sm font-normal;
     line-height: 1.5;
   }
+
+  a,
+  button,
+  input,
+  textarea,
+  select,
+  summary {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
+  }
 }

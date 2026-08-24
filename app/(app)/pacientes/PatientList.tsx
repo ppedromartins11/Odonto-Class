@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Phone, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
-import type { PatientListItem } from "@/lib/patients/types";
+import type { PatientListFilter, PatientListItem } from "@/lib/patients/types";
 
 function formatDate(value: string | null) {
   if (!value) return "Nascimento não informado";
@@ -13,16 +13,16 @@ function formatDate(value: string | null) {
 function pageHref({
   page,
   query,
-  includeInactive,
+  filter,
 }: {
   page: number;
   query: string;
-  includeInactive: boolean;
+  filter: PatientListFilter;
 }) {
   const params = new URLSearchParams();
   if (query) params.set("q", query);
   if (page > 1) params.set("page", String(page));
-  if (includeInactive) params.set("inativos", "1");
+  if (filter !== "ativos") params.set("status", filter);
   const suffix = params.toString();
   return suffix ? `/pacientes?${suffix}` : "/pacientes";
 }
@@ -33,14 +33,14 @@ export function PatientList({
   page,
   pageSize,
   total,
-  includeInactive,
+  filter,
 }: {
   patients: PatientListItem[];
   query: string;
   page: number;
   pageSize: number;
   total: number;
-  includeInactive: boolean;
+  filter: PatientListFilter;
 }) {
   if (patients.length === 0) {
     return (
@@ -100,7 +100,7 @@ export function PatientList({
         <div className="flex items-center gap-2">
           {page > 1 ? (
             <Link
-              href={pageHref({ page: page - 1, query, includeInactive })}
+              href={pageHref({ page: page - 1, query, filter })}
               className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-card px-3 text-foreground hover:bg-secondary"
             >
               <ChevronLeft className="h-3.5 w-3.5" /> Anterior
@@ -111,7 +111,7 @@ export function PatientList({
           </span>
           {page < totalPages ? (
             <Link
-              href={pageHref({ page: page + 1, query, includeInactive })}
+              href={pageHref({ page: page + 1, query, filter })}
               className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-card px-3 text-foreground hover:bg-secondary"
             >
               Próxima <ChevronRight className="h-3.5 w-3.5" />

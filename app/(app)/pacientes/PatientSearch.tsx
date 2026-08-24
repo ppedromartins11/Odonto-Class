@@ -1,14 +1,15 @@
 import { Search } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import type { PatientListFilter } from "@/lib/patients/types";
 
 export function PatientSearch({
   query,
-  includeInactive,
-  canIncludeInactive,
+  filter,
+  canManageInactive,
 }: {
   query: string;
-  includeInactive: boolean;
-  canIncludeInactive: boolean;
+  filter: PatientListFilter;
+  canManageInactive: boolean;
 }) {
   return (
     <form action="/pacientes" className="rounded-lg border border-border bg-card p-4">
@@ -25,17 +26,17 @@ export function PatientSearch({
             className="h-10 w-full rounded-md border border-border bg-input-background pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
-        {canIncludeInactive && (
+        {canManageInactive ? (
           <label className="flex items-center gap-2 whitespace-nowrap text-xs text-muted-foreground">
-            <input
-              type="checkbox"
-              name="inativos"
-              value="1"
-              defaultChecked={includeInactive}
-              className="h-4 w-4 rounded border-border"
-            />
-            Incluir inativos
+            <span className="sr-only">Status do paciente</span>
+            <select name="status" defaultValue={filter} className="h-10 rounded-md border border-border bg-input-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
+              <option value="ativos">Ativos</option>
+              <option value="inativos">Inativos</option>
+              <option value="todos">Todos</option>
+            </select>
           </label>
+        ) : (
+          <input type="hidden" name="status" value="ativos" />
         )}
         <Button type="submit">Buscar</Button>
       </div>

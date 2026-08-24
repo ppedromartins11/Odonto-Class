@@ -18,6 +18,8 @@ export type PatientListItem = Pick<
   total_count: number;
 };
 
+export type PatientListFilter = "ativos" | "inativos" | "todos";
+
 export type PatientClinicalAlerts = {
   paciente_id: string;
   alergias: string | null;

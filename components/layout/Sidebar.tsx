@@ -38,21 +38,8 @@ const NAV_ITEMS = [
   { href: "/financeiro", label: "Financeiro", icon: DollarSign, enabled: false },
   { href: "/orcamentos", label: "Orçamentos", icon: ClipboardList, enabled: false },
   { href: "/validade", label: "Val. e Esterilização", icon: ShieldCheck, enabled: false },
-  { href: "/usuarios", label: "Usuários", icon: UserCog, enabled: true },
+  { href: "/usuarios", label: "Usuários", icon: UserCog, enabled: true, adminOnly: true },
 ] as const;
-
-const PERFIL_LABEL: Record<UsuarioAtual["perfil"], string> = {
-  administrador: "Administrador(a)",
-  dentista: "Dentista",
-  recepcao: "Recepção",
-};
-
-function initials(nome: string) {
-  const parts = nome.trim().split(/\s+/);
-  const first = parts[0]?.[0] ?? "";
-  const last = parts.length > 1 ? parts[parts.length - 1][0] : "";
-  return (first + last).toUpperCase();
-}
 
 export function Sidebar({ usuario }: { usuario: UsuarioAtual }) {
   const activePath = usePathname();
@@ -79,6 +66,10 @@ export function Sidebar({ usuario }: { usuario: UsuarioAtual }) {
             const Icon = item.icon;
             const isActive = activePath.startsWith(item.href);
 
+            if ("adminOnly" in item && item.adminOnly && usuario.perfil !== "administrador") {
+              return null;
+            }
+
             if (!item.enabled) {
               return (
                 <div
@@ -102,7 +93,7 @@ export function Sidebar({ usuario }: { usuario: UsuarioAtual }) {
                 href={item.href}
                 className={`flex min-w-20 flex-1 flex-col items-center justify-center gap-0.5 rounded-md px-2 py-1 text-xs transition-colors duration-150 md:w-full md:min-w-0 md:flex-row md:justify-start md:gap-2.5 md:px-3 md:py-2 md:text-left md:text-sm ${
                   isActive
-                    ? "bg-accent text-accent-foreground font-medium"
+                    ? "bg-accent text-accent-foreground font-medium shadow-sm"
                     : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                 }`}
               >
@@ -117,23 +108,6 @@ export function Sidebar({ usuario }: { usuario: UsuarioAtual }) {
         </div>
       </nav>
 
-      <div className="hidden border-t border-sidebar-border px-4 py-3 md:block">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
-            <span className="text-[10px] text-white font-semibold">
-              {initials(usuario.nome)}
-            </span>
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs font-medium text-sidebar-foreground truncate">
-              {usuario.nome}
-            </p>
-            <p className="text-[10px] text-muted-foreground">
-              {PERFIL_LABEL[usuario.perfil]}
-            </p>
-          </div>
-        </div>
-      </div>
     </aside>
   );
 }

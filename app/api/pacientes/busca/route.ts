@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   if (query.length < 2) {
     return NextResponse.json({ patients: [] }, { headers: { "Cache-Control": "private, no-store" } });
   }
-  const result = await listPatients({ query, page: 1, includeInactive: false, pageSize: 10 });
+  const result = await listPatients({ query, page: 1, filter: "ativos", pageSize: 10 });
   return NextResponse.json(
     { patients: result.patients.map(({ id, nome, telefone_contato }) => ({ id, nome, telefone_contato })) },
     { headers: { "Cache-Control": "private, no-store" } }

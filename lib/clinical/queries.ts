@@ -34,6 +34,21 @@ export async function getAttendanceByAppointment(appointmentId: string) {
   return (data as Attendance | null) ?? null;
 }
 
+/**
+ * Resolve em lote os atendimentos que o dentista autenticado já pode ler.
+ * A RLS de `atendimentos` continua sendo a fonte definitiva de autorização.
+ */
+export async function listAttendanceIdsByAppointment(appointmentIds: string[]) {
+  if (appointmentIds.length === 0) return [];
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("atendimentos")
+    .select("id, agendamento_id")
+    .in("agendamento_id", appointmentIds);
+  if (error) clinicalFailure("AGENDA_ATTENDANCES_LOAD_FAILED", error.code);
+  return (data ?? []) as Array<{ id: string; agendamento_id: string | null }>;
+}
+
 export async function listPatientAttendances(patientId: string, limit = 10) {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
@@ -55,6 +70,32 @@ export async function listProcedures(attendanceId: string) {
     .order("created_at");
   if (error) clinicalFailure("PROCEDURE_LIST_FAILED", error.code);
   return (data ?? []) as Procedure[];
+}
+
+/**
+ * Carrega os procedimentos visiveis de um paciente em uma unica consulta.
+ * O relacionamento inner permite filtrar pelo paciente sem buscar cada
+ * atendimento separadamente; RLS continua aplicada nas duas tabelas.
+ */
+export async function listPatientProcedures(patientId: string, limit = 50) {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("procedimentos")
+    .select(`${PROCEDURE_FIELDS},atendimentos!inner(id,paciente_id,iniciado_em)`)
+    .eq("atendimentos.paciente_id", patientId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) clinicalFailure("PATIENT_PROCEDURES_LOAD_FAILED", error.code);
+
+  return (data ?? []).map((item) => {
+    const attendance = item.atendimentos as unknown as Pick<
+      Attendance,
+      "id" | "paciente_id" | "iniciado_em"
+    >;
+    const fields = { ...item } as Record<string, unknown>;
+    delete fields.atendimentos;
+    return { ...fields, attendance } as Procedure & { attendance: typeof attendance };
+  });
 }
 
 export async function getProcedure(id: string): Promise<Procedure | null> {

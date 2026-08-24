@@ -285,7 +285,7 @@ describe("pacientes Sprint 2: autorizacao, RLS e RPCs", () => {
       p_page_size: 20,
       p_include_inactive: false,
     });
-    expect(hidden).toEqual([]);
+    expect((hidden as Array<{ id: string }>).some((row) => row.id === patientId)).toBe(false);
 
     const { error: reactivateError } = await adminSession.rpc("set_patient_active", {
       p_paciente_id: patientId,

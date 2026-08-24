@@ -31,6 +31,7 @@ export type AgendaItem = Pick<
 > & {
   paciente_nome: string;
   profissional_nome: string;
+  atendimento_id?: string;
 };
 
 export type ActiveProfessional = {

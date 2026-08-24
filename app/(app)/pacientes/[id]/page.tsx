@@ -1,177 +1,69 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Calendar, CalendarPlus, ChevronLeft, FilePenLine, Phone, Stethoscope } from "lucide-react";
+import { CalendarPlus, ChevronRight, FilePenLine, FileText, Phone } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { requireUser } from "@/lib/auth/session";
 import { formatClinicDate, formatClinicTime, todayInClinic } from "@/lib/agenda/dates";
 import { listPatientAppointments } from "@/lib/agenda/queries";
-import { listPatientAttendances } from "@/lib/clinical/queries";
-import {
-  getPatient,
-  getPatientClinicalAlerts,
-} from "@/lib/patients/queries";
+import { listPatientAttendances, listPatientProcedures } from "@/lib/clinical/queries";
+import { getPatient, getPatientClinicalAlerts } from "@/lib/patients/queries";
 import { isValidUuid } from "@/lib/patients/validation";
-import { PatientClinicalAlertsForm } from "../PatientClinicalAlertsForm";
-import { PatientStatusControl } from "../PatientStatusControl";
-import { DirectAttendanceButton } from "../../atendimentos/DirectAttendanceButton";
 import { listDocuments, listPatientFiles, listReturns } from "@/lib/operational/queries";
+import { DirectAttendanceButton } from "../../atendimentos/DirectAttendanceButton";
+import { PatientClinicalAlertsForm } from "../PatientClinicalAlertsForm";
 import { PatientFiles } from "../PatientFiles";
+import { PatientStatusControl } from "../PatientStatusControl";
 
-function formatDate(value: string | null) {
-  if (!value) return "Não informada";
-  return new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(
-    new Date(`${value}T00:00:00Z`)
-  );
-}
+type Tab = "visao-geral" | "historico" | "consultas" | "procedimentos" | "documentos" | "retornos" | "arquivos";
+type SearchParams = Promise<{ aba?: string | string[] }>;
 
-export default async function PatientPage({ params }: { params: Promise<{ id: string }> }) {
+const STATUS_TONE = { agendado: "info", confirmado: "success", atendido: "neutral", cancelado: "danger", faltou: "warning" } as const;
+const RETURN_TONE = { pendente: "info", agendado: "neutral", concluido: "success", cancelado: "danger" } as const;
+
+function first(value: string | string[] | undefined) { return Array.isArray(value) ? value[0] : value; }
+function isTab(value: string | undefined): value is Tab { return value === "visao-geral" || value === "historico" || value === "consultas" || value === "procedimentos" || value === "documentos" || value === "retornos" || value === "arquivos"; }
+function initials(name: string) { return name.trim().split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase(); }
+function age(date: string | null) { if (!date) return null; const today = new Date(); const birth = new Date(`${date}T00:00:00Z`); let years = today.getUTCFullYear() - birth.getUTCFullYear(); if (today.getUTCMonth() < birth.getUTCMonth() || (today.getUTCMonth() === birth.getUTCMonth() && today.getUTCDate() < birth.getUTCDate())) years--; return years >= 0 ? years : null; }
+function formatDate(value: string | null) { return value ? formatClinicDate(value, { day: "2-digit", month: "long", year: "numeric" }) : "Não informada"; }
+function Empty({ children }: { children: React.ReactNode }) { return <p className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">{children}</p>; }
+
+function SectionTitle({ title, detail, action }: { title: string; detail?: string; action?: React.ReactNode }) { return <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-base font-medium text-foreground">{title}</h3>{detail && <p className="mt-1 text-xs text-muted-foreground">{detail}</p>}</div>{action}</div>; }
+
+export default async function PatientPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: SearchParams }) {
   const user = await requireUser();
   const { id } = await params;
   if (!isValidUuid(id)) notFound();
-
   const patient = await getPatient(id);
   if (!patient) notFound();
-
-  // A consulta clinica sequer e executada para administrador ou recepcao.
-  // RLS no banco repete a protecao para chamadas diretas.
+  const tabValue = first((await searchParams).aba);
+  const activeTab = isTab(tabValue) ? tabValue : "visao-geral";
+  const isDentist = user.perfil === "dentista";
+  const loadsRecentHistory = activeTab === "visao-geral" || activeTab === "historico";
   const [clinicalAlerts, appointments, attendances, returns, documents, files] = await Promise.all([
-    user.perfil === "dentista" ? getPatientClinicalAlerts(id) : Promise.resolve(null),
-    listPatientAppointments(id),
-    user.perfil === "dentista" ? listPatientAttendances(id) : Promise.resolve([]),
-    listReturns(id),
-    listDocuments(id),
-    listPatientFiles(id),
+    isDentist && activeTab === "visao-geral" ? getPatientClinicalAlerts(id) : Promise.resolve(null),
+    activeTab === "consultas" ? listPatientAppointments(id, 50) : loadsRecentHistory ? listPatientAppointments(id, 10) : Promise.resolve([]),
+    isDentist && loadsRecentHistory ? listPatientAttendances(id, 4) : Promise.resolve([]),
+    activeTab === "retornos" ? listReturns(id, 50) : loadsRecentHistory ? listReturns(id, 4) : Promise.resolve([]),
+    activeTab === "documentos" ? listDocuments(id, 50) : loadsRecentHistory ? listDocuments(id, 4) : Promise.resolve([]),
+    activeTab === "arquivos" ? listPatientFiles(id, 50) : loadsRecentHistory ? listPatientFiles(id, 4) : Promise.resolve([]),
   ]);
+  const procedureEntries = isDentist && activeTab === "procedimentos" ? await listPatientProcedures(id) : [];
+  const today = todayInClinic();
+  const nextAppointment = [...appointments].filter((appointment) => appointment.inicio >= `${today}T00:00:00`).filter((appointment) => appointment.status === "agendado" || appointment.status === "confirmado").sort((a, b) => a.inicio.localeCompare(b.inicio))[0];
+  const nextReturn = [...returns].filter((item) => item.status === "pendente" || item.status === "agendado").sort((a, b) => a.data_prevista.localeCompare(b.data_prevista))[0];
+  const canSchedule = patient.ativo && (user.perfil === "administrador" || user.perfil === "recepcao");
+  const tabs: { value: Tab; label: string }[] = [
+    { value: "visao-geral", label: "Visão geral" }, { value: "historico", label: "Histórico" }, { value: "consultas", label: "Consultas" },
+    ...(isDentist ? [{ value: "procedimentos" as Tab, label: "Procedimentos" }] : []),
+    { value: "documentos", label: "Documentos" }, { value: "retornos", label: "Retornos" }, { value: "arquivos", label: "Arquivos" },
+  ];
+  const recentHistory = [
+    ...appointments.slice(0, 4).map((item) => ({ id: `appointment-${item.id}`, date: item.inicio, title: "Agendamento", description: `${formatClinicDate(item.inicio, { dateStyle: "short" })} · ${item.status}` })),
+    ...documents.slice(0, 4).map((item) => ({ id: `document-${item.id}`, date: item.created_at, title: `Documento: ${item.tipo}`, description: formatClinicDate(item.emitido_em, { dateStyle: "short" }) })),
+    ...returns.slice(0, 4).map((item) => ({ id: `return-${item.id}`, date: item.created_at, title: "Retorno", description: `${item.status} · previsto para ${formatClinicDate(item.data_prevista, { dateStyle: "short" })}` })),
+    ...files.slice(0, 4).map((item) => ({ id: `file-${item.id}`, date: item.created_at, title: "Arquivo enviado", description: `${item.nome_original} · ${item.categoria}` })),
+    ...(isDentist ? attendances.slice(0, 4).map((item) => ({ id: `attendance-${item.id}`, date: item.iniciado_em, title: "Atendimento", description: item.status === "finalizado" ? "Finalizado" : "Em andamento" })) : []),
+  ].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8);
 
-  return (
-    <div className="mx-auto max-w-5xl space-y-5">
-      <div>
-        <Link
-          href="/pacientes"
-          className="mb-3 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-        >
-          <ChevronLeft className="h-3.5 w-3.5" /> Voltar para pacientes
-        </Link>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-2xl font-medium text-foreground">{patient.nome}</h2>
-              <Badge tone={patient.ativo ? "success" : "neutral"}>
-                {patient.ativo ? "Ativo" : "Inativo"}
-              </Badge>
-            </div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Ficha administrativa do paciente
-            </p>
-          </div>
-          <div className="flex flex-wrap items-start gap-2">
-            {patient.ativo && (user.perfil === "administrador" || user.perfil === "recepcao") && (
-              <Link
-                href={`/agenda/novo?paciente=${patient.id}`}
-                className="inline-flex h-8 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-              >
-                <CalendarPlus className="h-3.5 w-3.5" /> Agendar
-              </Link>
-            )}
-            {patient.ativo && <Link href={`/documentos/novo?paciente=${patient.id}`} className="inline-flex h-8 items-center justify-center rounded-md border border-border bg-secondary px-3 text-sm font-medium hover:bg-secondary/80">Novo documento</Link>}
-            {patient.ativo && user.perfil === "dentista" && (
-              <DirectAttendanceButton patientId={patient.id} />
-            )}
-            <Link
-              href={`/pacientes/${patient.id}/editar`}
-              className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-border bg-secondary px-3 text-sm font-medium text-secondary-foreground hover:bg-secondary/80"
-            >
-              <FilePenLine className="h-3.5 w-3.5" /> Editar
-            </Link>
-            {user.perfil === "administrador" && (
-              <PatientStatusControl patientId={patient.id} active={patient.ativo} />
-            )}
-          </div>
-        </div>
-      </div>
-
-      {!patient.ativo && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Este paciente está inativo. O registro permanece preservado e pode ser reativado por um administrador.
-        </div>
-      )}
-
-      <section className="rounded-lg border border-border bg-card p-5">
-        <h3 className="text-base font-medium text-card-foreground">Dados administrativos</h3>
-        <dl className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          <div>
-            <dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Calendar className="h-3.5 w-3.5" /> Data de nascimento
-            </dt>
-            <dd className="mt-1 text-sm text-foreground">{formatDate(patient.data_nascimento)}</dd>
-          </div>
-          <div>
-            <dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Phone className="h-3.5 w-3.5" /> Telefone
-            </dt>
-            <dd className="mt-1 text-sm text-foreground">
-              {patient.telefone_contato ?? "Não informado"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">Documento de identificação</dt>
-            <dd className="mt-1 text-sm text-foreground">
-              {patient.documento_identificacao ?? "Não informado"}
-            </dd>
-          </div>
-        </dl>
-      </section>
-
-      {user.perfil === "dentista" && clinicalAlerts && (
-        <PatientClinicalAlertsForm patientId={patient.id} alerts={clinicalAlerts} />
-      )}
-
-      <section className="rounded-lg border border-border bg-card p-5">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h3 className="text-base font-medium">Agendamentos</h3>
-            <p className="mt-1 text-xs text-muted-foreground">Histórico operacional mais recente visível para o seu perfil.</p>
-          </div>
-          <Link href={`/agenda?data=${todayInClinic()}`} className="text-xs font-medium text-primary hover:underline">Abrir agenda</Link>
-        </div>
-        {appointments.length === 0 ? (
-          <p className="mt-4 rounded-md border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">Nenhum agendamento visível.</p>
-        ) : (
-          <div className="mt-4 divide-y divide-border rounded-md border border-border">
-            {appointments.map((appointment) => (
-              <div key={appointment.id} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-medium">{formatClinicDate(appointment.inicio, { dateStyle: "short" })} · {formatClinicTime(appointment.inicio)}–{formatClinicTime(appointment.fim)}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{appointment.profissional_nome}</p>
-                </div>
-                <Badge tone={appointment.status === "confirmado" || appointment.status === "atendido" ? "success" : appointment.status === "cancelado" ? "danger" : appointment.status === "faltou" ? "warning" : "info"}>{appointment.status}</Badge>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {user.perfil === "dentista" && (
-        <section className="rounded-lg border border-border bg-card p-5">
-          <h3 className="text-base font-medium">Meus atendimentos</h3>
-          <p className="mt-1 text-xs text-muted-foreground">Somente registros clínicos do profissional autenticado.</p>
-          {attendances.length === 0 ? (
-            <p className="mt-4 rounded-md border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">Nenhum atendimento clínico próprio.</p>
-          ) : (
-            <div className="mt-4 divide-y divide-border rounded-md border border-border">
-              {attendances.map((attendance) => (
-                <Link key={attendance.id} href={`/atendimentos/${attendance.id}`} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-secondary/40">
-                  <span className="flex items-center gap-2 text-sm font-medium"><Stethoscope className="h-4 w-4 text-primary" />{formatClinicDate(attendance.iniciado_em, { dateStyle: "short" })} às {formatClinicTime(attendance.iniciado_em)}</span>
-                  <Badge tone={attendance.status === "finalizado" ? "success" : "warning"}>{attendance.status === "finalizado" ? "Finalizado" : "Em andamento"}</Badge>
-                </Link>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-      <section className="rounded-lg border border-border bg-card p-5"><h3 className="text-base font-medium">Retornos</h3>{returns.length===0?<p className="mt-3 text-sm text-muted-foreground">Nenhum retorno visível.</p>:<div className="mt-3 divide-y rounded border">{returns.map(item=><div key={item.id} className="p-3 text-sm">{item.status} · previsto para {item.data_prevista}</div>)}</div>}</section>
-      <section className="rounded-lg border border-border bg-card p-5"><h3 className="text-base font-medium">Documentos</h3>{documents.length===0?<p className="mt-3 text-sm text-muted-foreground">Nenhum documento visível.</p>:<div className="mt-3 divide-y rounded border">{documents.map(document=><a key={document.id} href={`/api/documentos/${document.id}`} className="block p-3 text-sm font-medium text-primary hover:underline">{document.tipo} · {document.emitido_em}</a>)}</div>}</section>
-      <PatientFiles patientId={patient.id} files={files} canUpload={patient.ativo && (user.perfil === "administrador" || user.perfil === "recepcao" || user.perfil === "dentista")} />
-    </div>
-  );
+  return <div className="mx-auto max-w-7xl space-y-5"><header><nav className="mb-4 flex items-center gap-1 text-xs text-muted-foreground"><Link href="/pacientes" className="hover:text-foreground">Pacientes</Link><ChevronRight className="h-3.5 w-3.5" /><span className="truncate">{patient.nome}</span></nav><div className="flex flex-wrap items-start justify-between gap-4"><div className="flex items-center gap-3"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">{initials(patient.nome)}</div><div><div className="flex flex-wrap items-center gap-2"><h2 className="text-2xl font-medium text-foreground">{patient.nome}</h2><Badge tone={patient.ativo ? "success" : "neutral"}>{patient.ativo ? "Ativo" : "Inativo"}</Badge></div><p className="mt-1 text-sm text-muted-foreground">{age(patient.data_nascimento) !== null ? `${age(patient.data_nascimento)} anos · ` : ""}{patient.telefone_contato ?? "Telefone não informado"}</p></div></div><div className="flex flex-wrap gap-2">{canSchedule && <Link href={`/agenda/novo?paciente=${patient.id}`} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"><CalendarPlus className="h-4 w-4" /> Novo agendamento</Link>}{patient.ativo && <Link href={`/documentos/novo?paciente=${patient.id}`} className="inline-flex h-9 items-center rounded-md border border-border bg-card px-3 text-sm font-medium hover:bg-secondary">Novo documento</Link>}{patient.ativo && isDentist && <DirectAttendanceButton patientId={patient.id} />}<Link href={`/pacientes/${patient.id}/editar`} className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-card px-3 text-sm font-medium hover:bg-secondary"><FilePenLine className="h-4 w-4" /> Editar</Link>{user.perfil === "administrador" && <PatientStatusControl patientId={patient.id} active={patient.ativo} />}</div></div>{!patient.ativo && <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Este paciente está inativo. O registro permanece preservado e pode ser reativado por um administrador.</div>}</header><nav className="flex overflow-x-auto rounded-lg border border-border bg-card p-1" aria-label="Seções da ficha do paciente">{tabs.map((tab) => <Link key={tab.value} href={`/pacientes/${patient.id}?aba=${tab.value}`} className={`whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium ${activeTab === tab.value ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"}`}>{tab.label}</Link>)}</nav>{activeTab === "visao-geral" && <div className="grid gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(18rem,1fr)]"><div className="space-y-5"><section className="rounded-xl border border-border bg-card p-5 shadow-sm"><SectionTitle title="Próxima consulta" action={<Link href={`/agenda?data=${today}`} className="text-sm font-medium text-primary hover:underline">Abrir agenda</Link>} />{nextAppointment ? <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-secondary/60 p-4"><div><p className="font-medium text-foreground">{formatClinicDate(nextAppointment.inicio, { weekday: "long", day: "2-digit", month: "long" })} · {formatClinicTime(nextAppointment.inicio)}</p><p className="mt-1 text-sm text-muted-foreground">{nextAppointment.profissional_nome}</p></div><Badge tone={STATUS_TONE[nextAppointment.status]}>{nextAppointment.status}</Badge></div> : <Empty>Nenhuma consulta futura visível.</Empty>}</section><section className="rounded-xl border border-border bg-card p-5 shadow-sm"><SectionTitle title="Histórico recente" detail="Eventos operacionais mais recentes visíveis para o seu perfil." action={<Link href={`/pacientes/${patient.id}?aba=historico`} className="text-sm font-medium text-primary hover:underline">Ver histórico</Link>} />{recentHistory.length === 0 ? <div className="mt-4"><Empty>Nenhum evento recente visível.</Empty></div> : <ol className="mt-4 space-y-3 border-l border-border pl-4">{recentHistory.slice(0, 5).map((item) => <li key={item.id} className="relative"><span className="absolute -left-[1.32rem] top-1 h-2.5 w-2.5 rounded-full bg-primary" /><p className="text-sm font-medium text-foreground">{item.title}</p><p className="mt-0.5 text-xs text-muted-foreground">{item.description}</p></li>)}</ol>}</section><section className="rounded-xl border border-border bg-card p-5 shadow-sm"><SectionTitle title="Documentos recentes" action={<Link href={`/pacientes/${patient.id}?aba=documentos`} className="text-sm font-medium text-primary hover:underline">Ver todos</Link>} />{documents.length === 0 ? <div className="mt-4"><Empty>Nenhum documento visível.</Empty></div> : <div className="mt-4 divide-y divide-border rounded-lg border border-border">{documents.slice(0, 3).map((document) => <a key={document.id} href={`/api/documentos/${document.id}`} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-secondary"><span className="inline-flex items-center gap-2 text-sm font-medium text-primary"><FileText className="h-4 w-4" />{document.tipo === "atestado" ? "Atestado" : "Declaração"}</span><span className="text-xs text-muted-foreground">{formatClinicDate(document.emitido_em, { dateStyle: "short" })}</span></a>)}</div>}</section></div><aside className="space-y-5"><section className="rounded-xl border border-border bg-card p-5 shadow-sm"><SectionTitle title="Dados administrativos" /><dl className="mt-4 space-y-3 text-sm"><div><dt className="text-xs text-muted-foreground">Nascimento</dt><dd className="mt-0.5 text-foreground">{formatDate(patient.data_nascimento)}</dd></div><div><dt className="flex items-center gap-1 text-xs text-muted-foreground"><Phone className="h-3.5 w-3.5" /> Telefone</dt><dd className="mt-0.5 text-foreground">{patient.telefone_contato ?? "Não informado"}</dd></div><div><dt className="text-xs text-muted-foreground">Documento de identificação</dt><dd className="mt-0.5 break-words text-foreground">{patient.documento_identificacao ?? "Não informado"}</dd></div></dl></section>{isDentist && clinicalAlerts && <PatientClinicalAlertsForm patientId={patient.id} alerts={clinicalAlerts} />}<section className="rounded-xl border border-border bg-card p-5 shadow-sm"><SectionTitle title="Retorno" action={<Link href={`/pacientes/${patient.id}?aba=retornos`} className="text-sm font-medium text-primary hover:underline">Ver retornos</Link>} />{nextReturn ? <div className="mt-4"><Badge tone={RETURN_TONE[nextReturn.status]}>{nextReturn.status}</Badge><p className="mt-2 text-sm text-foreground">Previsto para {formatClinicDate(nextReturn.data_prevista, { day: "2-digit", month: "long" })}</p>{nextReturn.agendamento_id && <Link href="/agenda" className="mt-2 inline-block text-xs font-medium text-primary hover:underline">Abrir agenda vinculada</Link>}</div> : <div className="mt-4"><Empty>Nenhum retorno pendente.</Empty></div>}</section><section className="rounded-xl border border-border bg-card p-5 shadow-sm"><SectionTitle title="Arquivos recentes" action={<Link href={`/pacientes/${patient.id}?aba=arquivos`} className="text-sm font-medium text-primary hover:underline">Ver todos</Link>} />{files.length === 0 ? <div className="mt-4"><Empty>Nenhum arquivo visível.</Empty></div> : <div className="mt-4 space-y-2">{files.slice(0, 3).map((file) => <a key={file.id} href={`/api/arquivos/${file.id}`} className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-secondary"><span className="min-w-0 truncate font-medium text-primary">{file.nome_original}</span><span className="shrink-0 text-xs text-muted-foreground">{file.categoria}</span></a>)}</div>}</section></aside></div>}{activeTab === "historico" && <section className="rounded-xl border border-border bg-card p-5 shadow-sm"><SectionTitle title="Histórico" detail="Linha do tempo operacional visível para o seu perfil." />{recentHistory.length === 0 ? <div className="mt-4"><Empty>Nenhum evento visível.</Empty></div> : <ol className="mt-5 space-y-4 border-l border-border pl-5">{recentHistory.map((item) => <li key={item.id} className="relative"><span className="absolute -left-[1.6rem] top-1 h-3 w-3 rounded-full border-2 border-card bg-primary" /><p className="text-sm font-medium text-foreground">{item.title}</p><p className="mt-1 text-xs text-muted-foreground">{item.description}</p></li>)}</ol>}</section>}{activeTab === "consultas" && <section className="rounded-xl border border-border bg-card p-5 shadow-sm"><SectionTitle title="Consultas" detail="Agendamentos visíveis para o seu perfil." action={<Link href={`/agenda?data=${today}`} className="text-sm font-medium text-primary hover:underline">Abrir agenda</Link>} />{appointments.length === 0 ? <div className="mt-4"><Empty>Nenhum agendamento visível.</Empty></div> : <div className="mt-4 divide-y divide-border rounded-lg border border-border">{appointments.map((appointment) => <div key={appointment.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"><div><p className="text-sm font-medium text-foreground">{formatClinicDate(appointment.inicio, { dateStyle: "short" })} · {formatClinicTime(appointment.inicio)}–{formatClinicTime(appointment.fim)}</p><p className="mt-0.5 text-xs text-muted-foreground">{appointment.profissional_nome}</p></div><Badge tone={STATUS_TONE[appointment.status]}>{appointment.status}</Badge></div>)}</div>}</section>}{activeTab === "procedimentos" && isDentist && <section className="rounded-xl border border-border bg-card p-5 shadow-sm"><SectionTitle title="Procedimentos" detail="Somente procedimentos de atendimentos próprios visíveis para o dentista autenticado." />{procedureEntries.length === 0 ? <div className="mt-4"><Empty>Nenhum procedimento próprio visível.</Empty></div> : <div className="mt-4 divide-y divide-border rounded-lg border border-border">{procedureEntries.map((entry) => <Link key={entry.id} href={`/atendimentos/${entry.attendance.id}`} className="block px-4 py-3 hover:bg-secondary"><p className="text-sm font-medium text-foreground">{entry.descricao}</p><p className="mt-1 text-xs text-muted-foreground">{formatClinicDate(entry.attendance.iniciado_em, { dateStyle: "short" })}{entry.dente ? ` · Dente/região: ${entry.dente}` : ""}{entry.material_utilizado ? ` · ${entry.material_utilizado}` : ""}</p></Link>)}</div>}</section>}{activeTab === "documentos" && <section className="rounded-xl border border-border bg-card p-5 shadow-sm"><SectionTitle title="Documentos" detail="Downloads passam pela rota autorizada." action={patient.ativo ? <Link href={`/documentos/novo?paciente=${patient.id}`} className="text-sm font-medium text-primary hover:underline">Novo documento</Link> : undefined} />{documents.length === 0 ? <div className="mt-4"><Empty>Nenhum documento visível.</Empty></div> : <div className="mt-4 divide-y divide-border rounded-lg border border-border">{documents.map((document) => <a key={document.id} href={`/api/documentos/${document.id}`} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-secondary"><span className="font-medium text-primary">{document.tipo === "atestado" ? "Atestado" : "Declaração"}</span><span className="text-xs text-muted-foreground">{formatClinicDate(document.emitido_em, { dateStyle: "short" })}</span></a>)}</div>}</section>}{activeTab === "retornos" && <section className="rounded-xl border border-border bg-card p-5 shadow-sm"><SectionTitle title="Retornos" detail="Acompanhamento operacional vinculado ao paciente." action={<Link href="/retornos" className="text-sm font-medium text-primary hover:underline">Abrir retornos</Link>} />{returns.length === 0 ? <div className="mt-4"><Empty>Nenhum retorno visível.</Empty></div> : <div className="mt-4 divide-y divide-border rounded-lg border border-border">{returns.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"><div><p className="text-sm font-medium text-foreground">Previsto para {formatClinicDate(item.data_prevista, { dateStyle: "short" })}</p><p className="mt-1 text-xs text-muted-foreground">{item.profissional_nome ?? "Profissional não informado"}</p></div><Badge tone={RETURN_TONE[item.status]}>{item.status}</Badge></div>)}</div>}</section>}{activeTab === "arquivos" && <section id="arquivos"><PatientFiles patientId={patient.id} files={files} canUpload={patient.ativo && (user.perfil === "administrador" || user.perfil === "recepcao" || isDentist)} /></section>}</div>;
 }

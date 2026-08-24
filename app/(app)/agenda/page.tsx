@@ -3,6 +3,8 @@ import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { requireUser } from "@/lib/auth/session";
 import { addDays, normalizeDateKey, startOfClinicWeek } from "@/lib/agenda/dates";
 import { listActiveProfessionals, listAgenda } from "@/lib/agenda/queries";
+import type { ActiveProfessional, AgendaItem } from "@/lib/agenda/types";
+import { listAttendanceIdsByAppointment } from "@/lib/clinical/queries";
 import { isValidUuid } from "@/lib/patients/validation";
 import { AgendaGrid } from "./AgendaGrid";
 
@@ -23,15 +25,39 @@ export default async function AgendaPage({ searchParams }: { searchParams: Searc
   const startDate = view === "semana" ? startOfClinicWeek(selectedDate) : selectedDate;
   const days = view === "semana" ? 7 : 1;
   const endDate = addDays(startDate, days);
-  const professionals = await listActiveProfessionals();
-  const ownProfessional = professionals.find((item) => item.usuario_id === user.id);
   const requestedProfessional = first(params.profissional);
-  const selectedProfessional = user.perfil === "dentista"
-    ? ownProfessional?.id ?? null
-    : requestedProfessional && isValidUuid(requestedProfessional) ? requestedProfessional : null;
-  const items = user.perfil === "dentista" && !ownProfessional
-    ? []
-    : await listAgenda({ startDate, endDate, professionalId: selectedProfessional });
+  let professionals: ActiveProfessional[];
+  let ownProfessional: ActiveProfessional | undefined = undefined;
+  let selectedProfessional: string | null;
+  let items: AgendaItem[];
+  if (user.perfil === "dentista") {
+    professionals = await listActiveProfessionals();
+    ownProfessional = professionals.find((item) => item.usuario_id === user.id);
+    selectedProfessional = ownProfessional?.id ?? null;
+    items = ownProfessional
+      ? await listAgenda({ startDate, endDate, professionalId: selectedProfessional })
+      : [];
+  } else {
+    selectedProfessional = requestedProfessional && isValidUuid(requestedProfessional)
+      ? requestedProfessional
+      : null;
+    [professionals, items] = await Promise.all([
+      listActiveProfessionals(),
+      listAgenda({ startDate, endDate, professionalId: selectedProfessional }),
+    ]);
+  }
+  const attendances = user.perfil === "dentista"
+    ? await listAttendanceIdsByAppointment(items.map((item) => item.id))
+    : [];
+  const attendanceByAppointment = new Map(
+    attendances.flatMap((attendance) =>
+      attendance.agendamento_id ? [[attendance.agendamento_id, attendance.id] as const] : []
+    )
+  );
+  const agendaItems = items.map((item) => ({
+    ...item,
+    atendimento_id: attendanceByAppointment.get(item.id),
+  }));
   const step = view === "semana" ? 7 : 1;
   const canManage = user.perfil === "administrador" || user.perfil === "recepcao";
 
@@ -88,7 +114,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Searc
 
       {!ownProfessional && user.perfil === "dentista" ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-800">Seu vínculo profissional ativo não foi localizado. A agenda clínica permanece bloqueada.</div>
-      ) : <AgendaGrid items={items} startDate={startDate} days={days} profile={user.perfil} />}
+      ) : <AgendaGrid items={agendaItems} startDate={startDate} days={days} profile={user.perfil} />}
     </div>
   );
 }

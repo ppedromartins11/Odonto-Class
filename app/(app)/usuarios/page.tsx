@@ -32,15 +32,15 @@ const ROLE_CONFIG: Record<
 const PERMISSOES_REFERENCIA = [
   {
     role: "Administrador",
-    perms: ["Acesso total ao sistema", "Gerenciar usuários", "Todos os módulos disponíveis"],
+    perms: ["Gerenciar usuários", "Agenda e pacientes", "Operação administrativa"],
   },
   {
     role: "Dentista",
-    perms: ["Agenda própria (quando existir)", "Prontuário clínico", "Atendimentos"],
+    perms: ["Agenda própria", "Atendimentos próprios", "Conteúdo clínico autorizado"],
   },
   {
     role: "Recepção",
-    perms: ["Agenda completa (quando existir)", "Cadastro de pacientes", "Documentos"],
+    perms: ["Agenda completa", "Cadastro de pacientes", "Documentos e retornos"],
   },
 ];
 
@@ -61,10 +61,9 @@ export default async function UsuariosPage() {
     .order("nome");
 
   if (error) {
+    console.error("Falha ao carregar usuários", { code: error.code });
     return (
-      <p className="text-sm text-destructive">
-        Não foi possível carregar os usuários: {error.message}
-      </p>
+      <div className="mx-auto max-w-6xl rounded-lg border border-red-200 bg-red-50 p-5 text-sm text-destructive">Não foi possível carregar os usuários agora. Tente novamente.</div>
     );
   }
 
@@ -72,8 +71,8 @@ export default async function UsuariosPage() {
   const ativos = lista.filter((u) => u.status === "ativo");
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
+    <div className="mx-auto max-w-6xl space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-medium text-foreground">Usuários</h2>
           <p className="text-muted-foreground mt-0.5 text-sm">
@@ -84,7 +83,7 @@ export default async function UsuariosPage() {
         <NovoUsuarioDialog />
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mb-6">
+      <div className="grid gap-3 sm:grid-cols-3">
         {(Object.keys(ROLE_CONFIG) as PerfilUsuario[]).map((perfil) => {
           const count = ativos.filter((u) => u.perfil === perfil).length;
           const cfg = ROLE_CONFIG[perfil];
@@ -106,13 +105,13 @@ export default async function UsuariosPage() {
         })}
       </div>
 
-      <div className="bg-card border border-border rounded-lg overflow-hidden">
+      <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
         {lista.length === 0 ? (
           <p className="p-6 text-sm text-muted-foreground text-center">
             Nenhum usuário cadastrado ainda.
           </p>
         ) : (
-          <table className="w-full">
+          <div className="overflow-x-auto"><table className="min-w-[46rem] w-full">
             <thead>
               <tr className="border-b border-border bg-secondary/30">
                 <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">
@@ -173,17 +172,17 @@ export default async function UsuariosPage() {
                 );
               })}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
 
-      <div className="mt-6 bg-card border border-border rounded-lg p-5">
+      <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
         <h4 className="mb-4 text-base font-medium text-foreground">Permissões por perfil</h4>
         <p className="text-xs text-muted-foreground mb-4">
           Referência ilustrativa. O controle de acesso real é aplicado no banco
           de dados (RLS) - ver docs/SECURITY.md.
         </p>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid gap-5 md:grid-cols-3">
           {PERMISSOES_REFERENCIA.map((item) => (
             <div key={item.role} className="space-y-2">
               <p className="text-sm font-medium text-foreground">{item.role}</p>

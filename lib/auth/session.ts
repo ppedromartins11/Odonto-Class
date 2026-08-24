@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -29,7 +30,7 @@ export type CurrentUserState =
  * confia apenas no cookie decodificado localmente (getSession) - getUser
  * revalida o token no backend do Supabase.
  */
-export async function getCurrentUserState(): Promise<CurrentUserState> {
+async function resolveCurrentUserState(): Promise<CurrentUserState> {
   const supabase = await createSupabaseServerClient();
 
   const {
@@ -66,6 +67,13 @@ export async function getCurrentUserState(): Promise<CurrentUserState> {
 
   return { kind: "authenticated", user: usuario };
 }
+
+/**
+ * O cache do React e restrito ao request de renderizacao atual. Assim, layout
+ * e pagina compartilham a mesma validacao auth + perfil sem criar cache entre
+ * usuarios ou relaxar a revalidacao server-side do Supabase.
+ */
+export const getCurrentUserState = cache(resolveCurrentUserState);
 
 export async function getCurrentUser(): Promise<UsuarioAtual | null> {
   const state = await getCurrentUserState();
