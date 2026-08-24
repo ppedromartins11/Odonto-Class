@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarDays, ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { requireUser } from "@/lib/auth/session";
 import { addDays, normalizeDateKey, startOfClinicWeek } from "@/lib/agenda/dates";
 import { listActiveProfessionals, listAgenda } from "@/lib/agenda/queries";
@@ -88,20 +88,6 @@ export default async function AgendaPage({ searchParams }: { searchParams: Searc
 
       {!ownProfessional && user.perfil === "dentista" ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-800">Seu vínculo profissional ativo não foi localizado. A agenda clínica permanece bloqueada.</div>
-      ) : items.length === 0 && days === 1 ? (
-        <div className="rounded-lg border border-dashed border-border bg-card px-6 py-12 text-center">
-          <CalendarDays className="mx-auto h-8 w-8 text-muted-foreground/60" />
-          <h3 className="mt-3 text-base font-medium">Nenhum agendamento neste dia</h3>
-          <p className="mt-1 text-sm text-muted-foreground">Navegue para outra data ou crie um novo agendamento.</p>
-          {canManage && (
-            <Link
-              href={`/agenda/novo?data=${selectedDate}`}
-              className="mt-5 inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-            >
-              <Plus className="h-4 w-4" /> Novo agendamento
-            </Link>
-          )}
-        </div>
       ) : <AgendaGrid items={items} startDate={startDate} days={days} profile={user.perfil} />}
     </div>
   );

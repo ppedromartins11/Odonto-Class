@@ -2,7 +2,27 @@ import "server-only";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { OperationalDocument, OperationalReturn, OperationalTask, PatientDocument, PatientFile, DocumentType } from "./types";
 function fail(scope: string, code?: string): never { console.error(scope, { code }); throw new Error(scope); }
-export async function listReturns(patientId?: string) { const s=await createSupabaseServerClient(); let q=s.from("retornos").select("id,paciente_id,atendimento_origem_id,profissional_id,data_prevista,status,observacao_administrativa,agendamento_id,created_at").order("data_prevista"); if(patientId) q=q.eq("paciente_id",patientId); const {data,error}=await q; if(error) fail("RETURNS_LOAD_FAILED",error.code); return (data??[]) as OperationalReturn[]; }
+export async function listReturns(patientId?: string) {
+  const s = await createSupabaseServerClient();
+  let q = s
+    .from("retornos")
+    .select("id,paciente_id,atendimento_origem_id,profissional_id,data_prevista,status,observacao_administrativa,agendamento_id,created_at,pacientes!inner(nome),profissionais(usuarios(nome))")
+    .order("data_prevista");
+  if (patientId) q = q.eq("paciente_id", patientId);
+  const { data, error } = await q;
+  if (error) fail("RETURNS_LOAD_FAILED", error.code);
+  return (data ?? []).map((item) => {
+    const row = item as typeof item & { pacientes: { nome?: string } | null; profissionais: { usuarios?: { nome?: string } | null } | null };
+    const fields = { ...row } as Record<string, unknown>;
+    delete fields.pacientes;
+    delete fields.profissionais;
+    return {
+      ...fields,
+      paciente_nome: row.pacientes?.nome ?? "Paciente indisponível",
+      profissional_nome: row.profissionais?.usuarios?.nome ?? null,
+    } as OperationalReturn;
+  });
+}
 export async function listTasks(patientId?: string) { const s=await createSupabaseServerClient(); let q=s.from("tarefas").select("id,titulo,descricao,status,prazo,responsavel_id,paciente_id,agendamento_id,created_by,created_at").order("prazo",{ascending:true,nullsFirst:false}); if(patientId) q=q.eq("paciente_id",patientId); const {data,error}=await q; if(error) fail("TASKS_LOAD_FAILED",error.code); return (data??[]) as OperationalTask[]; }
 export async function listDocuments(patientId: string) { const s=await createSupabaseServerClient(); const {data,error}=await s.from("documentos").select("id,paciente_id,profissional_id,tipo,emitido_em,periodo_inicio,periodo_fim,texto_adicional,nome_arquivo,tamanho_bytes,created_at").eq("paciente_id",patientId).order("emitido_em",{ascending:false}); if(error) fail("DOCUMENTS_LOAD_FAILED",error.code); return (data??[]) as PatientDocument[]; }
 export async function listOperationalDocuments({ query, type, page, pageSize = 20 }: { query: string; type?: DocumentType; page: number; pageSize?: number }) {

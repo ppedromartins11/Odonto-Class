@@ -1,5 +1,46 @@
 # Deploy
 
+## Release candidate atual
+
+O release candidate inclui somente os modulos homologados: Auth, Usuarios,
+Dashboard, Pacientes, Agenda, Atendimentos, Procedimentos, Retornos, Tarefas,
+Documentos/PDF e Arquivos privados. Financeiro, Orcamentos e
+Validade/Esterilizacao permanecem parciais, sem homologacao operacional: estao
+desativados no menu e suas rotas retornam 404. Nao devem ser usados neste
+release candidate.
+
+As migrations `0007` e `0008` existem apenas como trabalho parcial ja aplicado
+na homologacao ficticia. Elas nao devem ser promovidas como um modulo pronto;
+a conclusao desse bloco exige revisao, testes RLS especificos e homologacao
+propria.
+
+### Checklist de deploy para homologacao online
+
+1. Versionar apenas o conjunto revisado do release candidate; confirmar que
+   `.env*` com credenciais, artefatos temporarios e dados ficticios nao entram
+   no commit.
+2. Na Vercel, configurar sem registrar valores em documentacao ou Git:
+   `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+   `SUPABASE_SERVICE_ROLE_KEY`, `AUTH_FLOW_COOKIE_SECRET` e
+   `NEXT_PUBLIC_SITE_URL`.
+3. Usar um projeto Supabase exclusivo de homologacao, aplicar somente as
+   migrations aprovadas para o release e manter RLS habilitada em todas as
+   tabelas expostas.
+4. Confirmar que o bucket de arquivos e privado, sem URL publica permanente,
+   e que os downloads continuam passando pela rota server-side autorizada com
+   URL assinada temporaria.
+5. Em Supabase Auth > URL Configuration, cadastrar o dominio de homologacao
+   e os redirects `https://<dominio>/auth/callback` e
+   `https://<dominio>/auth/confirm`; repetir a validacao para recuperacao de
+   senha e convite.
+6. Executar no ambiente de build de producao: `npm run lint`,
+   `npm run typecheck`, `npm run test` e `npm run build`; depois fazer smoke
+   test com dados estritamente ficticios.
+
+Antes de qualquer dado real ou producao: habilitar MFA para administradores,
+definir e testar backup/restauracao, revisar a seguranca final e concluir o
+bloco parcial de Financeiro/Orcamentos/Validade.
+
 ## Gate da Sprint 1.5
 
 Dependencias, lint, tipos, testes unitarios, build, migrations, lint SQL

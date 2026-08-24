@@ -19,15 +19,14 @@
       `pacientes`, `paciente_alertas_clinicos`, busca nome/telefone, ficha,
       RPCs, RLS e auditoria validados. Migration `0003`, lint SQL e 15
       testes de integracao/autorizacao passaram em homologacao ficticia.
-- [ ] **Bloco clinico integrado (substitui Sprints 3/4 separadas)** - Agenda,
-      atendimento e procedimentos implementados e validados remotamente em
-      uma entrega; aguarda somente homologacao manual do usuario.
-- [ ] **Sprint 5** - Documentos (RF-10, RF-11). Tabela: `documentos`.
-- [ ] **Sprint 6** - Retornos e tarefas (RF-12, RF-13, RF-03 dashboard).
-      Tabelas: `retornos`, `tarefas`.
-- [ ] **Sprint 7** - Pagamentos e orcamento (RF-14, RF-15, RF-16).
+- [x] **Bloco clinico integrado (substitui Sprints 3/4 separadas)** - Agenda,
+      atendimento e procedimentos homologados manualmente.
+- [x] **Sprint 5** - Documentos/PDF e arquivos privados (RF-10, RF-11).
+- [x] **Sprint 6** - Retornos e tarefas (RF-12, RF-13). Tabelas:
+      `retornos`, `tarefas`.
+- [ ] **Sprint 7** - Pagamentos e orcamento (RF-14, RF-15, RF-16). Schema parcial nas migrations `0007`/`0008`; UI, RLS especifica e homologacao ainda nao estao concluidos. Modulo desativado para o release candidate.
       Tabelas: `pagamentos`, `orcamentos`, `orcamento_itens`.
-- [ ] **Sprint 8** - Validade/esterilizacao (RF-17, RF-18). Tabela:
+- [ ] **Sprint 8** - Validade/esterilizacao (RF-17, RF-18). Schema parcial nas migrations `0007`/`0008`; UI, RLS especifica e homologacao ainda nao estao concluidos. Modulo desativado para o release candidate. Tabela:
       `controle_validade`.
 - [ ] **Sprint 9** - Testes e seguranca finais (RF-20, RN-05, RNF-01,
       RNF-07). `auditoria` minima ja existe desde a Sprint 1.5; ampliar

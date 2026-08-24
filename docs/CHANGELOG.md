@@ -1,5 +1,19 @@
 # Changelog
 
+## Release candidate - modulos homologados
+
+- Release candidate delimitado aos modulos de Auth, Usuarios, Dashboard,
+  Pacientes, Agenda, Atendimento, Procedimentos, Retornos, Tarefas,
+  Documentos/PDF e Arquivos privados.
+- Financeiro, Orcamentos e Validade/Esterilizacao foram retirados da navegacao
+  operacional e suas rotas foram desativadas. As migrations parciais `0007`
+  e `0008` foram preservadas, mas esses modulos nao sao homologados nem devem
+  ser usados no release candidate.
+- Build tornado independente de download de fontes: a pilha tipografica local
+  preserva a aparencia do sistema quando o ambiente de build nao possui rede.
+- Checklist de deploy de homologacao online e gates antes de dados reais
+  registrados em `docs/DEPLOYMENT.md`.
+
 ## Bloco clinico integrado - Agenda, Atendimento e Procedimentos
 
 - Migration aditiva `0004` com agenda sem sobreposicao concorrente,
