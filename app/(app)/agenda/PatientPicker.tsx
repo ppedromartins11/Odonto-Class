@@ -9,10 +9,12 @@ export function PatientPicker({
   initialPatient,
   error,
   searchLabel = "Buscar paciente para agendamento",
+  onSelect,
 }: {
   initialPatient?: PatientOption | null;
   error?: string;
   searchLabel?: string;
+  onSelect?: (patient: PatientOption | null) => void;
 }) {
   const [selected, setSelected] = useState<PatientOption | null>(initialPatient ?? null);
   const [query, setQuery] = useState("");
@@ -56,7 +58,7 @@ export function PatientPicker({
             <p className="truncate text-sm font-medium text-foreground">{selected.nome}</p>
             <p className="text-xs text-muted-foreground">{selected.telefone_contato ?? "Telefone não informado"}</p>
           </div>
-          <button type="button" onClick={() => setSelected(null)} aria-label="Trocar paciente" className="rounded p-1 text-muted-foreground hover:bg-secondary hover:text-foreground">
+          <button type="button" onClick={() => { setSelected(null); onSelect?.(null); }} aria-label="Trocar paciente" className="rounded p-1 text-muted-foreground hover:bg-secondary hover:text-foreground">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -85,7 +87,7 @@ export function PatientPicker({
                 <button
                   key={patient.id}
                   type="button"
-                  onClick={() => { setSelected(patient); setQuery(""); setResults([]); setLoading(false); }}
+                  onClick={() => { setSelected(patient); onSelect?.(patient); setQuery(""); setResults([]); setLoading(false); }}
                   className="block w-full border-b border-border px-3 py-2.5 text-left last:border-b-0 hover:bg-secondary"
                 >
                   <span className="block text-sm font-medium text-foreground">{patient.nome}</span>

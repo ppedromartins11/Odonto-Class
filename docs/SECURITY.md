@@ -102,6 +102,21 @@ modulo/acao/campo antes de sua migration. A recepcao tera somente
 financeiro operacional; indicadores gerenciais serao exclusivos do
 administrador, conforme PAV-21.
 
+## Matriz do modulo Financeiro basico (Sprint 11)
+
+| Acao | Administrador ativo | Recepcao ativa | Dentista ativo | Inativo/sem perfil |
+|---|---:|---:|---:|---:|
+| Consultar pagamentos | Todos | Todos os operacionais | Somente dos proprios atendimentos | Nao |
+| Registrar pagamento | Sim | Sim | Nao | Nao |
+| Cancelar/estornar pagamento pago | Sim | Nao | Nao | Nao |
+| Ver indicadores agregados | Sim | Nao | Nao | Nao |
+
+`pagamentos` aceita somente `SELECT` sob RLS; `INSERT`, `UPDATE` e `DELETE`
+diretos para clientes autenticados sao revogados. As RPCs validam usuario
+ativo, perfil, paciente, vinculo com atendimento/orcamento e a regra de no
+maximo uma referencia. Auditoria armazena somente IDs, forma e transicao de
+status, nunca observacao administrativa.
+
 ## Matriz do modulo Orcamentos (Sprint 10)
 
 | Acao | Administrador ativo | Recepcao ativa | Dentista ativo | Inativo/sem perfil |

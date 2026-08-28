@@ -25,8 +25,9 @@
 - [x] **Sprint 6** - Retornos e tarefas (RF-12, RF-13). Tabelas:
       `retornos`, `tarefas`; tarefas simples, sem recorrencia, com prioridade,
       status operacional e remocao logica.
-- [ ] **Sprint 7** - Pagamentos e indicadores (RF-14, RF-15). Continua fora do
-      escopo da Sprint 10; o WIP `0007`/`0008` permanece isolado.
+- [x] **Sprint 11** - Pagamentos basicos (RF-14, RF-15 operacional). Registro,
+      consulta paginada, filtros, vinculo opcional a atendimento/orcamento,
+      estorno/cancelamento administrativo e indicadores restritos ao admin.
 - [ ] **Sprint 8** - Validade/esterilizacao (RF-17, RF-18). Schema parcial nas migrations `0007`/`0008`; UI, RLS especifica e homologacao ainda nao estao concluidos. Modulo desativado para o release candidate. Tabela:
       `controle_validade`.
 - [ ] **Sprint 9** - Testes e seguranca finais (RF-20, RN-05, RNF-01,

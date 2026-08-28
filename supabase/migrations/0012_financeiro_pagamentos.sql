@@ -33,13 +33,6 @@ create table if not exists public.pagamentos (
   constraint pagamentos_observacao_valida check (observacao_administrativa is null or (observacao_administrativa = btrim(observacao_administrativa) and char_length(observacao_administrativa) between 1 and 1000))
 );
 
--- Compatibilidade apenas para homologacoes ficticias que receberam o WIP 0007/0008.
-do $$ begin
-  if exists (select 1 from information_schema.columns where table_schema='public' and table_name='pagamentos' and column_name='forma') then
-    execute 'update public.pagamentos set forma = ''cartao_credito''::public.forma_pagamento where forma::text = ''cartao''';
-  end if;
-end $$;
-
 create index if not exists pagamentos_paciente_data_idx on public.pagamentos(paciente_id, data_pagamento desc, id);
 create index if not exists pagamentos_data_status_idx on public.pagamentos(data_pagamento desc, status, id);
 create unique index if not exists pagamentos_atendimento_pago_unico_idx on public.pagamentos(atendimento_id) where atendimento_id is not null and status = 'pago';

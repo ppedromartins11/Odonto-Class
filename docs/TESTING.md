@@ -122,6 +122,18 @@ ficticios residuais dos prefixos da suite.
 - O teste remoto depende de secrets do ambiente GitHub `homologacao-ficticia`;
   nunca incluir esses valores no repositorio ou em arquivos de exemplo.
 
+## Sprint 11: Financeiro basico
+
+- Unitarios cobrem formas/status aceitos e valores monetarios inteiros,
+  positivos e limitados em centavos.
+- Integracao/RLS cobre administrador, recepcao, dentista proprio e de outro
+  profissional, usuario inativo e conta sem perfil; tambem cobre IDOR,
+  referencias de paciente divergente, referencia dupla, pagamento duplicado,
+  DML direto negado, cancelamento/estorno e auditoria sem observacao.
+- A suite cria somente fixtures `QA_FIN_` e as remove no `afterAll`.
+  Apos a execucao de homologacao, a contagem de pacientes e usuarios
+  `QA_FIN_` deve ser zero.
+
 ## Sprint 9.5 — checklist de homologação manual
 
 Executar exclusivamente na homologação fictícia, com dados descartáveis e

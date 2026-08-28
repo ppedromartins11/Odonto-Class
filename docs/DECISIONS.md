@@ -44,6 +44,7 @@ Itens ainda abertos: PAV-03 a PAV-08.
 | Auditoria (PAV-18) | Antes de dados clinicos, registrar: convite/aceite, ativacao/desativacao, mudanca de perfil, tentativa administrativa negada, redefinicao de senha e mudanca de configuracao de acesso. Eventos clinicos serao adicionados junto do modulo correspondente. |
 | MFA (PAV-20) | Obrigatorio para administrador antes do go-live. Nao bloqueia validacao local, mas bloqueia producao enquanto configuracao e teste AAL2 nao estiverem concluidos. |
 | Financeiro da recepcao (PAV-21) | Acesso operacional necessario para registrar e consultar pagamentos do atendimento; sem indicadores agregados, resultado ou visao gerencial da clinica. |
+| Pagamento pago (Sprint 11) | Valor, forma, data e vinculo nao sao editados depois do registro. Correcao ocorre por cancelamento ou estorno administrativo, preservando historico e auditoria. |
 | Desativacao | Bloquear dados imediatamente por `usuarios.status`/RLS e suspender a conta Auth. Tokens ainda validos nao concedem dados; reativacao remove a suspensao e so entao restaura status, com compensacao em caso de falha. |
 | Ultimo administrador | Nao permitir autodesativacao/autodowngrade nem qualquer mudanca que deixe zero administradores ativos. Regra atomica no banco, nao somente na UI. |
 | Profissional | Ao mudar para dentista, criar/reativar `profissionais`; ao sair do perfil ou desativar, preservar o historico e inativar o registro. |

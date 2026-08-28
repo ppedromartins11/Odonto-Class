@@ -2,12 +2,10 @@
 
 ## Release candidate atual
 
-O release candidate inclui somente os modulos homologados: Auth, Usuarios,
-Dashboard, Pacientes, Agenda, Atendimentos, Procedimentos, Retornos, Tarefas,
-Documentos/PDF e Arquivos privados. Financeiro, Orcamentos e
-Validade/Esterilizacao permanecem parciais, sem homologacao operacional: estao
-desativados no menu e suas rotas retornam 404. Nao devem ser usados neste
-release candidate.
+O release candidate inclui Auth, Usuarios, Dashboard, Pacientes, Agenda,
+Atendimentos, Procedimentos, Retornos, Tarefas, Documentos/PDF, Arquivos
+privados, Orcamentos e Financeiro basico (pagamentos). Validade/Esterilizacao
+continua parcial, desativada no menu e fora da homologacao operacional.
 
 As migrations `0007` e `0008` existem apenas como trabalho parcial ja aplicado
 na homologacao ficticia. Elas nao devem ser promovidas como um modulo pronto;

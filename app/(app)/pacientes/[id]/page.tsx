@@ -31,13 +31,15 @@ import { isValidUuid } from "@/lib/patients/validation";
 import { listDocuments, listPatientFiles, listReturns } from "@/lib/operational/queries";
 import { listBudgets } from "@/lib/budgets/queries";
 import { formatCents } from "@/lib/budgets/validation";
+import { listPayments } from "@/lib/financial/queries";
+import { formatCents as formatPaymentCents } from "@/lib/financial/validation";
 import { DirectAttendanceButton } from "../../atendimentos/DirectAttendanceButton";
 import { PatientClinicalAlertsForm } from "../PatientClinicalAlertsForm";
 import { PatientFiles } from "../PatientFiles";
 import { PatientStatusControl } from "../PatientStatusControl";
 import { ReturnStatusActions } from "../../retornos/ReturnStatusActions";
 
-type Tab = "visao-geral" | "historico" | "consultas" | "atendimentos" | "procedimentos" | "documentos" | "orcamentos" | "retornos" | "arquivos-clinicos" | "arquivos-administrativos";
+type Tab = "visao-geral" | "historico" | "consultas" | "atendimentos" | "procedimentos" | "documentos" | "orcamentos" | "pagamentos" | "retornos" | "arquivos-clinicos" | "arquivos-administrativos";
 type SearchParams = Promise<{ aba?: string | string[] }>;
 
 const STATUS_TONE = { agendado: "info", confirmado: "success", atendido: "neutral", cancelado: "danger", faltou: "warning" } as const;
@@ -50,7 +52,7 @@ function first(value: string | string[] | undefined) {
 }
 
 function isTab(value: string | undefined): value is Tab {
-  return value === "visao-geral" || value === "historico" || value === "consultas" || value === "atendimentos" || value === "procedimentos" || value === "documentos" || value === "orcamentos" || value === "retornos" || value === "arquivos-clinicos" || value === "arquivos-administrativos";
+  return value === "visao-geral" || value === "historico" || value === "consultas" || value === "atendimentos" || value === "procedimentos" || value === "documentos" || value === "orcamentos" || value === "pagamentos" || value === "retornos" || value === "arquivos-clinicos" || value === "arquivos-administrativos";
 }
 
 function initials(name: string) {
@@ -107,7 +109,7 @@ export default async function PatientPage({ params, searchParams }: { params: Pr
     : requestedTab;
   const loadsRecentHistory = activeTab === "visao-geral" || activeTab === "historico";
   const loadsClinicalTimeline = isDentist && (loadsRecentHistory || activeTab === "atendimentos");
-  const [clinicalAlerts, appointments, attendances, returns, documents, files, attendanceCount, activeAttendance, procedureEntries, budgetResult] = await Promise.all([
+  const [clinicalAlerts, appointments, attendances, returns, documents, files, attendanceCount, activeAttendance, procedureEntries, budgetResult, paymentResult] = await Promise.all([
     isDentist ? getPatientClinicalAlerts(id) : Promise.resolve(null),
     activeTab === "consultas" ? listPatientAppointments(id, 50) : loadsRecentHistory ? listPatientAppointments(id, 10) : Promise.resolve([]),
     activeTab === "atendimentos" && isDentist ? listPatientAttendances(id, 50) : loadsClinicalTimeline ? listPatientAttendances(id, 8) : Promise.resolve([]),
@@ -118,6 +120,7 @@ export default async function PatientPage({ params, searchParams }: { params: Pr
     isDentist ? getActivePatientAttendance(id) : Promise.resolve(null),
     isDentist && (activeTab === "procedimentos" || activeTab === "atendimentos") ? listPatientProcedures(id, 50) : loadsClinicalTimeline ? listPatientProcedures(id, 8) : Promise.resolve([]),
     activeTab === "orcamentos" ? listBudgets({ patientId: id, page: 1, pageSize: 50 }) : Promise.resolve({ budgets: [], total: 0, pageSize: 50 }),
+    activeTab === "pagamentos" ? listPayments({ patientId: id, page: 1, pageSize: 50 }) : Promise.resolve({ payments: [], total: 0, pageSize: 50 }),
   ]);
   const attendanceLinks = isDentist && activeTab === "consultas"
     ? await listAttendanceIdsByAppointment(appointments.map((appointment) => appointment.id))
@@ -143,6 +146,7 @@ export default async function PatientPage({ params, searchParams }: { params: Pr
     ...(isDentist ? [{ value: "atendimentos" as Tab, label: "Atendimentos" }, { value: "procedimentos" as Tab, label: "Procedimentos" }] : []),
     { value: "documentos", label: "Documentos" },
     { value: "orcamentos", label: "Orçamentos" },
+    { value: "pagamentos", label: "Pagamentos" },
     { value: "retornos", label: "Retornos" },
     ...(isDentist ? [{ value: "arquivos-clinicos" as Tab, label: "Fotos e arquivos clínicos" }] : [{ value: "arquivos-administrativos" as Tab, label: "Arquivos administrativos" }]),
   ];
@@ -316,6 +320,8 @@ export default async function PatientPage({ params, searchParams }: { params: Pr
         {activeTab === "documentos" && <section className="rounded-lg border border-border bg-card p-5"><SectionTitle title="Documentos" detail="Downloads passam pela rota autorizada." action={patient.ativo ? <Link href={`/documentos/novo?paciente=${patient.id}`} className="text-sm font-medium text-primary hover:underline">Novo documento</Link> : undefined} />{documents.length === 0 ? <div className="mt-4"><Empty>Nenhum documento visível.</Empty></div> : <div className="mt-4 divide-y divide-border rounded-lg border border-border">{documents.map((document) => <a key={document.id} href={`/api/documentos/${document.id}`} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-secondary"><span className="font-medium text-primary">{document.tipo === "atestado" ? "Atestado" : "Declaração"}</span><span className="text-xs text-muted-foreground">{formatClinicDate(document.emitido_em, { dateStyle: "short" })}</span></a>)}</div>}</section>}
 
         {activeTab === "orcamentos" && <section className="rounded-lg border border-border bg-card p-5"><SectionTitle title="Orçamentos" detail="Propostas comerciais visíveis conforme seu perfil." action={patient.ativo ? <Link href={`/orcamentos/novo?paciente=${patient.id}`} className="text-sm font-medium text-primary hover:underline">Novo orçamento</Link> : undefined} />{budgetResult.budgets.length === 0 ? <div className="mt-4"><Empty>Nenhum orçamento visível.</Empty></div> : <div className="mt-4 divide-y divide-border rounded-lg border border-border">{budgetResult.budgets.map((budget) => <Link key={budget.id} href={`/orcamentos/${budget.id}`} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 hover:bg-secondary"><span className="text-sm font-medium">#{budget.numero} · {budget.effective_status}</span><span className="text-sm font-medium">{formatCents(budget.total_centavos)}</span></Link>)}</div>}</section>}
+
+        {activeTab === "pagamentos" && <section className="rounded-lg border border-border bg-card p-5"><SectionTitle title="Pagamentos" detail="Histórico financeiro visível conforme seu perfil." action={(user.perfil === "administrador" || user.perfil === "recepcao") && patient.ativo ? <Link href={`/financeiro/novo?paciente=${patient.id}`} className="text-sm font-medium text-primary hover:underline">Registrar pagamento</Link> : undefined} />{paymentResult.payments.length === 0 ? <div className="mt-4"><Empty>Nenhum pagamento visível.</Empty></div> : <div className="mt-4 divide-y divide-border rounded-lg border border-border">{paymentResult.payments.map((payment) => <article key={payment.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"><div><p className="text-sm font-medium">{payment.referencia}</p><p className="mt-1 text-xs text-muted-foreground">{payment.data_pagamento} · {payment.forma}</p></div><div className="text-right"><p className="text-sm font-medium">{formatPaymentCents(payment.valor_centavos)}</p><p className="mt-1 text-xs text-muted-foreground">{payment.status}</p></div></article>)}</div>}</section>}
 
         {activeTab === "retornos" && (
           <section className="rounded-lg border border-border bg-card p-5">

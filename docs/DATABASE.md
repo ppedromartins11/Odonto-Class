@@ -1,8 +1,8 @@
 # Modelo de Dados
 
-> As migrations `0001`-`0006`, `0009`, `0010` e `0011` foram aplicadas e validadas
-> em homologacao ficticia. As migrations `0007` e `0008` pertencem ao WIP de
-> Financeiro/Orcamentos/Validade, estao fora do `main` e nao fazem parte do RC.
+> As migrations `0001`-`0006`, `0009`-`0013` foram aplicadas e validadas
+> em homologacao ficticia. As migrations `0007` e `0008` pertencem ao WIP
+> historico de Financeiro/Orcamentos/Validade e permanecem fora do `main`.
 > Todas as migrations aplicadas permanecem imutaveis.
 
 ## Premissas
@@ -22,10 +22,10 @@
 `usuarios`, `profissionais`, `pacientes`, `paciente_alertas_clinicos`,
 `agendamentos`, `atendimentos`,
 `procedimentos`, `documentos`, `retornos`, `tarefas`, `arquivos_paciente`,
-`auditoria`, `orcamentos` e `orcamento_itens`.
+`auditoria`, `orcamentos`, `orcamento_itens` e `pagamentos`.
 
-`pagamentos` e `controle_validade` pertencem exclusivamente ao WIP das
-migrations `0007` e `0008`; nao fazem parte deste modulo.
+`controle_validade` continua exclusivamente no WIP das migrations `0007` e
+`0008`; nao faz parte do modulo operacional homologado.
 
 ## Orcamentos (migration 0011)
 
@@ -41,6 +41,21 @@ migrations `0007` e `0008`; nao fazem parte deste modulo.
   comercial, sem criar atendimento, procedimento ou pagamento.
 - Escrita direta e `DELETE` sao revogados para usuarios autenticados. As
   mutacoes passam pelas RPCs transacionais de criacao, edicao, itens e status.
+
+## Pagamentos (migrations 0012 e 0013)
+
+- `pagamentos` guarda somente valores inteiros em centavos, paciente
+  obrigatorio, forma, data, status e observacao administrativa curta.
+- Um pagamento referencia no maximo um de `atendimento_id` ou `orcamento_id`;
+  tambem pode ficar somente vinculado ao paciente (PAV-10).
+- Novos pagamentos nascem `pago`; valor, forma, data e vinculo sao imutaveis.
+  Correcao operacional ocorre somente por `cancelado` ou `estornado`, ambos
+  preservando o registro para historico e auditoria.
+- Indices atendem a paginação/filtros por paciente e data. Indices parciais
+  impedem dois pagamentos `pago` para o mesmo atendimento ou orçamento nesta
+  fase sem parcelamento.
+- A `0013` remove assinaturas legadas do WIP que permitiam editar pagamentos;
+  nao altera migrations anteriores nem dados de producao.
 
 ## Tarefas (migrations 0009 e 0010)
 

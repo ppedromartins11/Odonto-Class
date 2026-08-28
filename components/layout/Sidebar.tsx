@@ -35,7 +35,7 @@ const NAV_ITEMS = [
   { href: "/documentos", label: "Documentos", icon: FileText, enabled: true },
   { href: "/retornos", label: "Retornos", icon: RotateCcw, enabled: true },
   { href: "/tarefas", label: "Tarefas", icon: CheckSquare, enabled: true },
-  { href: "/financeiro", label: "Financeiro", icon: DollarSign, enabled: false },
+  { href: "/financeiro", label: "Financeiro", icon: DollarSign, enabled: true },
   { href: "/orcamentos", label: "Orçamentos", icon: ClipboardList, enabled: true },
   { href: "/validade", label: "Val. e Esterilização", icon: ShieldCheck, enabled: false },
   { href: "/usuarios", label: "Usuários", icon: UserCog, enabled: true, adminOnly: true },

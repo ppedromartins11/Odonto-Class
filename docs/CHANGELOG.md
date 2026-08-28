@@ -1,5 +1,14 @@
 # Changelog
 
+## Sprint 11 - Financeiro basico (nao commitado)
+
+- Adicionados pagamentos em centavos com vinculo seguro a paciente,
+  atendimento ou orcamento, filtros e paginacao server-side.
+- Indicadores agregados ficam restritos ao administrador; recepcao opera sem
+  resumo e dentista consulta somente pagamentos de atendimentos proprios.
+- Adicionada migration `0013` para remover RPCs legadas do WIP e preservar a
+  imutabilidade de pagamentos ja registrados.
+
 ## Sprint 10 - Orcamentos
 
 - Migration aditiva `0011_orcamentos_completo.sql` com tabelas proprias,
