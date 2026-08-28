@@ -102,6 +102,21 @@ modulo/acao/campo antes de sua migration. A recepcao tera somente
 financeiro operacional; indicadores gerenciais serao exclusivos do
 administrador, conforme PAV-21.
 
+## Matriz do modulo Orcamentos (Sprint 10)
+
+| Acao | Administrador ativo | Recepcao ativa | Dentista ativo | Inativo/sem perfil |
+|---|---:|---:|---:|---:|
+| Listar/consultar | Todos | Todos | Somente os proprios | Nao |
+| Criar rascunho | Sim | Sim | Somente com ele como responsavel | Nao |
+| Editar rascunho/itens | Sim | Sim | Somente os proprios | Nao |
+| Enviar/aprovar/rejeitar/convertir | Sim | Sim | Somente os proprios, conforme transicao | Nao |
+| Gerar PDF | Sim | Sim | Somente os proprios | Nao |
+
+As tabelas aceitam apenas `SELECT` sob RLS. RPCs com `SECURITY DEFINER`
+possuem `search_path = ''`, validam usuario ativo, perfil, profissional e
+transicao antes de qualquer gravacao. O PDF e gerado sob rota autenticada,
+sem Storage, URL publica ou conteudo sensivel na auditoria.
+
 ## Matriz do modulo Pacientes (Sprint 2)
 
 | Recurso/acao | Administrador ativo | Dentista ativo + profissional ativo | Recepcao ativa | Inativo/sem perfil |

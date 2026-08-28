@@ -25,14 +25,15 @@
 - [x] **Sprint 6** - Retornos e tarefas (RF-12, RF-13). Tabelas:
       `retornos`, `tarefas`; tarefas simples, sem recorrencia, com prioridade,
       status operacional e remocao logica.
-- [ ] **Sprint 7** - Pagamentos e orcamento (RF-14, RF-15, RF-16). Schema parcial nas migrations `0007`/`0008`; UI, RLS especifica e homologacao ainda nao estao concluidos. Modulo desativado para o release candidate.
-      Tabelas: `pagamentos`, `orcamentos`, `orcamento_itens`.
+- [ ] **Sprint 7** - Pagamentos e indicadores (RF-14, RF-15). Continua fora do
+      escopo da Sprint 10; o WIP `0007`/`0008` permanece isolado.
 - [ ] **Sprint 8** - Validade/esterilizacao (RF-17, RF-18). Schema parcial nas migrations `0007`/`0008`; UI, RLS especifica e homologacao ainda nao estao concluidos. Modulo desativado para o release candidate. Tabela:
       `controle_validade`.
 - [ ] **Sprint 9** - Testes e seguranca finais (RF-20, RN-05, RNF-01,
       RNF-07). `auditoria` minima ja existe desde a Sprint 1.5; ampliar
       eventos e revisar policies de todos os modulos.
-- [ ] **Sprint 10** - Homologacao com a clinica (dados ficticios).
+- [ ] **Sprint 10** - Orcamentos (RF-16): migration `0011`, UI, PDF e testes
+      implementados; pendente de aplicacao e homologacao em ambiente ficticio.
 
 Detalhamento completo (objetivo, dependencias, testes, criterio de
 conclusao) por sprint esta na especificacao tecnica aprovada, secao 9.

@@ -1,0 +1,6 @@
+"use client";
+import { useActionState } from "react";
+import { initialBudgetActionState, type BudgetStatus } from "@/lib/budgets/types";
+import { changeBudgetStatus } from "./actions";
+const actions: Partial<Record<BudgetStatus, { status: "enviado" | "aprovado" | "rejeitado" | "convertido"; label: string }[]>> = { enviado: [{ status: "aprovado", label: "Aprovar" }, { status: "rejeitado", label: "Rejeitar" }], aprovado: [{ status: "convertido", label: "Marcar como convertido" }] };
+export function BudgetStatusActions({ budgetId, status }: { budgetId: string; status: BudgetStatus }) { const [state, action, pending] = useActionState(changeBudgetStatus, initialBudgetActionState); const options = actions[status] ?? []; if (!options.length) return null; return <form action={action} className="flex flex-wrap items-center justify-end gap-2"><input type="hidden" name="budgetId" value={budgetId}/>{state.error && <p role="alert" className="text-sm text-destructive">{state.error}</p>}{options.map((option) => <button key={option.status} disabled={pending} name="status" value={option.status} className={`h-10 rounded px-4 text-sm font-medium ${option.status === "rejeitado" ? "border text-destructive hover:bg-destructive/10" : "bg-primary text-primary-foreground hover:bg-primary/90"}`}>{option.label}</button>)}</form>; }

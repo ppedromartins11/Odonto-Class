@@ -80,6 +80,17 @@ Administrador puro e recepcao nao recebem conteudo clinico.
 - **RF-13**: tarefas simples com titulo, prazo, responsavel e vinculos opcionais, sem recorrencia ou kanban.
 - **RF-19**: arquivos privados PDF/JPEG/PNG ate 10 MiB, com categoria administrativa/clinica, path UUID e acesso autorizado por perfil/vinculo.
 
+## Sprint 10 - Orcamentos
+
+- **RF-16**: orcamento comercial com paciente, profissional responsavel,
+  validade, observacao administrativa e itens de texto livre. Valores sao
+  calculados em centavos no banco.
+- Status simples: rascunho, enviado, aprovado, rejeitado, expirado e
+  convertido. Aprovado bloqueia alteracao de valores; convertido nao cria
+  automaticamente tratamento, atendimento ou pagamento.
+- O PDF e gerado sob demanda no servidor e a ficha 360 mostra somente os
+  orcamentos autorizados pelo perfil autenticado.
+
 Regras de negocio (RN-01 a RN-10) e requisitos nao-funcionais (RNF-01 a
 RNF-10) do documento-fonte aplicam-se integralmente. Destaques:
 

@@ -1,5 +1,17 @@
 # Registro de Decisoes (ADR resumido)
 
+## PAV-22 - Orcamentos comerciais da Sprint 10
+
+- A migration `0011` e independente do WIP `0007/0008`; nenhuma migration
+  historica e reescrita.
+- `validade_em` pode ser nula em rascunho. Envio exige validade e ao menos um
+  item ativo com total positivo. Orcamento enviado vencido e tratado como
+  expirado pelo servidor, sem cron, e nao pode ser aprovado.
+- `convertido` e somente estado comercial. Nao cria automaticamente
+  atendimento, procedimento, pagamento ou tratamento.
+- PDF de orcamento e entregue sob demanda por rota autenticada; nao ha bucket,
+  URL assinada persistida ou conteudo administrativo em auditoria.
+
 ## Decisoes de escopo/modelagem aprovadas (PAV-09 a PAV-17)
 
 | PAV | Decisao | Alternativa descartada |

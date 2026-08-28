@@ -1,6 +1,6 @@
 # Modelo de Dados
 
-> As migrations `0001`-`0006`, `0009` e `0010` foram aplicadas e validadas
+> As migrations `0001`-`0006`, `0009`, `0010` e `0011` foram aplicadas e validadas
 > em homologacao ficticia. As migrations `0007` e `0008` pertencem ao WIP de
 > Financeiro/Orcamentos/Validade, estao fora do `main` e nao fazem parte do RC.
 > Todas as migrations aplicadas permanecem imutaveis.
@@ -17,16 +17,30 @@
 - Campos de auditoria padrao: `created_at`, `updated_at`, `created_by`,
   `updated_by`.
 
-## Tabelas implementadas no main RC (12)
+## Tabelas implementadas no main RC (14)
 
 `usuarios`, `profissionais`, `pacientes`, `paciente_alertas_clinicos`,
 `agendamentos`, `atendimentos`,
 `procedimentos`, `documentos`, `retornos`, `tarefas`, `arquivos_paciente`,
-`auditoria`.
+`auditoria`, `orcamentos` e `orcamento_itens`.
 
-As tabelas `pagamentos`, `orcamentos`, `orcamento_itens` e
-`controle_validade` pertencem exclusivamente ao WIP das migrations `0007` e
-`0008`; nao devem ser tratadas como parte do schema do Release Candidate.
+`pagamentos` e `controle_validade` pertencem exclusivamente ao WIP das
+migrations `0007` e `0008`; nao fazem parte deste modulo.
+
+## Orcamentos (migration 0011)
+
+- `orcamentos`: numero sequencial interno unico, paciente, profissional,
+  data, validade opcional em rascunho, observacao administrativa, status e
+  total em centavos. O total e derivado exclusivamente dos itens ativos.
+- `orcamento_itens`: descricao livre, quantidade, valor unitario em centavos,
+  total gerado e `ativo` para remocao logica. Nao existe catalogo de
+  procedimentos nesta fase.
+- Status: `rascunho -> enviado -> aprovado|rejeitado`; somente aprovado pode
+  virar `convertido`. Enviado cuja validade ja passou e tratado como
+  `expirado` no servidor e nao pode ser aprovado. `convertido` e marcador
+  comercial, sem criar atendimento, procedimento ou pagamento.
+- Escrita direta e `DELETE` sao revogados para usuarios autenticados. As
+  mutacoes passam pelas RPCs transacionais de criacao, edicao, itens e status.
 
 ## Tarefas (migrations 0009 e 0010)
 

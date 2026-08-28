@@ -48,6 +48,17 @@
   documento ou conteudo clinico.
 - Suite remota e opt-in e limpa somente os UUIDs ficticios que criou.
 
+## Sprint 10 - Orcamentos
+
+- Unitarios cobrem status aceitos e valores inteiros em centavos.
+- A suite remota opt-in `budgets.authorization.test.ts` usa exclusivamente
+  fixtures `QA_ORC_`, testa administrador, recepcao, dentista proprio/outro,
+  usuario inativo e Auth sem perfil; tambem cobre RLS de leitura, bloqueio de
+  DML direto, ciclo rascunho/enviado/aprovado/convertido e auditoria sem
+  observacao administrativa.
+- O cleanup remove somente itens, orcamentos, pacientes, auditoria e
+  identidades `QA_ORC_` criados pela propria suite.
+
 ## Sprint 1.5
 
 - `npm test`: testes unitarios do token assinado de convite/recuperacao

@@ -1,5 +1,13 @@
 # Changelog
 
+## Sprint 10 - Orcamentos
+
+- Migration aditiva `0011_orcamentos_completo.sql` com tabelas proprias,
+  RLS deny-by-default, RPCs de ciclo comercial e auditoria sem valores
+  administrativos sensiveis.
+- Lista, criacao/edicao de rascunho, itens, status, ficha 360 e PDF gerado
+  sob rota autenticada. O modulo nao depende das migrations WIP `0007/0008`.
+
 ## Correcao de Tarefas e hardening local
 
 - Migrations aditivas `0009` e `0010`: prioridade, remocao logica,
