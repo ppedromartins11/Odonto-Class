@@ -1,5 +1,16 @@
 # Changelog
 
+## Correcao de Tarefas e hardening local
+
+- Migrations aditivas `0009` e `0010`: prioridade, remocao logica,
+  compatibilidade da assinatura anterior de `create_task` e estado
+  `em_andamento`.
+- Historico de migrations validado na homologacao ficticia; suite completa de
+  integracao/RLS/Storage aprovada com 29 testes e cleanup das fixtures.
+- Adicionados limites de erro para Dashboard, Documentos, Retornos e Tarefas,
+  label semantico no formulario de retorno, headers HTTP defensivos e job
+  manual de integracao no CI usando secrets do ambiente.
+
 ## Release candidate - modulos homologados
 
 - Release candidate delimitado aos modulos de Auth, Usuarios, Dashboard,

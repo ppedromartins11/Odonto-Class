@@ -1,11 +1,9 @@
 # Modelo de Dados
 
-> As migrations `0001` e `0002` foram executadas e validadas em
-> homologacao ficticia em 22/08/2026. A Sprint 2 adiciona a migration
-> `0003_pacientes.sql`, aplicada e validada em homologacao ficticia.
-> O bloco clinico adiciona a migration aditiva
-> `0004_agenda_atendimentos_procedimentos.sql`; `0001`-`0003` permanecem
-> imutaveis.
+> As migrations `0001`-`0006`, `0009` e `0010` foram aplicadas e validadas
+> em homologacao ficticia. As migrations `0007` e `0008` pertencem ao WIP de
+> Financeiro/Orcamentos/Validade, estao fora do `main` e nao fazem parte do RC.
+> Todas as migrations aplicadas permanecem imutaveis.
 
 ## Premissas
 
@@ -19,13 +17,28 @@
 - Campos de auditoria padrao: `created_at`, `updated_at`, `created_by`,
   `updated_by`.
 
-## Tabelas planejadas/implementadas (17)
+## Tabelas implementadas no main RC (12)
 
 `usuarios`, `profissionais`, `pacientes`, `paciente_alertas_clinicos`,
 `agendamentos`, `atendimentos`,
-`procedimentos`, `documentos`, `retornos`, `tarefas`, `pagamentos`,
-`orcamentos`, `orcamento_itens`, `controle_validade`,
-`arquivos_paciente`, `auditoria`.
+`procedimentos`, `documentos`, `retornos`, `tarefas`, `arquivos_paciente`,
+`auditoria`.
+
+As tabelas `pagamentos`, `orcamentos`, `orcamento_itens` e
+`controle_validade` pertencem exclusivamente ao WIP das migrations `0007` e
+`0008`; nao devem ser tratadas como parte do schema do Release Candidate.
+
+## Tarefas (migrations 0009 e 0010)
+
+- `prioridade`: enum com `baixa`, `media`, `alta` e `urgente`, obrigatoria e
+  com default `media`, preservando tarefas preexistentes.
+- `removida_em` e `removida_por`: remocao logica consistente por constraint;
+  a policy e as queries excluem tarefas removidas da listagem normal.
+- `status_tarefa`: inclui `pendente`, `em_andamento`, `concluida` e
+  `cancelada`. Transicoes e autorizacao continuam exclusivamente na RPC
+  `set_task_status`.
+- A assinatura anterior de `create_task` foi mantida para clientes em
+  transicao; ela usa o default de prioridade sem expor privilegios adicionais.
 
 Campos principais, PK/FK, constraints e indices: ver especificacao
 tecnica aprovada (secao 5.2) - reproduzidos aqui de forma resumida com

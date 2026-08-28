@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createQaAdmin } from "./helpers";
 
 type Role = "administrador" | "dentista" | "recepcao";
 type Identity = { id: string; email: string; password: string; role: Role };
@@ -61,7 +62,7 @@ describe("bloco clinico: agenda, atendimento, procedimentos e autorizacao", () =
   async function createIdentity(role: Role) {
     const suffix = randomUUID();
     const identity = {
-      email: `clinical-${role}-${suffix}@example.com`,
+      email: `qa_rc_clinical-${role}-${suffix}@example.com`,
       password: `Tmp-${randomUUID()}-A9!`,
       role,
     };
@@ -69,7 +70,7 @@ describe("bloco clinico: agenda, atendimento, procedimentos e autorizacao", () =
       email: identity.email,
       password: identity.password,
       email_confirm: true,
-      user_metadata: { nome: `Usuario clinico ficticio ${suffix}`, perfil: role, created_by: adminId },
+      user_metadata: { nome: `QA_RC_Usuario_clinico_${suffix}`, perfil: role, created_by: adminId },
     });
     if (error || !data.user) throw new Error(`Falha ao criar identidade: ${error?.code}`);
     const result = { ...identity, id: data.user.id };
@@ -93,13 +94,10 @@ describe("bloco clinico: agenda, atendimento, procedimentos e autorizacao", () =
     service = createClient(url, requiredEnv("SUPABASE_TEST_SERVICE_ROLE_KEY"), {
       auth: { autoRefreshToken: false, persistSession: false },
     });
-    admin = userClient(url, anonKey);
-    const { data: login, error } = await admin.auth.signInWithPassword({
-      email: requiredEnv("SUPABASE_TEST_ADMIN_EMAIL"),
-      password: requiredEnv("SUPABASE_TEST_ADMIN_PASSWORD"),
-    });
-    if (error || !login.user) throw new Error("Administrador de teste invalido.");
-    adminId = login.user.id;
+    const qaAdmin = await createQaAdmin(service, url, anonKey);
+    admin = qaAdmin.session;
+    adminId = qaAdmin.identity.id;
+    users.push(qaAdmin.identity);
 
     receptionIdentity = await createIdentity("recepcao");
     dentistAIdentity = await createIdentity("dentista");
@@ -129,7 +127,7 @@ describe("bloco clinico: agenda, atendimento, procedimentos e autorizacao", () =
     if (!professionalA || !professionalB) throw new Error("Vinculos profissionais ficticios ausentes.");
 
     const { data: patient, error: patientError } = await reception.rpc("create_patient", {
-      p_nome: `Paciente clinico ficticio ${randomUUID()}`,
+      p_nome: `QA_RC_Paciente_clinico_${randomUUID()}`,
       p_data_nascimento: "1990-01-15",
       p_telefone_contato: "+00 00000-0000",
       p_documento_identificacao: null,
@@ -171,7 +169,7 @@ describe("bloco clinico: agenda, atendimento, procedimentos e autorizacao", () =
       p_profissional_id: professionalA,
       p_inicio_local: futureStart,
       p_fim_local: futureEnd,
-      p_observacoes_administrativas: "Observacao operacional ficticia",
+      p_observacoes_administrativas: "QA_RC_Observacao_operacional",
     });
     expect(error).toBeNull();
     appointmentId = (data as { id: string }).id;
@@ -241,7 +239,7 @@ describe("bloco clinico: agenda, atendimento, procedimentos e autorizacao", () =
       p_profissional_id: professionalA,
       p_inicio_local: movedStart,
       p_fim_local: movedEnd,
-      p_observacoes_administrativas: "Remarcado ficticiamente",
+      p_observacoes_administrativas: "QA_RC_Remarcado",
     });
     expect(error).toBeNull();
     expect((data as { status: string }).status).toBe("agendado");
@@ -281,13 +279,13 @@ describe("bloco clinico: agenda, atendimento, procedimentos e autorizacao", () =
       expect(error).toBeNull();
       expect(data).toEqual([]);
     }
-    expect((await dentistB.rpc("update_attendance", { p_atendimento_id: attendanceId, p_evolucao: "negado" })).error).not.toBeNull();
+    expect((await dentistB.rpc("update_attendance", { p_atendimento_id: attendanceId, p_evolucao: "QA_RC_negado" })).error).not.toBeNull();
 
-    const evolution = "Evolucao clinica ficticia e confidencial";
+    const evolution = "QA_RC_Evolucao_clinica_confidencial";
     expect((await dentistA.rpc("update_attendance", { p_atendimento_id: attendanceId, p_evolucao: evolution })).error).toBeNull();
     const procedures = [
-      { p_atendimento_id: attendanceId, p_descricao: "Profilaxia ficticia", p_dente: null, p_material_utilizado: null, p_cor_resina: null, p_detalhes: null },
-      { p_atendimento_id: attendanceId, p_descricao: "Restauracao ficticia", p_dente: "11", p_material_utilizado: "Resina ficticia", p_cor_resina: "A2", p_detalhes: "Detalhe clinico ficticio" },
+      { p_atendimento_id: attendanceId, p_descricao: "QA_RC_Profilaxia", p_dente: null, p_material_utilizado: null, p_cor_resina: null, p_detalhes: null },
+      { p_atendimento_id: attendanceId, p_descricao: "QA_RC_Restauracao", p_dente: "11", p_material_utilizado: "QA_RC_Resina", p_cor_resina: "A2", p_detalhes: "QA_RC_Detalhe_clinico" },
     ];
     for (const payload of procedures) {
       const { data, error } = await dentistA.rpc("create_procedure", payload);
@@ -297,7 +295,7 @@ describe("bloco clinico: agenda, atendimento, procedimentos e autorizacao", () =
     expect((await dentistA.rpc("finalize_attendance", { p_atendimento_id: attendanceId, p_evolucao: evolution })).error).toBeNull();
     const { data: appointment } = await dentistA.from("agendamentos").select("status").eq("id", appointmentId).single();
     expect(appointment?.status).toBe("atendido");
-    expect((await dentistA.rpc("update_attendance", { p_atendimento_id: attendanceId, p_evolucao: "alteracao tardia" })).error).not.toBeNull();
+    expect((await dentistA.rpc("update_attendance", { p_atendimento_id: attendanceId, p_evolucao: "QA_RC_alteracao_tardia" })).error).not.toBeNull();
   });
 
   it("permite atendimento direto e isola o registro entre dentistas", async () => {
@@ -336,8 +334,8 @@ describe("bloco clinico: agenda, atendimento, procedimentos e autorizacao", () =
     expect(events.has("atendimento_finalizado")).toBe(true);
     expect(events.has("procedimento_criado")).toBe(true);
     const serialized = JSON.stringify(data);
-    expect(serialized).not.toContain("Evolucao clinica ficticia");
-    expect(serialized).not.toContain("Resina ficticia");
-    expect(serialized).not.toContain("Detalhe clinico ficticio");
+    expect(serialized).not.toContain("QA_RC_Evolucao_clinica_confidencial");
+    expect(serialized).not.toContain("QA_RC_Resina");
+    expect(serialized).not.toContain("QA_RC_Detalhe_clinico");
   });
 });

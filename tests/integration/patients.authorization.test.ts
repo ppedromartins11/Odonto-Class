@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createQaAdmin } from "./helpers";
 
 type Role = "administrador" | "dentista" | "recepcao";
 type Identity = { id: string; email: string; password: string; role: Role };
@@ -38,7 +39,7 @@ describe("pacientes Sprint 2: autorizacao, RLS e RPCs", () => {
   async function createIdentity(role: Role): Promise<Identity> {
     const suffix = randomUUID();
     const identity = {
-      email: `sprint2-${role}-${suffix}@example.com`,
+      email: `qa_rc_sprint2-${role}-${suffix}@example.com`,
       password: `Tmp-${randomUUID()}-A9!`,
       role,
     };
@@ -47,7 +48,7 @@ describe("pacientes Sprint 2: autorizacao, RLS e RPCs", () => {
       password: identity.password,
       email_confirm: true,
       user_metadata: {
-        nome: `Usuario ficticio ${role} ${suffix}`,
+        nome: `QA_RC_Usuario_${role}_${suffix}`,
         perfil: role,
         created_by: adminId,
       },
@@ -77,15 +78,10 @@ describe("pacientes Sprint 2: autorizacao, RLS e RPCs", () => {
     service = createClient(url, requiredEnv("SUPABASE_TEST_SERVICE_ROLE_KEY"), {
       auth: { autoRefreshToken: false, persistSession: false },
     });
-    adminSession = userClient(url, anonKey);
-
-    const { data: login, error: loginError } =
-      await adminSession.auth.signInWithPassword({
-        email: requiredEnv("SUPABASE_TEST_ADMIN_EMAIL"),
-        password: requiredEnv("SUPABASE_TEST_ADMIN_PASSWORD"),
-      });
-    if (loginError || !login.user) throw new Error("Administrador de teste invalido.");
-    adminId = login.user.id;
+    const qaAdmin = await createQaAdmin(service, url, anonKey);
+    adminSession = qaAdmin.session;
+    adminId = qaAdmin.identity.id;
+    createdUsers.push(qaAdmin.identity);
 
     dentist = await createIdentity("dentista");
     reception = await createIdentity("recepcao");
@@ -131,7 +127,7 @@ describe("pacientes Sprint 2: autorizacao, RLS e RPCs", () => {
 
   it("recepcao cria dados administrativos, mas nao injeta alerta clinico", async () => {
     const { data, error } = await receptionSession.rpc("create_patient", {
-      p_nome: "José da Silva Fictício",
+      p_nome: "QA_RC_Paciente_Principal",
       p_data_nascimento: "1985-04-10",
       p_telefone_contato: "+00 (65) 90000-1234",
       p_documento_identificacao: "DOC-FICTICIO-001",
@@ -146,7 +142,7 @@ describe("pacientes Sprint 2: autorizacao, RLS e RPCs", () => {
     const { error: injectedClinicalError } = await receptionSession.rpc(
       "create_patient",
       {
-        p_nome: "Tentativa Clínica Fictícia",
+        p_nome: "QA_RC_Tentativa_Clinica",
         p_data_nascimento: null,
         p_telefone_contato: null,
         p_documento_identificacao: null,
@@ -161,7 +157,7 @@ describe("pacientes Sprint 2: autorizacao, RLS e RPCs", () => {
   it("busca por nome sem acento e por telefone normalizado", async () => {
     const { data: byName, error: nameError } = await receptionSession.rpc(
       "search_patients",
-      { p_query: "jose silva", p_page: 1, p_page_size: 20, p_include_inactive: false }
+      { p_query: "qa_rc_paciente_principal", p_page: 1, p_page_size: 20, p_include_inactive: false }
     );
     expect(nameError).toBeNull();
     expect((byName as Array<{ id: string }>).some((row) => row.id === patientId)).toBe(true);
@@ -183,7 +179,7 @@ describe("pacientes Sprint 2: autorizacao, RLS e RPCs", () => {
 
   it("permite homonimos sem impor unicidade artificial", async () => {
     const { data, error } = await dentistSession.rpc("create_patient", {
-      p_nome: "José da Silva Fictício",
+      p_nome: "QA_RC_Paciente_Principal",
       p_data_nascimento: "1992-08-20",
       p_telefone_contato: null,
       p_documento_identificacao: null,
@@ -200,9 +196,9 @@ describe("pacientes Sprint 2: autorizacao, RLS e RPCs", () => {
       "update_patient_clinical_alerts",
       {
         p_paciente_id: patientId,
-        p_alergias: "Alergia ficticia",
+        p_alergias: "QA_RC_Alergia",
         p_intolerancias: null,
-        p_medicamentos_em_uso: "Medicamento ficticio",
+        p_medicamentos_em_uso: "QA_RC_Medicamento",
       }
     );
     expect(updateError).toBeNull();
@@ -224,7 +220,7 @@ describe("pacientes Sprint 2: autorizacao, RLS e RPCs", () => {
 
       const { error: rpcError } = await client.rpc("update_patient_clinical_alerts", {
         p_paciente_id: patientId,
-        p_alergias: "tentativa recusada",
+        p_alergias: "QA_RC_tentativa_recusada",
         p_intolerancias: null,
         p_medicamentos_em_uso: null,
       });
@@ -236,7 +232,7 @@ describe("pacientes Sprint 2: autorizacao, RLS e RPCs", () => {
     for (const client of [adminSession, dentistSession, receptionSession]) {
       const { error } = await client.rpc("update_patient", {
         p_paciente_id: patientId,
-        p_nome: "José da Silva Fictício",
+        p_nome: "QA_RC_Paciente_Principal",
         p_data_nascimento: "1985-04-10",
         p_telefone_contato: "+00 (65) 90000-1234",
         p_documento_identificacao: "DOC-FICTICIO-001",
@@ -245,7 +241,7 @@ describe("pacientes Sprint 2: autorizacao, RLS e RPCs", () => {
     }
 
     const { error: insertError } = await receptionSession.from("pacientes").insert({
-      nome: "Escrita direta recusada",
+      nome: "QA_RC_Escrita_direta_recusada",
       created_by: reception.id,
       updated_by: reception.id,
     });
@@ -302,7 +298,7 @@ describe("pacientes Sprint 2: autorizacao, RLS e RPCs", () => {
       expect(data).toEqual([]);
 
       const { error: rpcError } = await client.rpc("search_patients", {
-        p_query: "ficticio",
+        p_query: "qa_rc",
         p_page: 1,
         p_page_size: 20,
         p_include_inactive: false,
@@ -322,8 +318,8 @@ describe("pacientes Sprint 2: autorizacao, RLS e RPCs", () => {
     expect(data?.some((row) => row.evento === "alertas_clinicos_atualizados")).toBe(true);
 
     const serialized = JSON.stringify(data);
-    expect(serialized).not.toContain("Alergia ficticia");
-    expect(serialized).not.toContain("Medicamento ficticio");
+    expect(serialized).not.toContain("QA_RC_Alergia");
+    expect(serialized).not.toContain("QA_RC_Medicamento");
     expect(serialized).not.toContain("90000-1234");
     expect(serialized).not.toContain("DOC-FICTICIO-001");
   });

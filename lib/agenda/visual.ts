@@ -21,3 +21,24 @@ export const APPOINTMENT_BLOCK_STYLE: Record<AppointmentStatus, string> = {
   cancelado: "border-red-200 bg-red-50/80 opacity-75",
   faltou: "border-amber-200 bg-amber-50/90",
 };
+
+const SCHEDULE_BLOCKING_STATUSES: ReadonlySet<AppointmentStatus> = new Set([
+  "agendado",
+  "confirmado",
+  "atendido",
+]);
+
+/**
+ * Mantem o layout visual alinhado a constraint de conflito da migration 0004.
+ * Cancelamentos e faltas permanecem no historico, mas liberam o horario.
+ */
+export function appointmentBlocksSchedule(status: AppointmentStatus) {
+  return SCHEDULE_BLOCKING_STATUSES.has(status);
+}
+
+export function splitAppointmentsByOccupancy<T extends { status: AppointmentStatus }>(items: T[]) {
+  return {
+    occupying: items.filter((item) => appointmentBlocksSchedule(item.status)),
+    historical: items.filter((item) => !appointmentBlocksSchedule(item.status)),
+  };
+}

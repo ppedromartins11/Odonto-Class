@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { requireUser } from "@/lib/auth/session";
 import { addDays, normalizeDateKey, startOfClinicWeek } from "@/lib/agenda/dates";
+import { canCreateAppointment } from "@/lib/agenda/permissions";
 import { listActiveProfessionals, listAgenda } from "@/lib/agenda/queries";
 import type { ActiveProfessional, AgendaItem } from "@/lib/agenda/types";
 import { listAttendanceIdsByAppointment } from "@/lib/clinical/queries";
@@ -59,11 +60,11 @@ export default async function AgendaPage({ searchParams }: { searchParams: Searc
     atendimento_id: attendanceByAppointment.get(item.id),
   }));
   const step = view === "semana" ? 7 : 1;
-  const canManage = user.perfil === "administrador" || user.perfil === "recepcao";
+  const canManage = canCreateAppointment(user.perfil);
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="sticky top-14 z-10 -mx-1 flex flex-wrap items-start justify-between gap-3 rounded-lg bg-background/95 px-1 py-2 backdrop-blur">
         <div>
           <h2 className="text-2xl font-medium text-foreground">Agenda</h2>
           <p className="mt-0.5 text-sm text-muted-foreground">Consultas por dia ou semana, no horário da clínica.</p>
@@ -72,7 +73,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Searc
           <Link
             href={`/agenda/novo?data=${selectedDate}`}
             aria-label="Novo agendamento"
-            className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90"
+            className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Plus className="h-4 w-4" /> Novo agendamento
           </Link>

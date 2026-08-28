@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createQaAdmin } from "./helpers";
 
 type Role = "administrador" | "dentista" | "recepcao";
 
@@ -30,8 +31,6 @@ describe("autorizacao Sprint 1.5 em homologacao", () => {
   let url: string;
   let anonKey: string;
   let serviceKey: string;
-  let adminEmail: string;
-  let adminPassword: string;
   let service: SupabaseClient;
   let adminSession: SupabaseClient;
   let adminId: string;
@@ -45,7 +44,7 @@ describe("autorizacao Sprint 1.5 em homologacao", () => {
   async function createIdentity(role: Role): Promise<TestIdentity> {
     const suffix = randomUUID();
     const identity: Omit<TestIdentity, "id"> = {
-      email: `sprint15-${role}-${suffix}@example.com`,
+      email: `qa_rc_sprint15-${role}-${suffix}@example.com`,
       password: `Tmp-${randomUUID()}-A9!`,
       role,
     };
@@ -55,7 +54,7 @@ describe("autorizacao Sprint 1.5 em homologacao", () => {
       password: identity.password,
       email_confirm: true,
       user_metadata: {
-        nome: `Teste ${role} ${suffix}`,
+        nome: `QA_RC_${role}_${suffix}`,
         perfil: role,
         created_by: adminId,
       },
@@ -87,23 +86,13 @@ describe("autorizacao Sprint 1.5 em homologacao", () => {
     url = requiredEnv("SUPABASE_TEST_URL");
     anonKey = requiredEnv("SUPABASE_TEST_ANON_KEY");
     serviceKey = requiredEnv("SUPABASE_TEST_SERVICE_ROLE_KEY");
-    adminEmail = requiredEnv("SUPABASE_TEST_ADMIN_EMAIL");
-    adminPassword = requiredEnv("SUPABASE_TEST_ADMIN_PASSWORD");
-
     service = createClient(url, serviceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
-    adminSession = userClient(url, anonKey);
-
-    const { data: login, error: loginError } =
-      await adminSession.auth.signInWithPassword({
-        email: adminEmail,
-        password: adminPassword,
-      });
-    if (loginError || !login.user) {
-      throw new Error(`Administrador de teste invalido: ${loginError?.code}`);
-    }
-    adminId = login.user.id;
+    const qaAdmin = await createQaAdmin(service, url, anonKey);
+    adminSession = qaAdmin.session;
+    adminId = qaAdmin.identity.id;
+    createdUsers.push(qaAdmin.identity);
 
     const { data: adminProfile, error: profileError } = await adminSession
       .from("usuarios")

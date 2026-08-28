@@ -52,8 +52,20 @@ Implementado:
   de "e admin?" acontece no server action ANTES de chamar a API
   privilegiada - nunca dependemos so da tela estar escondida do menu.
 
-Ainda nao implementado: MFA (PAV-20, gate de go-live) e limites de
-upload (PAV-19 - nao aplicavel ainda, sem modulo de arquivos).
+Ainda nao implementado: MFA (PAV-20, gate de go-live). O modulo de arquivos
+ja limita PDF/JPEG/PNG a 10 MiB, valida MIME, extensao e magic bytes e usa
+bucket privado com URL assinada temporaria.
+
+## Headers e configuracoes externas
+
+- A aplicacao envia `X-Content-Type-Options`, `X-Frame-Options`,
+  `Referrer-Policy` e `Permissions-Policy` por `next.config.ts`.
+- CSP com nonce, HSTS, rate limiting, MFA/AAL2, SMTP, Redirect URLs, dominio,
+  backup e restauracao dependem de configuracao e validacao externas. Eles nao
+  foram considerados configurados apenas por existirem no codigo.
+- Falha de escrita de auditoria e registrada sem dados sensiveis. A decisao de
+  bloquear ou nao uma operacao de identidade quando a auditoria estiver
+  indisponivel permanece um requisito operacional a confirmar.
 
 ## Hardening da Sprint 1.5
 

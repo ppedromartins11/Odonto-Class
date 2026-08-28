@@ -10,9 +10,11 @@ import { ClinicalFields } from "./PatientForm";
 export function PatientClinicalAlertsForm({
   patientId,
   alerts,
+  embedded = false,
 }: {
   patientId: string;
   alerts: PatientClinicalAlerts;
+  embedded?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(
     updatePatientClinicalAlerts,
@@ -20,16 +22,16 @@ export function PatientClinicalAlertsForm({
   );
 
   return (
-    <form action={formAction} className="rounded-lg border border-border bg-card p-5">
+    <form action={formAction} className={embedded ? "mt-4 space-y-4" : "rounded-lg border border-border bg-card p-5"}>
       <input type="hidden" name="patientId" value={patientId} />
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+      {!embedded && <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-base font-medium text-card-foreground">Alertas clínicos atuais</h3>
           <p className="mt-1 text-xs text-muted-foreground">
             Visível apenas para dentistas ativos. Não substitui o prontuário.
           </p>
         </div>
-      </div>
+      </div>}
 
       <ClinicalFields
         values={{

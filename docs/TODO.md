@@ -23,7 +23,8 @@
       atendimento e procedimentos homologados manualmente.
 - [x] **Sprint 5** - Documentos/PDF e arquivos privados (RF-10, RF-11).
 - [x] **Sprint 6** - Retornos e tarefas (RF-12, RF-13). Tabelas:
-      `retornos`, `tarefas`.
+      `retornos`, `tarefas`; tarefas simples, sem recorrencia, com prioridade,
+      status operacional e remocao logica.
 - [ ] **Sprint 7** - Pagamentos e orcamento (RF-14, RF-15, RF-16). Schema parcial nas migrations `0007`/`0008`; UI, RLS especifica e homologacao ainda nao estao concluidos. Modulo desativado para o release candidate.
       Tabelas: `pagamentos`, `orcamentos`, `orcamento_itens`.
 - [ ] **Sprint 8** - Validade/esterilizacao (RF-17, RF-18). Schema parcial nas migrations `0007`/`0008`; UI, RLS especifica e homologacao ainda nao estao concluidos. Modulo desativado para o release candidate. Tabela:

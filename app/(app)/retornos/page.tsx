@@ -1,13 +1,15 @@
 import Link from "next/link";
-import { CalendarPlus, CheckCircle2, CircleDashed, Clock3, UserRound } from "lucide-react";
+import { redirect } from "next/navigation";
+import { CalendarPlus, CheckCircle2, CircleDashed, Clock3, Search, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { requireUser } from "@/lib/auth/session";
 import { formatClinicDate, todayInClinic } from "@/lib/agenda/dates";
-import { listReturns } from "@/lib/operational/queries";
+import { getReturnSummary, listReturnsPage } from "@/lib/operational/queries";
 import type { OperationalReturn, ReturnStatus } from "@/lib/operational/types";
 import { ReturnStatusActions } from "./ReturnStatusActions";
 
-type SearchParams = Promise<{ status?: string | string[] }>;
+type SearchParams = Promise<{ filtro?: string | string[]; q?: string | string[]; page?: string | string[] }>;
+type ReturnFilter = "todos" | ReturnStatus | "atrasados";
 
 const STATUS: Record<ReturnStatus, { label: string; tone: "info" | "success" | "neutral" | "danger" }> = {
   pendente: { label: "Pendente", tone: "info" },
@@ -16,20 +18,35 @@ const STATUS: Record<ReturnStatus, { label: string; tone: "info" | "success" | "
   cancelado: { label: "Cancelado", tone: "danger" },
 };
 
-const FILTERS: { value: "todos" | ReturnStatus; label: string }[] = [
+const FILTERS: { value: ReturnFilter; label: string }[] = [
   { value: "todos", label: "Todos" },
   { value: "pendente", label: "Pendentes" },
   { value: "agendado", label: "Agendados" },
   { value: "concluido", label: "Concluídos" },
   { value: "cancelado", label: "Cancelados" },
+  { value: "atrasados", label: "Atrasados" },
 ];
 
 function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function isStatus(value: string | undefined): value is ReturnStatus {
-  return value === "pendente" || value === "agendado" || value === "concluido" || value === "cancelado";
+function isFilter(value: string | undefined): value is ReturnFilter {
+  return value === "todos" || value === "pendente" || value === "agendado" || value === "concluido" || value === "cancelado" || value === "atrasados";
+}
+
+function pageNumber(value: string | undefined) {
+  const page = Number(value);
+  return Number.isSafeInteger(page) && page > 0 ? page : 1;
+}
+
+function returnHref({ filter, query, page = 1 }: { filter: ReturnFilter; query: string; page?: number }) {
+  const params = new URLSearchParams();
+  if (filter !== "todos") params.set("filtro", filter);
+  if (query) params.set("q", query);
+  if (page > 1) params.set("page", String(page));
+  const search = params.toString();
+  return search ? `/retornos?${search}` : "/retornos";
 }
 
 function isOverdue(item: OperationalReturn) {
@@ -42,16 +59,25 @@ function SummaryCard({ label, value, icon: Icon, tone = "text-primary" }: { labe
 
 export default async function ReturnsPage({ searchParams }: { searchParams: SearchParams }) {
   const user = await requireUser();
-  const selected = first((await searchParams).status);
-  const status = isStatus(selected) ? selected : "todos";
-  const returns = await listReturns();
-  const visible = status === "todos" ? returns : returns.filter((item) => item.status === status);
-  const counts = {
-    pendente: returns.filter((item) => item.status === "pendente").length,
-    agendado: returns.filter((item) => item.status === "agendado").length,
-    concluido: returns.filter((item) => item.status === "concluido").length,
-    atrasado: returns.filter(isOverdue).length,
-  };
+  const params = await searchParams;
+  const candidateFilter = first(params.filtro);
+  const filter = isFilter(candidateFilter) ? candidateFilter : "todos";
+  const query = (first(params.q) ?? "").trim().slice(0, 100);
+  const requestedPage = pageNumber(first(params.page));
+  const today = todayInClinic();
+  const [result, counts] = await Promise.all([
+    listReturnsPage({
+      query,
+      status: filter === "todos" || filter === "atrasados" ? undefined : filter,
+      overdue: filter === "atrasados",
+      page: requestedPage,
+      today,
+    }),
+    getReturnSummary(today),
+  ]);
+  const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
+  if (requestedPage > totalPages) redirect(returnHref({ filter, query, page: totalPages }));
+  const page = Math.min(requestedPage, totalPages);
   const canManage = user.perfil === "administrador" || user.perfil === "recepcao";
 
   return (
@@ -62,26 +88,33 @@ export default async function ReturnsPage({ searchParams }: { searchParams: Sear
       </div>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Resumo de retornos">
-        <SummaryCard label="Pendentes" value={counts.pendente} icon={CircleDashed} />
-        <SummaryCard label="Agendados" value={counts.agendado} icon={CalendarPlus} tone="text-slate-500" />
-        <SummaryCard label="Concluídos" value={counts.concluido} icon={CheckCircle2} tone="text-emerald-600" />
-        <SummaryCard label="Atrasados" value={counts.atrasado} icon={Clock3} tone="text-amber-600" />
+        <SummaryCard label="Pendentes" value={counts.pending} icon={CircleDashed} />
+        <SummaryCard label="Agendados" value={counts.scheduled} icon={CalendarPlus} tone="text-slate-500" />
+        <SummaryCard label="Concluídos" value={counts.completed} icon={CheckCircle2} tone="text-emerald-600" />
+        <SummaryCard label="Atrasados" value={counts.overdue} icon={Clock3} tone="text-amber-600" />
       </section>
 
-      <nav className="flex flex-wrap gap-2" aria-label="Filtrar retornos por status">
-        {FILTERS.map((filter) => <Link key={filter.value} href={filter.value === "todos" ? "/retornos" : `/retornos?status=${filter.value}`} className={`rounded-md px-3 py-1.5 text-sm font-medium ${status === filter.value ? "bg-primary text-primary-foreground" : "border border-border bg-card text-muted-foreground hover:bg-secondary"}`}>{filter.label}</Link>)}
-      </nav>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <nav className="flex flex-wrap gap-2" aria-label="Filtrar retornos">
+          {FILTERS.map((item) => <Link key={item.value} href={returnHref({ filter: item.value, query })} className={`rounded-md px-3 py-1.5 text-sm font-medium ${filter === item.value ? "bg-primary text-primary-foreground" : "border border-border bg-card text-muted-foreground hover:bg-secondary"}`}>{item.label}</Link>)}
+        </nav>
+        <form className="relative w-full sm:w-72">
+          {filter !== "todos" && <input type="hidden" name="filtro" value={filter} />}
+          <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input name="q" defaultValue={query} maxLength={100} placeholder="Buscar por paciente" aria-label="Buscar retorno por paciente" className="h-9 w-full rounded-md border border-border bg-card pl-9 pr-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10" />
+        </form>
+      </div>
 
-      {visible.length === 0 ? (
+      {result.returns.length === 0 ? (
         <section className="rounded-xl border border-dashed border-border bg-card px-6 py-12 text-center">
           <CalendarPlus className="mx-auto h-8 w-8 text-muted-foreground/60" />
-          <h3 className="mt-3 text-base font-medium text-foreground">{status === "todos" ? "Nenhum retorno pendente" : "Nenhum retorno neste filtro"}</h3>
+          <h3 className="mt-3 text-base font-medium text-foreground">{query ? "Nenhum retorno para esta busca" : filter === "todos" ? "Nenhum retorno encontrado" : "Nenhum retorno neste filtro"}</h3>
           <p className="mt-1 text-sm text-muted-foreground">Retornos são criados a partir do atendimento e ficam disponíveis aqui para acompanhamento.</p>
         </section>
       ) : (
         <section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
           <div className="divide-y divide-border">
-            {visible.map((item) => {
+            {result.returns.map((item) => {
               const visualStatus = STATUS[item.status];
               const overdue = isOverdue(item);
               return (
@@ -104,6 +137,7 @@ export default async function ReturnsPage({ searchParams }: { searchParams: Sear
               );
             })}
           </div>
+          {result.total > result.pageSize && <nav className="flex items-center justify-between border-t border-border px-4 py-3 text-sm" aria-label="Paginação de retornos"><span className="text-muted-foreground">Página {page} de {totalPages} · {result.total} retornos</span><div className="flex gap-2">{page > 1 && <Link href={returnHref({ filter, query, page: page - 1 })} className="rounded-md border border-border px-3 py-1.5 font-medium hover:bg-secondary">Anterior</Link>}{page < totalPages && <Link href={returnHref({ filter, query, page: page + 1 })} className="rounded-md border border-border px-3 py-1.5 font-medium hover:bg-secondary">Próxima</Link>}</div></nav>}
         </section>
       )}
     </div>

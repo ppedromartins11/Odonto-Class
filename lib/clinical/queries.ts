@@ -61,6 +61,30 @@ export async function listPatientAttendances(patientId: string, limit = 10) {
   return (data ?? []) as Attendance[];
 }
 
+export async function countPatientAttendances(patientId: string) {
+  const supabase = await createSupabaseServerClient();
+  const { count, error } = await supabase
+    .from("atendimentos")
+    .select("id", { count: "exact", head: true })
+    .eq("paciente_id", patientId);
+  if (error) clinicalFailure("PATIENT_ATTENDANCES_COUNT_FAILED", error.code);
+  return count ?? 0;
+}
+
+export async function getActivePatientAttendance(patientId: string) {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("atendimentos")
+    .select(ATTENDANCE_FIELDS)
+    .eq("paciente_id", patientId)
+    .eq("status", "em_andamento")
+    .order("iniciado_em", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) clinicalFailure("ACTIVE_PATIENT_ATTENDANCE_LOAD_FAILED", error.code);
+  return (data as Attendance | null) ?? null;
+}
+
 export async function listProcedures(attendanceId: string) {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
@@ -81,17 +105,23 @@ export async function listPatientProcedures(patientId: string, limit = 50) {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("procedimentos")
-    .select(`${PROCEDURE_FIELDS},atendimentos!inner(id,paciente_id,iniciado_em)`)
+    .select(`${PROCEDURE_FIELDS},atendimentos!inner(id,paciente_id,iniciado_em,profissional_id,profissionais!inner(usuarios!inner(nome)))`)
     .eq("atendimentos.paciente_id", patientId)
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error) clinicalFailure("PATIENT_PROCEDURES_LOAD_FAILED", error.code);
 
   return (data ?? []).map((item) => {
-    const attendance = item.atendimentos as unknown as Pick<
-      Attendance,
-      "id" | "paciente_id" | "iniciado_em"
-    >;
+    const rawAttendance = item.atendimentos as unknown as Pick<Attendance, "id" | "paciente_id" | "iniciado_em" | "profissional_id"> & {
+      profissionais?: { usuarios?: { nome?: string } | null } | null;
+    };
+    const attendance = {
+      id: rawAttendance.id,
+      paciente_id: rawAttendance.paciente_id,
+      iniciado_em: rawAttendance.iniciado_em,
+      profissional_id: rawAttendance.profissional_id,
+      profissional_nome: rawAttendance.profissionais?.usuarios?.nome ?? "Profissional indisponível",
+    };
     const fields = { ...item } as Record<string, unknown>;
     delete fields.atendimentos;
     return { ...fields, attendance } as Procedure & { attendance: typeof attendance };

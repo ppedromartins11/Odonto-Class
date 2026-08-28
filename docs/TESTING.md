@@ -24,7 +24,7 @@
 | RF-09 | Atendimento salvo registra evolucao, profissional e vinculo com paciente/consulta. |
 | RF-10/11 | Atestado gerado usa dados reais do paciente/profissional, gera PDF valido e fica salvo/anexado. |
 | RF-12 | Retorno aparece em "pendentes" até status ser atualizado. |
-| RF-13 | Tarefas recorrentes reaparecem conforme periodicidade; concluidas saem da lista de pendentes. |
+| RF-13 | Tarefas simples podem ser criadas, priorizadas, iniciadas, concluidas, canceladas e removidas logicamente; recorrencia esta fora do escopo atual. |
 | RF-14/15 | Pagamento aparece vinculado ao paciente/atendimento ou orcamento (nunca ambos - PAV-10); indicadores batem com a soma dos pagamentos. |
 | RF-16 | Orcamento permite adicionar itens, soma corretamente o total, permite alterar status. |
 | RF-17/18 | Item com validade proxima do vencimento gera alerta antes da data de vencimento. |
@@ -99,3 +99,38 @@ Depois de autorizacao explicita, a `0004` foi aplicada na homologacao: lint
 SQL sem erros e 23 testes de integracao/RLS/RPC passaram (Auth, Pacientes e
 bloco clinico). O cleanup terminou com zero usuarios, pacientes e agendamentos
 ficticios residuais dos prefixos da suite.
+
+## Tarefas: prioridade e remocao logica
+
+- As migrations `0009` e `0010` foram aplicadas somente na homologacao
+  ficticia em 26/08/2026, apos dry-run e reconciliacao do historico que ja
+  continha as migrations WIP `0007` e `0008`.
+- A suite remota completa passou com 29 testes. A cobertura operacional inclui
+  prioridade padrao e permitida, assinatura legada de `create_task`, edicao,
+  transicao de status, RLS, remocao logica e bloqueio de operacoes posteriores.
+- O teste remoto depende de secrets do ambiente GitHub `homologacao-ficticia`;
+  nunca incluir esses valores no repositorio ou em arquivos de exemplo.
+
+## Sprint 9.5 — checklist de homologação manual
+
+Executar exclusivamente na homologação fictícia, com dados descartáveis e
+limpando somente o que for criado no roteiro.
+
+- **Administrador:** login, Dashboard, Pacientes, Usuários, Agenda e
+  Documentos; conferir mensagens de erro sem detalhes internos.
+- **Recepção:** cadastrar paciente, criar/confirmar agendamento, agendar
+  retorno e gerar documento administrativo. Confirmar bloqueio de evolução,
+  procedimentos e arquivos clínicos, inclusive por URL direta.
+- **Dentista:** conferir apenas a própria agenda e seus atendimentos; iniciar
+  atendimento, registrar evolução/procedimento e criar retorno. Conferir que
+  não acessa dados clínicos de outro profissional.
+- **Agenda:** cancelar a consulta A e criar a consulta B no mesmo intervalo.
+  B permanece na grade; A fica somente no histórico visual.
+- **Retornos:** validar busca por paciente, filtros Todos/Pendentes/Agendados/
+  Concluídos/Cancelados/Atrasados, estado vazio e paginação.
+- **Tarefas:** validar filtros Todas/Pendentes/Em andamento/Concluídas/
+  Atrasadas/Minhas, ordenação por prazo, paginação, conclusão e remoção
+  lógica.
+- **Responsividade:** repetir navegação principal em 1366×768, 1920×1080 e
+  viewport móvel; tabelas não podem transbordar fora do contêiner, drawers
+  fecham e formulários permanecem utilizáveis.

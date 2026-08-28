@@ -12,7 +12,7 @@ import type {
 const RETURN_FIELDS =
   "id,paciente_id,atendimento_origem_id,profissional_id,data_prevista,status,observacao_administrativa,agendamento_id,created_at,pacientes!inner(nome),profissionais(usuarios(nome))";
 const TASK_FIELDS =
-  "id,titulo,descricao,status,prazo,responsavel_id,paciente_id,agendamento_id,created_by,created_at,pacientes(nome),responsavel:usuarios!tarefas_responsavel_id_fkey(nome)";
+  "id,titulo,descricao,status,prioridade,prazo,responsavel_id,paciente_id,agendamento_id,created_by,created_at,pacientes(nome),responsavel:usuarios!tarefas_responsavel_id_fkey(nome)";
 const DOCUMENT_FIELDS =
   "id,paciente_id,profissional_id,tipo,emitido_em,periodo_inicio,periodo_fim,texto_adicional,nome_arquivo,tamanho_bytes,created_at";
 const FILE_FIELDS =
@@ -67,16 +67,144 @@ export async function listReturns(patientId?: string, limit?: number) {
   return mapReturns(data ?? []);
 }
 
+type ReturnListOptions = {
+  query?: string;
+  status?: "pendente" | "agendado" | "concluido" | "cancelado";
+  overdue?: boolean;
+  page: number;
+  pageSize?: number;
+  today: string;
+};
+
+/**
+ * Lista operacional paginada. A busca e os filtros ficam no PostgREST para
+ * não carregar todos os retornos no navegador. A RLS continua sendo aplicada
+ * pelo cliente autenticado criado no servidor.
+ */
+export async function listReturnsPage({
+  query = "",
+  status,
+  overdue = false,
+  page,
+  pageSize = 20,
+  today,
+}: ReturnListOptions) {
+  const supabase = await createSupabaseServerClient();
+  let returnsQuery = supabase
+    .from("retornos")
+    .select(RETURN_FIELDS, { count: "exact" })
+    .order("data_prevista")
+    .order("created_at", { ascending: false });
+
+  if (status) returnsQuery = returnsQuery.eq("status", status);
+  if (overdue) {
+    returnsQuery = returnsQuery.eq("status", "pendente").lt("data_prevista", today);
+  }
+  if (query) {
+    const escaped = query.replaceAll("%", "\\%").replaceAll("_", "\\_");
+    returnsQuery = returnsQuery.ilike("pacientes.nome", `%${escaped}%`);
+  }
+
+  const from = (page - 1) * pageSize;
+  const { data, error, count } = await returnsQuery.range(from, from + pageSize - 1);
+  if (error) fail("RETURNS_PAGE_LOAD_FAILED", error.code);
+
+  return { returns: mapReturns(data ?? []), total: count ?? 0, pageSize };
+}
+
+export async function getReturnSummary(today: string) {
+  const supabase = await createSupabaseServerClient();
+  const [pending, scheduled, completed, overdue] = await Promise.all([
+    supabase.from("retornos").select("id", { count: "exact", head: true }).eq("status", "pendente"),
+    supabase.from("retornos").select("id", { count: "exact", head: true }).eq("status", "agendado"),
+    supabase.from("retornos").select("id", { count: "exact", head: true }).eq("status", "concluido"),
+    supabase.from("retornos").select("id", { count: "exact", head: true }).eq("status", "pendente").lt("data_prevista", today),
+  ]);
+  const firstError = [pending, scheduled, completed, overdue].map((result) => result.error).find(Boolean);
+  if (firstError) fail("RETURNS_SUMMARY_LOAD_FAILED", firstError.code);
+
+  return {
+    pending: pending.count ?? 0,
+    scheduled: scheduled.count ?? 0,
+    completed: completed.count ?? 0,
+    overdue: overdue.count ?? 0,
+  };
+}
+
 export async function listTasks(patientId?: string) {
   const supabase = await createSupabaseServerClient();
   let query = supabase
     .from("tarefas")
     .select(TASK_FIELDS)
+    .is("removida_em", null)
     .order("prazo", { ascending: true, nullsFirst: false });
   if (patientId) query = query.eq("paciente_id", patientId);
   const { data, error } = await query;
   if (error) fail("TASKS_LOAD_FAILED", error.code);
   return mapTasks(data ?? []);
+}
+
+type TaskListOptions = {
+  status?: "pendente" | "em_andamento" | "concluida";
+  overdue?: boolean;
+  assigneeId?: string;
+  page: number;
+  pageSize?: number;
+  today: string;
+};
+
+/**
+ * Lista operacional de tarefas ordenada por prazo, paginada no servidor e
+ * sempre sujeita à mesma RLS das demais consultas operacionais.
+ */
+export async function listTasksPage({
+  status,
+  overdue = false,
+  assigneeId,
+  page,
+  pageSize = 20,
+  today,
+}: TaskListOptions) {
+  const supabase = await createSupabaseServerClient();
+  let tasksQuery = supabase
+    .from("tarefas")
+    .select(TASK_FIELDS, { count: "exact" })
+    .is("removida_em", null)
+    .order("prazo", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: false });
+
+  if (status) tasksQuery = tasksQuery.eq("status", status);
+  if (overdue) {
+    tasksQuery = tasksQuery
+      .in("status", ["pendente", "em_andamento"])
+      .lt("prazo", today);
+  }
+  if (assigneeId) tasksQuery = tasksQuery.eq("responsavel_id", assigneeId);
+
+  const from = (page - 1) * pageSize;
+  const { data, error, count } = await tasksQuery.range(from, from + pageSize - 1);
+  if (error) fail("TASKS_PAGE_LOAD_FAILED", error.code);
+
+  return { tasks: mapTasks(data ?? []), total: count ?? 0, pageSize };
+}
+
+export async function getTaskSummary(today: string) {
+  const supabase = await createSupabaseServerClient();
+  const [pending, inProgress, completed, overdue] = await Promise.all([
+    supabase.from("tarefas").select("id", { count: "exact", head: true }).is("removida_em", null).eq("status", "pendente"),
+    supabase.from("tarefas").select("id", { count: "exact", head: true }).is("removida_em", null).eq("status", "em_andamento"),
+    supabase.from("tarefas").select("id", { count: "exact", head: true }).is("removida_em", null).eq("status", "concluida"),
+    supabase.from("tarefas").select("id", { count: "exact", head: true }).is("removida_em", null).in("status", ["pendente", "em_andamento"]).lt("prazo", today),
+  ]);
+  const firstError = [pending, inProgress, completed, overdue].map((result) => result.error).find(Boolean);
+  if (firstError) fail("TASKS_SUMMARY_LOAD_FAILED", firstError.code);
+
+  return {
+    pending: pending.count ?? 0,
+    inProgress: inProgress.count ?? 0,
+    completed: completed.count ?? 0,
+    overdue: overdue.count ?? 0,
+  };
 }
 
 /**
@@ -93,8 +221,8 @@ export async function getDashboardOperationalData(today: string) {
     pendingReturnCount,
     overdueReturnCount,
   ] = await Promise.all([
-    supabase.from("tarefas").select(TASK_FIELDS, { count: "exact" }).eq("status", "pendente").order("prazo", { ascending: true, nullsFirst: false }).limit(4),
-    supabase.from("tarefas").select("id", { count: "exact", head: true }).eq("status", "pendente").lt("prazo", today),
+    supabase.from("tarefas").select(TASK_FIELDS, { count: "exact" }).is("removida_em", null).eq("status", "pendente").order("prazo", { ascending: true, nullsFirst: false }).limit(4),
+    supabase.from("tarefas").select("id", { count: "exact", head: true }).is("removida_em", null).eq("status", "pendente").lt("prazo", today),
     supabase.from("retornos").select(RETURN_FIELDS).in("status", ["pendente", "agendado"]).order("data_prevista").limit(4),
     supabase.from("retornos").select("id", { count: "exact", head: true }).eq("status", "pendente"),
     supabase.from("retornos").select("id", { count: "exact", head: true }).eq("status", "pendente").lt("data_prevista", today),

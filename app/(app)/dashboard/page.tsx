@@ -25,6 +25,7 @@ const RETURN_STATUS: Record<ReturnStatus, { label: string; tone: "info" | "succe
 
 const TASK_STATUS: Record<TaskStatus, { label: string; tone: "info" | "success" | "danger" }> = {
   pendente: { label: "Pendente", tone: "info" },
+  em_andamento: { label: "Em andamento", tone: "info" },
   concluida: { label: "Concluída", tone: "success" },
   cancelada: { label: "Cancelada", tone: "danger" },
 };

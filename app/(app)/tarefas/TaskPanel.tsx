@@ -1,50 +1,759 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
-import { CheckCircle2, CircleDashed, ClipboardCheck, Pencil, Plus, UserRound, XCircle } from "lucide-react";
-import { Badge } from "@/components/ui/Badge";
+import { useActionState, useState } from "react";
+import {
+  CheckCircle2,
+  Circle,
+  Ellipsis,
+  Pencil,
+  Plus,
+  Trash2,
+  UserRound,
+  XCircle,
+} from "lucide-react";
 import { initialDomainActionState } from "@/lib/agenda/action-state";
-import { formatClinicDate } from "@/lib/agenda/dates";
-import type { OperationalTask, TaskStatus } from "@/lib/operational/types";
-import { createTask, setTaskStatus, updateTask } from "./actions";
+import { formatClinicDate, todayInClinic } from "@/lib/agenda/dates";
+import type {
+  OperationalTask,
+  TaskPriority,
+  TaskStatus,
+} from "@/lib/operational/types";
+import { createTask, removeTask, setTaskStatus, updateTask } from "./actions";
 
 type Assignee = { id: string; nome: string; perfil: string };
 
-const STATUS: Record<TaskStatus, { label: string; tone: "info" | "success" | "danger" }> = {
-  pendente: { label: "Pendente", tone: "info" },
-  concluida: { label: "Concluída", tone: "success" },
-  cancelada: { label: "Cancelada", tone: "danger" },
+const STATUS: Record<TaskStatus, { label: string; className: string }> = {
+  pendente: {
+    label: "Pendente",
+    className: "bg-amber-50 text-amber-700 ring-amber-600/10",
+  },
+  em_andamento: {
+    label: "Em andamento",
+    className: "bg-blue-50 text-blue-700 ring-blue-600/10",
+  },
+  concluida: {
+    label: "Concluída",
+    className: "bg-emerald-50 text-emerald-700 ring-emerald-600/10",
+  },
+  cancelada: {
+    label: "Cancelada",
+    className: "bg-rose-50 text-rose-700 ring-rose-600/10",
+  },
 };
 
-function SummaryCard({ label, value, description, icon: Icon, tone = "text-primary" }: { label: string; value: string | number; description: string; icon: typeof CircleDashed; tone?: string }) {
-  return <div className="rounded-lg border border-border bg-card p-4 shadow-sm"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 text-2xl font-semibold text-foreground">{value}</p><p className="mt-1 text-xs text-muted-foreground">{description}</p></div><Icon className={`h-5 w-5 ${tone}`} /></div></div>;
+const PRIORITY: Record<TaskPriority, { label: string; className: string }> = {
+  urgente: {
+    label: "Urgente",
+    className: "bg-red-100 text-red-800 ring-red-600/20",
+  },
+  alta: {
+    label: "Alta",
+    className: "bg-rose-50 text-rose-700 ring-rose-600/10",
+  },
+  media: {
+    label: "Média",
+    className: "bg-amber-50 text-amber-700 ring-amber-600/10",
+  },
+  baixa: {
+    label: "Baixa",
+    className: "bg-slate-100 text-slate-600 ring-slate-500/10",
+  },
+};
+
+function SummaryCard({ label, value }: { label: string; value: string | number }) {
+  return (
+    <article className="rounded-lg border border-border bg-card px-4 py-3.5 shadow-sm">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="mt-1 text-xl font-semibold leading-none text-foreground">{value}</p>
+    </article>
+  );
 }
 
-function TaskCreationForm({ assignees, currentUserId }: { assignees: Assignee[]; currentUserId: string }) {
-  const [state, action, pending] = useActionState(createTask, initialDomainActionState);
-  return <form action={action} className="border-t border-border px-5 py-5"><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><label className="lg:col-span-2"><span className="mb-1 block text-xs font-medium text-foreground">Título</span><input name="title" required minLength={2} maxLength={200} placeholder="Ex.: Confirmar retorno" className="h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm" /></label><label><span className="mb-1 block text-xs font-medium text-foreground">Prazo</span><input name="dueDate" type="date" className="h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm" /></label><label><span className="mb-1 block text-xs font-medium text-foreground">Responsável</span><select name="assigneeId" defaultValue={currentUserId} className="h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm">{assignees.map((assignee) => <option key={assignee.id} value={assignee.id}>{assignee.nome}</option>)}</select></label><label className="sm:col-span-2 lg:col-span-4"><span className="mb-1 block text-xs font-medium text-foreground">Descrição</span><textarea name="description" maxLength={2000} rows={2} placeholder="Informação operacional opcional" className="w-full resize-y rounded-md border border-border bg-input-background px-3 py-2 text-sm" /></label></div><div className="mt-4 flex items-center gap-3"><button disabled={pending} className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"><Plus className="h-4 w-4" />{pending ? "Salvando..." : "Criar tarefa"}</button>{state.error && <p role="alert" className="text-sm text-destructive">{state.error}</p>}</div></form>;
+function StatusBadge({ status }: { status: TaskStatus }) {
+  const current = STATUS[status];
+  return (
+    <span
+      className={`inline-flex rounded px-2 py-1 text-[11px] font-medium leading-none ring-1 ring-inset ${current.className}`}
+    >
+      {current.label}
+    </span>
+  );
 }
 
-function TaskActions({ task, assignees, canEdit }: { task: OperationalTask; assignees: Assignee[]; canEdit: boolean }) {
-  const [statusState, statusAction, changingStatus] = useActionState(setTaskStatus, initialDomainActionState);
-  const [editState, editAction, editing] = useActionState(updateTask, initialDomainActionState);
-  if (task.status !== "pendente") return null;
+function PriorityBadge({ priority }: { priority: TaskPriority }) {
+  const current = PRIORITY[priority];
+  return (
+    <span
+      className={`inline-flex rounded px-2 py-1 text-[11px] font-medium leading-none ring-1 ring-inset ${current.className}`}
+    >
+      {current.label}
+    </span>
+  );
+}
 
-  return <div className="flex flex-wrap items-center gap-2"><form action={statusAction} className="contents"><input type="hidden" name="taskId" value={task.id} /><button name="status" value="concluida" disabled={changingStatus} className="inline-flex h-8 items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"><CheckCircle2 className="h-3.5 w-3.5" /> Concluir</button><button name="status" value="cancelada" disabled={changingStatus} className="inline-flex h-8 items-center rounded-md px-2.5 text-xs font-medium text-muted-foreground hover:bg-secondary disabled:opacity-50">Cancelar</button></form>{canEdit && <details className="relative"><summary className="inline-flex h-8 cursor-pointer list-none items-center gap-1 rounded-md border border-border bg-card px-2.5 text-xs font-medium text-primary hover:bg-accent"><Pencil className="h-3.5 w-3.5" /> Editar</summary><form action={editAction} className="absolute right-0 z-20 mt-2 grid w-[min(22rem,calc(100vw-3rem))] gap-2 rounded-lg border border-border bg-card p-3 shadow-xl"><input type="hidden" name="taskId" value={task.id} /><input name="title" defaultValue={task.titulo} required minLength={2} maxLength={200} aria-label="Título da tarefa" className="h-9 rounded-md border border-border px-2 text-sm" /><input name="dueDate" type="date" defaultValue={task.prazo ?? ""} aria-label="Prazo" className="h-9 rounded-md border border-border px-2 text-sm" /><select name="assigneeId" defaultValue={task.responsavel_id} aria-label="Responsável" className="h-9 rounded-md border border-border px-2 text-sm">{assignees.map((assignee) => <option key={assignee.id} value={assignee.id}>{assignee.nome}</option>)}</select><textarea name="description" defaultValue={task.descricao ?? ""} maxLength={2000} aria-label="Descrição" rows={2} className="rounded-md border border-border px-2 py-1.5 text-sm" /><button disabled={editing} className="h-9 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground disabled:opacity-50">{editing ? "Salvando..." : "Salvar edição"}</button>{editState.error && <p role="alert" className="text-xs text-destructive">{editState.error}</p>}</form></details>}{statusState.error && <p role="alert" className="w-full text-xs text-destructive">{statusState.error}</p>}</div>;
+function TaskCreationForm({
+  assignees,
+  currentUserId,
+}: {
+  assignees: Assignee[];
+  currentUserId: string;
+}) {
+  const [state, action, pending] = useActionState(
+    createTask,
+    initialDomainActionState,
+  );
+
+  return (
+    <form action={action} className="px-5 py-5">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <label className="lg:col-span-2">
+          <span className="mb-1 block text-xs font-medium text-foreground">
+            Título
+          </span>
+          <input
+            name="title"
+            required
+            minLength={2}
+            maxLength={200}
+            placeholder="Ex.: Confirmar retorno"
+            className="h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
+          />
+        </label>
+        <label>
+          <span className="mb-1 block text-xs font-medium text-foreground">
+            Prazo
+          </span>
+          <input
+            name="dueDate"
+            type="date"
+            className="h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
+          />
+        </label>
+        <label>
+          <span className="mb-1 block text-xs font-medium text-foreground">
+            Prioridade
+          </span>
+          <select
+            name="priority"
+            defaultValue="media"
+            required
+            className="h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
+          >
+            <option value="alta">Alta</option>
+            <option value="media">Média</option>
+            <option value="baixa">Baixa</option>
+            <option value="urgente">Urgente</option>
+          </select>
+        </label>
+        <label>
+          <span className="mb-1 block text-xs font-medium text-foreground">
+            Responsável
+          </span>
+          <select
+            name="assigneeId"
+            defaultValue={currentUserId}
+            className="h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
+          >
+            {assignees.map((assignee) => (
+              <option key={assignee.id} value={assignee.id}>
+                {assignee.nome}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="sm:col-span-2 lg:col-span-5">
+          <span className="mb-1 block text-xs font-medium text-foreground">
+            Descrição
+          </span>
+          <textarea
+            name="description"
+            maxLength={2000}
+            rows={2}
+            placeholder="Informação operacional opcional"
+            className="w-full resize-y rounded-md border border-border bg-input-background px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
+          />
+        </label>
+      </div>
+      <div className="mt-4 flex items-center gap-3">
+        <button
+          disabled={pending}
+          className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+        >
+          <Plus className="h-4 w-4" />
+          {pending ? "Salvando..." : "Criar tarefa"}
+        </button>
+        {state.error && (
+          <p role="alert" className="text-sm text-destructive">
+            {state.error}
+          </p>
+        )}
+      </div>
+    </form>
+  );
+}
+
+function TaskActions({
+  task,
+  assignees,
+  canEdit,
+}: {
+  task: OperationalTask;
+  assignees: Assignee[];
+  canEdit: boolean;
+}) {
+  const [statusState, statusAction, changingStatus] = useActionState(
+    setTaskStatus,
+    initialDomainActionState,
+  );
+  const [editState, editAction, editing] = useActionState(
+    updateTask,
+    initialDomainActionState,
+  );
+  const [removeState, removeAction, removing] = useActionState(
+    removeTask,
+    initialDomainActionState,
+  );
+
+  const canChangeStatus =
+    task.status === "pendente" || task.status === "em_andamento";
+
+  if (!canChangeStatus && !canEdit) return null;
+
+  return (
+    <details className="group relative inline-block text-left">
+      <summary
+        aria-label={`Ações da tarefa ${task.titulo}`}
+        className="inline-flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground [&::-webkit-details-marker]:hidden"
+      >
+        <Ellipsis className="h-4 w-4" />
+      </summary>
+      <div className="absolute right-0 z-30 mt-1 w-[min(21rem,calc(100vw-3rem))] rounded-lg border border-border bg-card p-3 shadow-xl">
+        {task.status === "pendente" && (
+          <form action={statusAction} className="grid grid-cols-3 gap-2">
+            <input type="hidden" name="taskId" value={task.id} />
+            <button
+              name="status"
+              value="em_andamento"
+              disabled={changingStatus}
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-3 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+            >
+              Iniciar
+            </button>
+            <button
+              name="status"
+              value="concluida"
+              disabled={changingStatus}
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Concluir
+            </button>
+            <button
+              name="status"
+              value="cancelada"
+              disabled={changingStatus}
+              className="inline-flex h-9 items-center justify-center rounded-md border border-border px-3 text-xs font-medium text-muted-foreground hover:bg-secondary disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+          </form>
+        )}
+
+        {task.status === "em_andamento" && (
+          <form action={statusAction} className="grid grid-cols-2 gap-2">
+            <input type="hidden" name="taskId" value={task.id} />
+            <button
+              name="status"
+              value="concluida"
+              disabled={changingStatus}
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Concluir
+            </button>
+            <button
+              name="status"
+              value="cancelada"
+              disabled={changingStatus}
+              className="inline-flex h-9 items-center justify-center rounded-md border border-border px-3 text-xs font-medium text-muted-foreground hover:bg-secondary disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+          </form>
+        )}
+
+        {canEdit && task.status === "pendente" && (
+          <details className="mt-2 border-t border-border pt-2">
+            <summary className="inline-flex h-8 cursor-pointer list-none items-center gap-1.5 rounded-md px-2 text-xs font-medium text-primary hover:bg-accent [&::-webkit-details-marker]:hidden">
+              <Pencil className="h-3.5 w-3.5" />
+              Editar tarefa
+            </summary>
+            <form action={editAction} className="mt-2 grid gap-2">
+              <input type="hidden" name="taskId" value={task.id} />
+              <input type="hidden" name="patientId" value={task.paciente_id ?? ""} />
+              <input type="hidden" name="appointmentId" value={task.agendamento_id ?? ""} />
+              <input
+                name="title"
+                defaultValue={task.titulo}
+                required
+                minLength={2}
+                maxLength={200}
+                aria-label="Título da tarefa"
+                className="h-9 rounded-md border border-border px-2 text-sm"
+              />
+              <input
+                name="dueDate"
+                type="date"
+                defaultValue={task.prazo ?? ""}
+                aria-label="Prazo"
+                className="h-9 rounded-md border border-border px-2 text-sm"
+              />
+              <select
+                name="assigneeId"
+                defaultValue={task.responsavel_id}
+                aria-label="Responsável"
+                className="h-9 rounded-md border border-border px-2 text-sm"
+              >
+                {assignees.map((assignee) => (
+                  <option key={assignee.id} value={assignee.id}>
+                    {assignee.nome}
+                  </option>
+                ))}
+              </select>
+              <select
+                name="priority"
+                defaultValue={task.prioridade}
+                aria-label="Prioridade"
+                className="h-9 rounded-md border border-border px-2 text-sm"
+              >
+                <option value="alta">Alta</option>
+                <option value="media">Média</option>
+                <option value="baixa">Baixa</option>
+                <option value="urgente">Urgente</option>
+              </select>
+              <textarea
+                name="description"
+                defaultValue={task.descricao ?? ""}
+                maxLength={2000}
+                aria-label="Descrição"
+                rows={2}
+                className="rounded-md border border-border px-2 py-1.5 text-sm"
+              />
+              <button
+                disabled={editing}
+                className="h-9 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground disabled:opacity-50"
+              >
+                {editing ? "Salvando..." : "Salvar edição"}
+              </button>
+              {editState.error && (
+                <p role="alert" className="text-xs text-destructive">
+                  {editState.error}
+                </p>
+              )}
+            </form>
+          </details>
+        )}
+
+        {canEdit && (
+          <form action={removeAction} className="mt-2 border-t border-border pt-2">
+            <input type="hidden" name="taskId" value={task.id} />
+            <button
+              disabled={removing}
+              onClick={(event) => {
+                if (!window.confirm("Tem certeza que deseja remover esta tarefa?")) {
+                  event.preventDefault();
+                }
+              }}
+              className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md px-2 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              {removing ? "Removendo..." : "Remover tarefa"}
+            </button>
+          </form>
+        )}
+
+        {statusState.error && (
+          <p role="alert" className="mt-2 text-xs text-destructive">
+            {statusState.error}
+          </p>
+        )}
+        {removeState.error && (
+          <p role="alert" className="mt-2 text-xs text-destructive">
+            {removeState.error}
+          </p>
+        )}
+      </div>
+    </details>
+  );
+}
+
+function TaskStateControl({ task }: { task: OperationalTask }) {
+  const [state, action, pending] = useActionState(
+    setTaskStatus,
+    initialDomainActionState,
+  );
+  const [optimisticallyCompleted, setOptimisticallyCompleted] = useState(false);
+
+  if (
+    task.status === "concluida" ||
+    (optimisticallyCompleted && !state.error)
+  ) {
+    return <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />;
+  }
+  if (task.status === "cancelada") {
+    return <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />;
+  }
+
+  return (
+    <form action={action} className="relative shrink-0">
+      <input type="hidden" name="taskId" value={task.id} />
+      <button
+        name="status"
+        value="concluida"
+        disabled={pending}
+        onClick={() => setOptimisticallyCompleted(true)}
+        title="Marcar como concluída"
+        aria-label={`Marcar ${task.titulo} como concluída`}
+        className="rounded-full text-slate-500 transition-colors hover:text-emerald-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
+      >
+        <Circle className="mt-0.5 h-4 w-4" />
+      </button>
+      {state.error && (
+        <span className="sr-only" role="alert">
+          {state.error}
+        </span>
+      )}
+    </form>
+  );
 }
 
 function TaskTitle({ task }: { task: OperationalTask }) {
   const completed = task.status === "concluida";
-  return <div className="flex min-w-0 items-start gap-2"><CheckCircle2 className={`mt-0.5 h-4 w-4 shrink-0 ${completed ? "text-emerald-600" : "text-muted-foreground/50"}`} /><div className="min-w-0"><p className={`font-medium text-foreground ${completed ? "line-through text-muted-foreground" : ""}`}>{task.titulo}</p>{task.descricao && <p className={`mt-0.5 line-clamp-1 text-xs text-muted-foreground ${completed ? "line-through" : ""}`}>{task.descricao}</p>}</div></div>;
+  const cancelled = task.status === "cancelada";
+
+  return (
+    <div className="flex min-w-0 items-start gap-3">
+      <TaskStateControl task={task} />
+      <div className="min-w-0">
+        <p
+          className={`text-sm font-medium text-foreground ${
+            completed || cancelled ? "text-muted-foreground line-through" : ""
+          }`}
+        >
+          {task.titulo}
+        </p>
+        {task.descricao && (
+          <p
+            className={`mt-0.5 line-clamp-1 text-xs text-muted-foreground ${
+              completed || cancelled ? "line-through" : ""
+            }`}
+          >
+            {task.descricao}
+          </p>
+        )}
+      </div>
+    </div>
+  );
 }
 
-function TaskRows({ tasks, assignees, currentUserId, profile }: { tasks: OperationalTask[]; assignees: Assignee[]; currentUserId: string; profile: string }) {
-  return <>{tasks.map((task) => { const canEdit = profile === "administrador" || profile === "recepcao" || task.created_by === currentUserId; const status = STATUS[task.status]; return <div key={task.id} className="contents"><div className="hidden border-b border-border last:border-b-0 md:table-row"><div className="px-4 py-4 align-top"><TaskTitle task={task} /></div><div className="px-4 py-4 align-top text-sm text-foreground">{task.responsavel_nome}</div><div className="px-4 py-4 align-top text-sm text-muted-foreground">{task.prazo ? formatClinicDate(task.prazo, { day: "2-digit", month: "short", year: "numeric" }) : "Sem prazo"}</div><div className="px-4 py-4 align-top text-sm">{task.paciente_id && task.paciente_nome ? <Link href={`/pacientes/${task.paciente_id}`} className="inline-flex items-center gap-1 text-primary hover:underline"><UserRound className="h-3.5 w-3.5" />{task.paciente_nome}</Link> : <span className="text-muted-foreground">—</span>}</div><div className="px-4 py-4 align-top"><Badge tone={status.tone}>{status.label}</Badge></div><div className="px-4 py-4 align-top"><TaskActions task={task} assignees={assignees} canEdit={canEdit} /></div></div><article className="border-b border-border p-4 last:border-b-0 md:hidden"><div className="flex items-start justify-between gap-3"><TaskTitle task={task} /><Badge tone={status.tone}>{status.label}</Badge></div><dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs"><div><dt className="text-muted-foreground">Responsável</dt><dd className="mt-0.5 text-foreground">{task.responsavel_nome}</dd></div><div><dt className="text-muted-foreground">Prazo</dt><dd className="mt-0.5 text-foreground">{task.prazo ? formatClinicDate(task.prazo, { day: "2-digit", month: "short" }) : "Sem prazo"}</dd></div>{task.paciente_id && task.paciente_nome && <div className="col-span-2"><dt className="text-muted-foreground">Paciente</dt><dd className="mt-0.5"><Link href={`/pacientes/${task.paciente_id}`} className="text-primary hover:underline">{task.paciente_nome}</Link></dd></div>}</dl><div className="mt-4"><TaskActions task={task} assignees={assignees} canEdit={canEdit} /></div></article></div>; })}</>;
+function canEditTask(
+  task: OperationalTask,
+  currentUserId: string,
+  profile: string,
+) {
+  return (
+    profile === "administrador" ||
+    profile === "recepcao" ||
+    task.created_by === currentUserId
+  );
 }
 
-export function TaskPanel({ tasks, assignees, currentUserId, profile }: { tasks: OperationalTask[]; assignees: Assignee[]; currentUserId: string; profile: string }) {
-  const pending = tasks.filter((task) => task.status === "pendente").length;
-  const completed = tasks.filter((task) => task.status === "concluida").length;
-  return <div className="space-y-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-2xl font-medium text-foreground">Tarefas</h2><p className="mt-1 text-sm text-muted-foreground">{pending} {pending === 1 ? "tarefa pendente" : "tarefas pendentes"}</p></div><details className="relative rounded-md bg-primary text-primary-foreground shadow-sm"><summary className="inline-flex h-10 cursor-pointer list-none items-center gap-2 px-4 text-sm font-medium hover:bg-primary/90"><Plus className="h-4 w-4" /> Nova tarefa</summary><div className="absolute right-0 z-30 mt-2 w-[min(44rem,calc(100vw-2rem))] rounded-lg border border-border bg-card text-foreground shadow-xl"><TaskCreationForm assignees={assignees} currentUserId={currentUserId} /></div></details></div><section className="grid gap-3 sm:grid-cols-3" aria-label="Resumo de tarefas"><SummaryCard label="Pendentes" value={pending} description="Aguardam conclusão" icon={CircleDashed} /><SummaryCard label="Em andamento" value="—" description="Status não previsto no modelo" icon={ClipboardCheck} tone="text-muted-foreground" /><SummaryCard label="Concluídas" value={completed} description="Finalizadas" icon={CheckCircle2} tone="text-emerald-600" /></section><section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"><div className="flex items-center justify-between border-b border-border px-4 py-3"><div><h3 className="font-medium text-foreground">Lista de tarefas</h3><p className="mt-0.5 text-xs text-muted-foreground">Prioridade não está cadastrada no modelo atual.</p></div><span className="text-xs text-muted-foreground">{tasks.length} no total</span></div>{tasks.length === 0 ? <div className="px-6 py-12 text-center"><XCircle className="mx-auto h-7 w-7 text-muted-foreground/60" /><p className="mt-3 text-sm font-medium text-foreground">Nenhuma tarefa visível</p><p className="mt-1 text-xs text-muted-foreground">Use “Nova tarefa” para registrar uma pendência operacional.</p></div> : <><div className="hidden overflow-x-auto md:block"><div className="min-w-[54rem]"><div className="table w-full table-fixed border-collapse"><div className="table-header-group bg-secondary/50 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"><div className="table-row"><div className="table-cell w-[28%] px-4 py-3">Tarefa</div><div className="table-cell w-[15%] px-4 py-3">Responsável</div><div className="table-cell w-[13%] px-4 py-3">Prazo</div><div className="table-cell w-[16%] px-4 py-3">Paciente</div><div className="table-cell w-[12%] px-4 py-3">Status</div><div className="table-cell w-[16%] px-4 py-3">Ações</div></div></div><div className="table-row-group"><TaskRows tasks={tasks} assignees={assignees} currentUserId={currentUserId} profile={profile} /></div></div></div></div><div className="md:hidden"><TaskRows tasks={tasks} assignees={assignees} currentUserId={currentUserId} profile={profile} /></div></>}</section></div>;
+function DueDate({ task, short = false }: { task: OperationalTask; short?: boolean }) {
+  if (!task.prazo) return <span className="text-muted-foreground">Sem prazo</span>;
+  const overdue = (task.status === "pendente" || task.status === "em_andamento") && task.prazo < todayInClinic();
+
+  return (
+    <span className={overdue ? "font-medium text-red-600" : "text-foreground"}>
+      {formatClinicDate(task.prazo, {
+        day: "2-digit",
+        month: short ? "short" : "2-digit",
+        ...(short ? {} : { year: "numeric" as const }),
+      })}
+    </span>
+  );
+}
+
+function PatientLink({ task }: { task: OperationalTask }) {
+  if (!task.paciente_id || !task.paciente_nome) {
+    return <span className="text-muted-foreground">—</span>;
+  }
+
+  return (
+    <Link
+      href={`/pacientes/${task.paciente_id}`}
+      className="inline-flex items-center gap-1 text-primary hover:underline"
+    >
+      <UserRound className="h-3.5 w-3.5" />
+      {task.paciente_nome}
+    </Link>
+  );
+}
+
+function DesktopTaskRow({
+  task,
+  assignees,
+  currentUserId,
+  profile,
+}: {
+  task: OperationalTask;
+  assignees: Assignee[];
+  currentUserId: string;
+  profile: string;
+}) {
+  const inactive = task.status !== "pendente";
+
+  return (
+    <tr
+      className={`border-b border-border last:border-b-0 ${
+        inactive ? "bg-slate-50/55" : "bg-card hover:bg-slate-50/70"
+      }`}
+    >
+      <td className="px-4 py-3 align-middle">
+        <TaskTitle task={task} />
+      </td>
+      <td className="px-4 py-3 align-middle text-sm text-muted-foreground">
+        {task.responsavel_nome}
+      </td>
+      <td className="px-4 py-3 align-middle text-sm">
+        <DueDate task={task} />
+      </td>
+      <td className="px-4 py-3 align-middle text-sm">
+        <PatientLink task={task} />
+      </td>
+      <td className="px-4 py-3 align-middle text-sm text-muted-foreground">
+        <PriorityBadge priority={task.prioridade} />
+      </td>
+      <td className="px-4 py-3 align-middle">
+        <StatusBadge status={task.status} />
+      </td>
+      <td className="px-4 py-3 text-right align-middle">
+        <TaskActions
+          task={task}
+          assignees={assignees}
+          canEdit={canEditTask(task, currentUserId, profile)}
+        />
+      </td>
+    </tr>
+  );
+}
+
+function MobileTaskCard({
+  task,
+  assignees,
+  currentUserId,
+  profile,
+}: {
+  task: OperationalTask;
+  assignees: Assignee[];
+  currentUserId: string;
+  profile: string;
+}) {
+  const canEdit = canEditTask(task, currentUserId, profile);
+
+  return (
+    <article className="border-b border-border p-4 last:border-b-0">
+      <div className="flex items-start justify-between gap-3">
+        <TaskTitle task={task} />
+        <StatusBadge status={task.status} />
+      </div>
+      <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
+        <div>
+          <dt className="text-muted-foreground">Responsável</dt>
+          <dd className="mt-1 text-foreground">{task.responsavel_nome}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Prazo</dt>
+          <dd className="mt-1">
+            <DueDate task={task} short />
+          </dd>
+        </div>
+        <div className="col-span-2">
+          <dt className="text-muted-foreground">Paciente</dt>
+          <dd className="mt-1">
+            <PatientLink task={task} />
+          </dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Prioridade</dt>
+          <dd className="mt-1">
+            <PriorityBadge priority={task.prioridade} />
+          </dd>
+        </div>
+      </dl>
+      {(task.status === "pendente" || canEdit) && (
+        <div className="mt-3 flex justify-end border-t border-border pt-2">
+          <TaskActions task={task} assignees={assignees} canEdit={canEdit} />
+        </div>
+      )}
+    </article>
+  );
+}
+
+export function TaskPanel({
+  tasks,
+  total,
+  page,
+  pageSize,
+  filter,
+  summary,
+  assignees,
+  currentUserId,
+  profile,
+}: {
+  tasks: OperationalTask[];
+  total: number;
+  page: number;
+  pageSize: number;
+  filter: "todas" | "pendente" | "em_andamento" | "concluida" | "atrasadas" | "minhas";
+  summary: { pending: number; inProgress: number; completed: number; overdue: number };
+  assignees: Assignee[];
+  currentUserId: string;
+  profile: string;
+}) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pending = summary.pending;
+  const inProgress = summary.inProgress;
+  const completed = summary.completed;
+
+  function taskHref(nextFilter: typeof filter, nextPage = 1) {
+    const params = new URLSearchParams();
+    if (nextFilter !== "todas") params.set("filtro", nextFilter);
+    if (nextPage > 1) params.set("page", String(nextPage));
+    const search = params.toString();
+    return search ? `/tarefas?${search}` : "/tarefas";
+  }
+
+  return (
+    <div className="space-y-5">
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-medium tracking-tight text-foreground">
+            Tarefas
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {pending} {pending === 1 ? "tarefa pendente" : "tarefas pendentes"}
+          </p>
+        </div>
+        <details className="group relative">
+          <summary className="inline-flex h-10 cursor-pointer list-none items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 [&::-webkit-details-marker]:hidden">
+            <Plus className="h-4 w-4" />
+            Nova tarefa
+          </summary>
+          <div className="absolute right-0 z-40 mt-2 w-[min(44rem,calc(100vw-2rem))] rounded-lg border border-border bg-card text-foreground shadow-xl">
+            <TaskCreationForm
+              assignees={assignees}
+              currentUserId={currentUserId}
+            />
+          </div>
+        </details>
+      </header>
+
+      <section className="grid gap-3 sm:grid-cols-3" aria-label="Resumo de tarefas">
+        <SummaryCard label="Pendentes" value={pending} />
+        <SummaryCard label="Em andamento" value={inProgress} />
+        <SummaryCard label="Concluídas" value={completed} />
+      </section>
+
+      <nav className="flex flex-wrap gap-2" aria-label="Filtrar tarefas por status">
+        {([
+          ["todas", "Todas"],
+          ["pendente", "Pendentes"],
+          ["em_andamento", "Em andamento"],
+          ["concluida", "Concluídas"],
+          ["atrasadas", "Atrasadas"],
+          ["minhas", "Minhas"],
+        ] as const).map(([value, label]) => (
+          <Link
+            key={value}
+            aria-current={filter === value ? "page" : undefined}
+            href={taskHref(value)}
+            className={`h-8 rounded-md px-3 text-xs font-medium transition-colors ${
+              filter === value
+                ? "bg-primary text-primary-foreground"
+                : "border border-border bg-card text-muted-foreground hover:bg-secondary"
+            }`}
+          >
+            {label}
+          </Link>
+        ))}
+      </nav>
+
+      <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+        {tasks.length === 0 ? (
+          <div className="px-6 py-14 text-center">
+            <XCircle className="mx-auto h-7 w-7 text-muted-foreground/50" />
+            <p className="mt-3 text-sm font-medium text-foreground">
+              Nenhuma tarefa neste filtro
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Use “Nova tarefa” para registrar uma pendência operacional.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full min-w-[52rem] table-fixed border-collapse">
+                <thead className="bg-slate-50 text-left text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <tr className="border-b border-border">
+                    <th className="w-[27%] px-4 py-3 pl-12">Tarefa</th>
+                    <th className="w-[15%] px-4 py-3">Responsável</th>
+                    <th className="w-[12%] px-4 py-3">Prazo</th>
+                    <th className="w-[16%] px-4 py-3">Paciente</th>
+                    <th className="w-[11%] px-4 py-3">Prioridade</th>
+                    <th className="w-[11%] px-4 py-3">Status</th>
+                    <th className="w-[8%] px-4 py-3 text-right">
+                      <span className="sr-only">Ações</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tasks.map((task) => (
+                    <DesktopTaskRow
+                      key={task.id}
+                      task={task}
+                      assignees={assignees}
+                      currentUserId={currentUserId}
+                      profile={profile}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="md:hidden">
+              {tasks.map((task) => (
+                <MobileTaskCard
+                  key={task.id}
+                  task={task}
+                  assignees={assignees}
+                  currentUserId={currentUserId}
+                  profile={profile}
+                />
+              ))}
+            </div>
+          </>
+        )}
+        {total > pageSize && (
+          <nav className="flex items-center justify-between border-t border-border px-4 py-3 text-sm" aria-label="Paginação de tarefas">
+            <span className="text-muted-foreground">Página {safePage} de {totalPages} · {total} tarefas</span>
+            <div className="flex gap-2">
+              {safePage > 1 && <Link href={taskHref(filter, safePage - 1)} className="rounded-md border border-border px-3 py-1.5 font-medium hover:bg-secondary">Anterior</Link>}
+              {safePage < totalPages && <Link href={taskHref(filter, safePage + 1)} className="rounded-md border border-border px-3 py-1.5 font-medium hover:bg-secondary">Próxima</Link>}
+            </div>
+          </nav>
+        )}
+      </section>
+    </div>
+  );
 }

@@ -14,6 +14,14 @@ na homologacao ficticia. Elas nao devem ser promovidas como um modulo pronto;
 a conclusao desse bloco exige revisao, testes RLS especificos e homologacao
 propria.
 
+O historico da homologacao ficticia tambem contem `0009` e `0010`, referentes
+a Tarefas. Como `0007`/`0008` ficam somente na branch WIP, um `supabase db
+push` executado a partir do `main` puro falhara por historico remoto ausente.
+Antes de qualquer deploy, use um manifesto temporario e revisado que inclua
+somente as migrations historicas necessarias, ou uma homologacao nova criada
+a partir do conjunto aprovado. Nunca use `migration repair` para ocultar essa
+divergencia sem reconciliar o historico.
+
 ### Checklist de deploy para homologacao online
 
 1. Versionar apenas o conjunto revisado do release candidate; confirmar que

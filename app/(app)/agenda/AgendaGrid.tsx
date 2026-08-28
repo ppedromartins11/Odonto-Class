@@ -3,11 +3,12 @@
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { CalendarDays, Clock, Plus, UserRound } from "lucide-react";
+import { CalendarDays, Clock, History, Plus, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { addDays, formatClinicDate, formatClinicTime, toClinicDateKey } from "@/lib/agenda/dates";
+import { canCreateAppointment } from "@/lib/agenda/permissions";
 import type { AgendaItem } from "@/lib/agenda/types";
-import { APPOINTMENT_BLOCK_STYLE, APPOINTMENT_STATUS_VISUAL } from "@/lib/agenda/visual";
+import { APPOINTMENT_BLOCK_STYLE, APPOINTMENT_STATUS_VISUAL, splitAppointmentsByOccupancy } from "@/lib/agenda/visual";
 import type { PerfilUsuario } from "@/lib/auth/session";
 
 const AgendaDrawer = dynamic(() =>
@@ -34,10 +35,11 @@ function appointmentPosition(item: AgendaItem) {
 
 export function AgendaGrid({ items, startDate, days, profile }: { items: AgendaItem[]; startDate: string; days: number; profile: PerfilUsuario }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const canManage = profile === "administrador" || profile === "recepcao";
+  const canManage = canCreateAppointment(profile);
   const dateKeys = Array.from({ length: days }, (_, index) => addDays(startDate, index));
   const gridColumns = `4.5rem repeat(${days}, minmax(${days === 1 ? "19rem" : "11rem"}, 1fr))`;
   const selected = items.find((item) => item.id === selectedId) ?? null;
+  const { occupying: occupyingItems, historical: historicalItems } = splitAppointmentsByOccupancy(items);
 
   return <>
     <section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
@@ -52,7 +54,7 @@ export function AgendaGrid({ items, startDate, days, profile }: { items: AgendaI
               {HOURS.slice(0, -1).map((hour) => <span key={hour} className="absolute right-3 -translate-y-2 text-xs text-muted-foreground" style={{ top: `${(hour - START_HOUR) * HOUR_HEIGHT}px` }}>{String(hour).padStart(2, "0")}:00</span>)}
             </div>
             {dateKeys.map((dateKey) => <div key={dateKey} className="relative border-r border-border last:border-r-0" style={{ height: `${(END_HOUR - START_HOUR) * HOUR_HEIGHT}px`, backgroundImage: `repeating-linear-gradient(to bottom, transparent 0, transparent ${HOUR_HEIGHT - 1}px, rgb(226 232 240) ${HOUR_HEIGHT - 1}px, rgb(226 232 240) ${HOUR_HEIGHT}px)` }}>
-              {items.filter((item) => toClinicDateKey(item.inicio) === dateKey).map((item) => {
+              {occupyingItems.filter((item) => toClinicDateKey(item.inicio) === dateKey).map((item) => {
                 const status = APPOINTMENT_STATUS_VISUAL[item.status];
                 const position = appointmentPosition(item);
                 const selectedItem = selectedId === item.id;
@@ -68,7 +70,8 @@ export function AgendaGrid({ items, startDate, days, profile }: { items: AgendaI
           </div>
         </div>
       </div>
-      {items.length === 0 && <div className="border-t border-border px-5 py-5 text-center"><CalendarDays className="mx-auto h-6 w-6 text-muted-foreground/60" /><p className="mt-2 text-sm font-medium text-foreground">Nenhum agendamento neste período</p><p className="mt-1 text-xs text-muted-foreground">A grade continua disponível para facilitar a visualização do dia.</p>{canManage && <Link href={`/agenda/novo?data=${startDate}`} className="mt-3 inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"><Plus className="h-4 w-4" /> Novo agendamento</Link>}</div>}
+      {occupyingItems.length === 0 && <div className="border-t border-border px-5 py-5 text-center"><CalendarDays className="mx-auto h-6 w-6 text-muted-foreground/60" /><p className="mt-2 text-sm font-medium text-foreground">Nenhum agendamento ativo neste período</p><p className="mt-1 text-xs text-muted-foreground">Cancelamentos e faltas ficam preservados no histórico sem ocupar o horário.</p>{canManage && <Link href={`/agenda/novo?data=${startDate}`} className="mt-3 inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"><Plus className="h-4 w-4" /> Novo agendamento</Link>}</div>}
+      {historicalItems.length > 0 && <div className="border-t border-border bg-secondary/20 px-4 py-4"><div className="mb-3 flex items-center gap-2"><History className="h-4 w-4 text-muted-foreground" /><div><h3 className="text-sm font-medium text-foreground">Histórico do período</h3><p className="text-xs text-muted-foreground">Cancelamentos e faltas não ocupam espaço na grade.</p></div></div><div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">{historicalItems.map((item) => { const status = APPOINTMENT_STATUS_VISUAL[item.status]; const selectedItem = selectedId === item.id; const open = () => setSelectedId(item.id); return <article key={item.id} role="button" tabIndex={0} aria-label={`Abrir histórico da consulta de ${item.paciente_nome}`} aria-pressed={selectedItem} onClick={open} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); } }} className={`cursor-pointer rounded-lg border p-3 outline-none transition hover:shadow-sm focus-visible:ring-2 focus-visible:ring-ring ${APPOINTMENT_BLOCK_STYLE[item.status]} ${selectedItem ? "ring-2 ring-primary ring-offset-2" : ""}`}><div className="flex items-start justify-between gap-2"><p className="text-xs font-medium text-foreground">{formatClinicDate(item.inicio, { dateStyle: "short" })} · {formatClinicTime(item.inicio)}–{formatClinicTime(item.fim)}</p><Badge tone={status.tone}>{status.label}</Badge></div><p className={`mt-1 text-sm font-semibold text-foreground ${item.status === "cancelado" ? "line-through decoration-red-400" : ""}`}>{item.paciente_nome}</p><p className="mt-0.5 text-xs text-muted-foreground">{item.profissional_nome}</p></article>; })}</div></div>}
     </section>
     {selected && <AgendaDrawer item={selected} profile={profile} onClose={() => setSelectedId(null)} />}
   </>;
