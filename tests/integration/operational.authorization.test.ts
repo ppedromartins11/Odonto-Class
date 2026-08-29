@@ -39,7 +39,11 @@ describe("bloco operacional: RLS, Storage, documentos, retornos e tarefas", () =
     if (taskId) await service.from("tarefas").delete().eq("id", taskId);
     if (patientId) { await service.from("arquivos_paciente").delete().eq("paciente_id", patientId); await service.from("documentos").delete().eq("paciente_id", patientId); await service.from("retornos").delete().eq("paciente_id", patientId); await service.from("tarefas").delete().eq("paciente_id", patientId); await service.from("atendimentos").delete().eq("paciente_id", patientId); await service.from("agendamentos").delete().eq("paciente_id", patientId); await service.from("paciente_alertas_clinicos").delete().eq("paciente_id", patientId); await service.from("pacientes").delete().eq("id", patientId); }
     if (users.length) await service.from("auditoria").delete().in("usuario_id", users.map((u) => u.id));
-    for (const user of users.reverse()) { await service.from("profissionais").delete().eq("usuario_id", user.id); await service.from("usuarios").delete().eq("id", user.id); await service.auth.admin.deleteUser(user.id); }
+    await Promise.all([...users].reverse().map(async (user) => {
+      await service.from("profissionais").delete().eq("usuario_id", user.id);
+      await service.from("usuarios").delete().eq("id", user.id);
+      await service.auth.admin.deleteUser(user.id);
+    }));
   });
 
   it("mantem bucket privado, bloqueia Storage direto e valida upload no servidor", async () => {

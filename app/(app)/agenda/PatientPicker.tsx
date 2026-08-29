@@ -9,11 +9,13 @@ export function PatientPicker({
   initialPatient,
   error,
   searchLabel = "Buscar paciente para agendamento",
+  inputName = "pacienteId",
   onSelect,
 }: {
   initialPatient?: PatientOption | null;
   error?: string;
   searchLabel?: string;
+  inputName?: string;
   onSelect?: (patient: PatientOption | null) => void;
 }) {
   const [selected, setSelected] = useState<PatientOption | null>(initialPatient ?? null);
@@ -50,7 +52,7 @@ export function PatientPicker({
   return (
     <div>
       <label className="mb-1.5 block text-foreground">Paciente</label>
-      <input type="hidden" name="pacienteId" value={selected?.id ?? ""} />
+      <input type="hidden" name={inputName} value={selected?.id ?? ""} />
       {selected ? (
         <div className={`flex min-h-10 items-center gap-3 rounded-md border bg-input-background px-3 ${error ? "border-destructive" : "border-border"}`}>
           <UserRound className="h-4 w-4 text-primary" />

@@ -28,6 +28,8 @@
 - [x] **Sprint 11** - Pagamentos basicos (RF-14, RF-15 operacional). Registro,
       consulta paginada, filtros, vinculo opcional a atendimento/orcamento,
       estorno/cancelamento administrativo e indicadores restritos ao admin.
+- [x] **Sprint 12** - Estoque simples: materiais, entradas, saidas, ajustes,
+      historico append-only, alertas calculados, RLS/RPC e Dashboard operacional.
 - [ ] **Sprint 8** - Validade/esterilizacao (RF-17, RF-18). Schema parcial nas migrations `0007`/`0008`; UI, RLS especifica e homologacao ainda nao estao concluidos. Modulo desativado para o release candidate. Tabela:
       `controle_validade`.
 - [ ] **Sprint 9** - Testes e seguranca finais (RF-20, RN-05, RNF-01,

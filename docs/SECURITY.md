@@ -1,5 +1,19 @@
 # Seguranca e LGPD
 
+## Matriz do modulo Estoque (Sprint 12)
+
+| Acao | Administrador ativo | Recepcao ativa | Dentista ativo | Inativo/sem perfil |
+|---|---:|---:|---:|---:|
+| Consultar materiais | Sim | Sim | Sim | Nao |
+| Criar/editar/ativar material | Sim | Nao | Nao | Nao |
+| Entrada | Sim | Sim | Nao | Nao |
+| Saida | Sim | Sim | Sim, motivo obrigatorio | Nao |
+| Ajuste | Sim, motivo obrigatorio | Nao | Nao | Nao |
+| Historico | Completo | Completo | Somente proprio | Nao |
+| Resumo no Dashboard | Sim | Sim | Nao | Nao |
+
+`materiais_estoque` e `movimentacoes_estoque` negam DML direto. As RPCs validam sessao, usuario ativo, perfil, limites de quantidade e saldo. A movimentacao usa bloqueio de linha e e imutavel; a auditoria guarda somente IDs, tipo e saldos, sem motivo ou conteudo clinico.
+
 Este documento e uma analise tecnica, nao um parecer juridico. Pontos
 marcados como "requer validacao profissional" precisam de confirmacao
 com advogado/contador especializado em regulacao de saude antes de

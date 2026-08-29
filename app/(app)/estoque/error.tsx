@@ -1,0 +1,2 @@
+"use client";
+export default function StockError({ reset }: { reset: () => void }) { return <div className="mx-auto max-w-2xl rounded-xl border border-destructive/40 bg-card p-6"><h2 className="text-lg font-medium">Não foi possível carregar o estoque</h2><p className="mt-2 text-sm text-muted-foreground">Tente novamente. Se o problema persistir, contate o administrador.</p><button onClick={reset} className="mt-4 rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-secondary">Tentar novamente</button></div>; }

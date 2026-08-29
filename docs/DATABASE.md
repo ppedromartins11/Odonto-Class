@@ -1,5 +1,17 @@
 # Modelo de Dados
 
+## Estoque (Sprint 12)
+
+`0014_estoque.sql` adiciona `materiais_estoque` e `movimentacoes_estoque`.
+O primeiro guarda somente o saldo atual e dados administrativos; o segundo e
+o historico append-only de entrada, saida e ajuste, incluindo saldos
+anterior/posterior. A quantidade nunca e alterada diretamente pela aplicacao.
+
+As tabelas usam RLS. Clientes autenticados recebem somente `SELECT`
+autorizado; `INSERT`, `UPDATE` e `DELETE` diretos sao revogados. As RPCs
+transacionais bloqueiam a linha do material antes de atualizar o saldo, para
+impedir saidas concorrentes de gerar estoque negativo.
+
 > As migrations `0001`-`0006`, `0009`-`0013` foram aplicadas e validadas
 > em homologacao ficticia. As migrations `0007` e `0008` pertencem ao WIP
 > historico de Financeiro/Orcamentos/Validade e permanecem fora do `main`.

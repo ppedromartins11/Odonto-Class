@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import {
   CheckCircle2,
   Circle,
@@ -10,6 +11,7 @@ import {
   Plus,
   Trash2,
   UserRound,
+  X,
   XCircle,
 } from "lucide-react";
 import { initialDomainActionState } from "@/lib/agenda/action-state";
@@ -19,6 +21,7 @@ import type {
   TaskPriority,
   TaskStatus,
 } from "@/lib/operational/types";
+import { PatientPicker } from "@/app/(app)/agenda/PatientPicker";
 import { createTask, removeTask, setTaskStatus, updateTask } from "./actions";
 
 type Assignee = { id: string; nome: string; perfil: string };
@@ -95,17 +98,25 @@ function PriorityBadge({ priority }: { priority: TaskPriority }) {
 function TaskCreationForm({
   assignees,
   currentUserId,
+  onSuccess,
 }: {
   assignees: Assignee[];
   currentUserId: string;
+  onSuccess: () => void;
 }) {
-  const [state, action, pending] = useActionState(
-    createTask,
-    initialDomainActionState,
-  );
+  const [state, setState] = useState(initialDomainActionState);
+  const [pending, startTransition] = useTransition();
+
+  function submitAction(formData: FormData) {
+    startTransition(async () => {
+      const nextState = await createTask(initialDomainActionState, formData);
+      setState(nextState);
+      if (nextState.success) onSuccess();
+    });
+  }
 
   return (
-    <form action={action} className="px-5 py-5">
+    <form action={submitAction} className="px-5 py-5">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <label className="lg:col-span-2">
           <span className="mb-1 block text-xs font-medium text-foreground">
@@ -162,6 +173,12 @@ function TaskCreationForm({
             ))}
           </select>
         </label>
+        <div className="sm:col-span-2 lg:col-span-2">
+          <PatientPicker
+            inputName="patientId"
+            searchLabel="Buscar paciente para tarefa"
+          />
+        </div>
         <label className="sm:col-span-2 lg:col-span-5">
           <span className="mb-1 block text-xs font-medium text-foreground">
             Descrição
@@ -193,6 +210,69 @@ function TaskCreationForm({
   );
 }
 
+function TaskCreationDialog({
+  assignees,
+  currentUserId,
+  open,
+  onClose,
+  onCreated,
+}: {
+  assignees: Assignee[];
+  currentUserId: string;
+  open: boolean;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    closeRef.current?.focus();
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [open, onClose]);
+
+  if (!open || typeof document === "undefined") return null;
+
+  return createPortal(
+    <>
+      <button
+        type="button"
+        aria-label="Fechar criação de tarefa"
+        className="fixed inset-0 z-[60] cursor-default bg-black/30"
+        onClick={onClose}
+      />
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="task-creation-title"
+        className="fixed left-1/2 top-1/2 z-[70] w-[min(44rem,calc(100vw-1.5rem))] max-h-[calc(100vh-1.5rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg border border-border bg-card text-foreground shadow-2xl"
+      >
+        <header className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+          <div>
+            <h2 id="task-creation-title" className="text-base font-semibold">Nova tarefa</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Registre uma pendência operacional e defina o responsável.</p>
+          </div>
+          <button
+            ref={closeRef}
+            type="button"
+            aria-label="Fechar criação de tarefa"
+            onClick={onClose}
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </header>
+        <TaskCreationForm assignees={assignees} currentUserId={currentUserId} onSuccess={onCreated} />
+      </section>
+    </>,
+    document.body,
+  );
+}
+
 function TaskActions({
   task,
   assignees,
@@ -214,21 +294,93 @@ function TaskActions({
     removeTask,
     initialDomainActionState,
   );
+  const [open, setOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const canChangeStatus =
     task.status === "pendente" || task.status === "em_andamento";
 
+  useEffect(() => {
+    if (!open) return;
+
+    const updatePosition = () => {
+      const trigger = triggerRef.current;
+      const menu = menuRef.current;
+      if (!trigger || !menu) return;
+
+      const triggerRect = trigger.getBoundingClientRect();
+      const width = menu.offsetWidth;
+      const height = menu.offsetHeight;
+      const gutter = 12;
+      const left = Math.max(gutter, Math.min(triggerRect.right - width, window.innerWidth - width - gutter));
+      const below = triggerRect.bottom + 8;
+      const above = triggerRect.top - height - 8;
+      const top = below + height <= window.innerHeight - gutter || above < gutter
+        ? Math.min(below, window.innerHeight - height - gutter)
+        : above;
+
+      setMenuPosition((current) => current.top === top && current.left === left ? current : { top, left });
+    };
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!menuRef.current?.contains(target) && !triggerRef.current?.contains(target)) setOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+
+    const frame = window.requestAnimationFrame(() => {
+      updatePosition();
+      menuRef.current?.focus();
+    });
+    const observer = new ResizeObserver(updatePosition);
+    if (menuRef.current) observer.observe(menuRef.current);
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer.disconnect();
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open]);
+
   if (!canChangeStatus && !canEdit) return null;
 
   return (
-    <details className="group relative inline-block text-left">
-      <summary
-        aria-label={`Ações da tarefa ${task.titulo}`}
-        className="inline-flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground [&::-webkit-details-marker]:hidden"
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label="Ações da tarefa"
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        onClick={() => setOpen((current) => !current)}
+        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >
         <Ellipsis className="h-4 w-4" />
-      </summary>
-      <div className="absolute right-0 z-30 mt-1 w-[min(21rem,calc(100vw-3rem))] rounded-lg border border-border bg-card p-3 shadow-xl">
+      </button>
+      {open && typeof document !== "undefined" && createPortal(
+        <div
+          ref={menuRef}
+          role="dialog"
+          aria-label={`Ações para ${task.titulo}`}
+          tabIndex={-1}
+          style={{ top: menuPosition.top, left: menuPosition.left }}
+          className="fixed z-30 w-[min(21rem,calc(100vw-1.5rem))] max-h-[calc(100vh-1.5rem)] overflow-y-auto rounded-lg border border-border bg-card p-3 text-left shadow-xl outline-none"
+        >
         {task.status === "pendente" && (
           <form action={statusAction} className="grid grid-cols-3 gap-2">
             <input type="hidden" name="taskId" value={task.id} />
@@ -291,7 +443,6 @@ function TaskActions({
             </summary>
             <form action={editAction} className="mt-2 grid gap-2">
               <input type="hidden" name="taskId" value={task.id} />
-              <input type="hidden" name="patientId" value={task.paciente_id ?? ""} />
               <input type="hidden" name="appointmentId" value={task.agendamento_id ?? ""} />
               <input
                 name="title"
@@ -332,6 +483,15 @@ function TaskActions({
                 <option value="baixa">Baixa</option>
                 <option value="urgente">Urgente</option>
               </select>
+              <PatientPicker
+                inputName="patientId"
+                initialPatient={task.paciente_id && task.paciente_nome ? {
+                  id: task.paciente_id,
+                  nome: task.paciente_nome,
+                  telefone_contato: null,
+                } : null}
+                searchLabel="Buscar paciente para tarefa"
+              />
               <textarea
                 name="description"
                 defaultValue={task.descricao ?? ""}
@@ -383,8 +543,10 @@ function TaskActions({
             {removeState.error}
           </p>
         )}
-      </div>
-    </details>
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }
 
@@ -621,6 +783,8 @@ export function TaskPanel({
   currentUserId: string;
   profile: string;
 }) {
+  const [creationOpen, setCreationOpen] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const safePage = Math.min(page, totalPages);
   const pending = summary.pending;
@@ -646,25 +810,34 @@ export function TaskPanel({
             {pending} {pending === 1 ? "tarefa pendente" : "tarefas pendentes"}
           </p>
         </div>
-        <details className="group relative">
-          <summary className="inline-flex h-10 cursor-pointer list-none items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 [&::-webkit-details-marker]:hidden">
+        <button
+          type="button"
+          aria-haspopup="dialog"
+          aria-expanded={creationOpen}
+          onClick={() => { setNotice(null); setCreationOpen(true); }}
+          className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
             <Plus className="h-4 w-4" />
             Nova tarefa
-          </summary>
-          <div className="absolute right-0 z-40 mt-2 w-[min(44rem,calc(100vw-2rem))] rounded-lg border border-border bg-card text-foreground shadow-xl">
-            <TaskCreationForm
-              assignees={assignees}
-              currentUserId={currentUserId}
-            />
-          </div>
-        </details>
+        </button>
       </header>
+      {notice && <p role="status" className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{notice}</p>}
 
       <section className="grid gap-3 sm:grid-cols-3" aria-label="Resumo de tarefas">
         <SummaryCard label="Pendentes" value={pending} />
         <SummaryCard label="Em andamento" value={inProgress} />
         <SummaryCard label="Concluídas" value={completed} />
       </section>
+      <TaskCreationDialog
+        assignees={assignees}
+        currentUserId={currentUserId}
+        open={creationOpen}
+        onClose={() => setCreationOpen(false)}
+        onCreated={() => {
+          setCreationOpen(false);
+          setNotice("Tarefa criada com sucesso.");
+        }}
+      />
 
       <nav className="flex flex-wrap gap-2" aria-label="Filtrar tarefas por status">
         {([

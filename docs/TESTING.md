@@ -30,6 +30,7 @@
 | RF-17/18 | Item com validade proxima do vencimento gera alerta antes da data de vencimento. |
 | RF-19 | Arquivo anexado so e visivel a usuarios autorizados pelo RBAC vigente. |
 | RF-20 | Acao critica (lista em `docs/SECURITY.md`, PAV-18) gera registro em `auditoria` com usuario e timestamp. |
+| Sprint 12 | Estoque: entrada, saida, ajuste, saldo nao negativo, alertas cumulativos, RLS por perfil, historico e concorrencia basica. |
 | Transversal | Usuario sem permissao nao consegue visualizar dado restrito de outro perfil, mesmo alterando a URL/requisicao diretamente. |
 
 ## Sprint 2 - Pacientes

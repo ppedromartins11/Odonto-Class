@@ -1,5 +1,14 @@
 # Registro de Decisoes (ADR resumido)
 
+## PAV-23 - Estoque simples da Sprint 12
+
+- Estoque e compartilhado pela clinica; nao ha propriedade de material por dentista, setor ou profissional.
+- Recepcao registra entradas e saidas; dentista registra somente saida/consumo manual com motivo obrigatorio; ajuste e cadastro administrativo sao exclusivos do administrador.
+- Historico e completo para administrador/recepcao e restrito as proprias movimentacoes para dentista. Movimentacoes sao append-only.
+- Ajuste representa a nova contagem fisica, pode resultar em zero e exige motivo. Entrada/saida exigem quantidade positiva.
+- Alertas de estoque baixo, vencendo e vencido sao calculados, podem coexistir e nao escondem um ao outro. A janela de vencimento e de 30 dias.
+- Procedimentos continuam sem movimentacao automatica de estoque nesta sprint.
+
 ## PAV-22 - Orcamentos comerciais da Sprint 10
 
 - A migration `0011` e independente do WIP `0007/0008`; nenhuma migration

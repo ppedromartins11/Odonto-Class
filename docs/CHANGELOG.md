@@ -1,5 +1,12 @@
 # Changelog
 
+## Sprint 12 - Estoque
+
+- Cadastro compartilhado de materiais, movimentacoes atomicas e historico
+  append-only, com alertas de saldo baixo e validade em 30 dias.
+- RLS/RPC por perfil, auditoria sem motivo/conteudo sensivel e Dashboard
+  operacional para administrador e recepcao.
+
 ## Sprint 11 - Financeiro basico (nao commitado)
 
 - Adicionados pagamentos em centavos com vinculo seguro a paciente,

@@ -9,6 +9,7 @@ import { getDashboardOperationalData } from "@/lib/operational/queries";
 import type { ReturnStatus, TaskStatus } from "@/lib/operational/types";
 import { getPaymentSummary } from "@/lib/financial/queries";
 import { formatCents } from "@/lib/financial/validation";
+import { getStockSummary } from "@/lib/stock/queries";
 
 const APPOINTMENT_STATUS: Record<AppointmentStatus, { label: string; tone: "info" | "success" | "neutral" | "danger" | "warning" }> = {
   agendado: { label: "Agendado", tone: "info" },
@@ -47,6 +48,16 @@ function EmptyState({ children }: { children: React.ReactNode }) {
   return <p className="px-1 py-6 text-sm text-muted-foreground">{children}</p>;
 }
 
+async function loadDashboardStockSummary(enabled: boolean) {
+  if (!enabled) return { summary: null, unavailable: false };
+  try {
+    return { summary: await getStockSummary(), unavailable: false };
+  } catch {
+    console.error("DASHBOARD_STOCK_SUMMARY_UNAVAILABLE");
+    return { summary: null, unavailable: true };
+  }
+}
+
 export default async function DashboardPage() {
   const user = await requireUser();
   const today = todayInClinic();
@@ -54,11 +65,13 @@ export default async function DashboardPage() {
     ? (await listActiveProfessionals()).find((professional) => professional.usuario_id === user.id)
     : undefined;
   const professionalId = user.perfil === "dentista" ? ownProfessional?.id ?? null : null;
-  const [appointments, operational, financialSummary] = await Promise.all([
+  const [appointments, operational, financialSummary, stock] = await Promise.all([
     user.perfil === "dentista" && !professionalId ? Promise.resolve([]) : listAgenda({ startDate: today, endDate: addDays(today, 1), professionalId }),
     getDashboardOperationalData(today),
     user.perfil === "administrador" ? getPaymentSummary(`${today.slice(0, 7)}-01`, today) : Promise.resolve(null),
+    loadDashboardStockSummary(user.perfil === "administrador" || user.perfil === "recepcao"),
   ]);
+  const stockSummary = stock.summary;
   const { pendingTasks, pendingTaskCount, overdueTaskCount, relevantReturns, pendingReturnCount, overdueReturnCount } = operational;
   const todayAppointments = [...appointments].sort((a, b) => a.inicio.localeCompare(b.inicio));
   const notConfirmed = todayAppointments.filter((item) => item.status === "agendado");
@@ -67,6 +80,10 @@ export default async function DashboardPage() {
     overdueReturnCount ? { id: "returns", text: `${overdueReturnCount} ${overdueReturnCount === 1 ? "retorno está" : "retornos estão"} atrasado${overdueReturnCount === 1 ? "" : "s"}`, href: "/retornos" } : null,
     notConfirmed.length ? { id: "appointments", text: `${notConfirmed.length} ${notConfirmed.length === 1 ? "consulta de hoje aguarda" : "consultas de hoje aguardam"} confirmação`, href: "/agenda" } : null,
   ].filter((alert): alert is { id: string; text: string; href: string } => Boolean(alert));
+  if (stock.unavailable) alerts.push({ id: "stock-unavailable", text: "Os alertas de estoque não puderam ser carregados. Consulte o módulo de Estoque.", href: "/estoque" });
+  if (stockSummary?.estoque_baixo) alerts.push({ id: "stock-low", text: `${stockSummary.estoque_baixo} ${stockSummary.estoque_baixo === 1 ? "material está" : "materiais estão"} com estoque baixo`, href: "/estoque?status=estoque_baixo" });
+  if (stockSummary?.vencendo) alerts.push({ id: "stock-expiring", text: `${stockSummary.vencendo} ${stockSummary.vencendo === 1 ? "material vence" : "materiais vencem"} em até 30 dias`, href: "/estoque?status=vencendo" });
+  if (stockSummary?.vencidos) alerts.push({ id: "stock-expired", text: `${stockSummary.vencidos} ${stockSummary.vencidos === 1 ? "material vencido" : "materiais vencidos"}`, href: "/estoque?status=vencido" });
   const firstName = user.nome.split(" ")[0] || user.nome;
   const canManageAppointments = user.perfil === "administrador" || user.perfil === "recepcao";
 

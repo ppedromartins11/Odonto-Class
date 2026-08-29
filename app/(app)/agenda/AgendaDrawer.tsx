@@ -36,8 +36,8 @@ export function AgendaDrawer({ item, profile, onClose }: { item: AgendaItem | nu
   const dentistCanStart = profile === "dentista" && (item.status === "agendado" || item.status === "confirmado");
 
   return <>
-    <button type="button" aria-label="Fechar detalhes da consulta" className="fixed inset-0 z-30 bg-black/25 md:hidden" onClick={onClose} />
-    <aside role="dialog" aria-modal="true" aria-labelledby="agenda-drawer-title" className="fixed inset-y-0 right-0 z-40 flex w-full max-w-[23rem] flex-col border-l border-border bg-card shadow-2xl sm:w-[22rem]">
+    <button type="button" aria-label="Fechar detalhes da consulta" className="fixed inset-0 z-40 bg-black/25" onClick={onClose} />
+    <aside role="dialog" aria-modal="true" aria-labelledby="agenda-drawer-title" className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[23rem] flex-col border-l border-border bg-card shadow-2xl sm:w-[22rem]">
       <header className="flex items-start justify-between gap-3 border-b border-border px-5 py-5">
         <div><h2 id="agenda-drawer-title" className="text-lg font-semibold text-foreground">Consulta</h2><div className="mt-2"><Badge tone={status.tone}>{status.label}</Badge></div></div>
         <button ref={closeRef} type="button" aria-label="Fechar painel de consulta" onClick={onClose} className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"><X className="h-5 w-5" /></button>

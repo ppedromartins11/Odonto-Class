@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { X, Plus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -19,6 +19,17 @@ export function NovoUsuarioDialog() {
   const [open, setOpen] = useState(false);
   const [state, setState] = useState(initialState);
   const [isPending, startTransition] = useTransition();
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    closeRef.current?.focus();
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [open]);
 
   function openDialog() {
     setState(initialState);
@@ -44,13 +55,14 @@ export function NovoUsuarioDialog() {
       </Button>
 
       {open && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 px-4">
-          <div className="w-full max-w-sm bg-card border border-border rounded-lg shadow-lg p-5">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 px-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="new-user-dialog-title" className="w-full max-w-sm bg-card border border-border rounded-lg shadow-lg p-5">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-medium text-card-foreground">
+              <h3 id="new-user-dialog-title" className="text-base font-medium text-card-foreground">
                 Novo usuário
               </h3>
               <button
+                ref={closeRef}
                 type="button"
                 onClick={() => setOpen(false)}
                 className="text-muted-foreground hover:text-foreground"

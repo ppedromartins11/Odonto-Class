@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Search, Plus } from "lucide-react";
 import type { UsuarioAtual } from "@/lib/auth/session";
 import { UserMenu } from "./UserMenu";
@@ -17,8 +18,10 @@ import { UserMenu } from "./UserMenu";
  *    estatico sem acao.
  */
 export function Header({ usuario }: { usuario: UsuarioAtual }) {
+  const pathname = usePathname();
+
   return (
-    <header className="fixed left-0 right-0 top-0 z-10 flex h-14 items-center gap-2 border-b border-border bg-card/95 px-3 shadow-sm backdrop-blur sm:gap-3 md:left-56 md:px-6">
+    <header className="fixed left-0 right-0 top-0 z-20 flex h-14 items-center gap-2 border-b border-border bg-card/95 px-3 shadow-sm backdrop-blur sm:gap-3 md:left-56 md:px-6">
       <Link href="/pacientes" aria-label="Buscar paciente" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-secondary hover:text-foreground sm:hidden">
         <Search className="h-4 w-4" />
       </Link>
@@ -41,7 +44,7 @@ export function Header({ usuario }: { usuario: UsuarioAtual }) {
           </Link>
         ) : null}
 
-        <UserMenu usuario={usuario} />
+        <UserMenu key={pathname} usuario={usuario} />
       </div>
     </header>
   );
