@@ -4,21 +4,13 @@
 
 O release candidate inclui Auth, Usuarios, Dashboard, Pacientes, Agenda,
 Atendimentos, Procedimentos, Retornos, Tarefas, Documentos/PDF, Arquivos
-privados, Orcamentos e Financeiro basico (pagamentos). Validade/Esterilizacao
-continua parcial, desativada no menu e fora da homologacao operacional.
+privados, Orcamentos, Financeiro basico (pagamentos), Estoque e catalogo de
+Servicos. Validade/Esterilizacao continua parcial, desativada no menu e fora
+da homologacao operacional.
 
-As migrations `0007` e `0008` existem apenas como trabalho parcial ja aplicado
-na homologacao ficticia. Elas nao devem ser promovidas como um modulo pronto;
-a conclusao desse bloco exige revisao, testes RLS especificos e homologacao
-propria.
-
-O historico da homologacao ficticia tambem contem `0009` e `0010`, referentes
-a Tarefas. Como `0007`/`0008` ficam somente na branch WIP, um `supabase db
-push` executado a partir do `main` puro falhara por historico remoto ausente.
-Antes de qualquer deploy, use um manifesto temporario e revisado que inclua
-somente as migrations historicas necessarias, ou uma homologacao nova criada
-a partir do conjunto aprovado. Nunca use `migration repair` para ocultar essa
-divergencia sem reconciliar o historico.
+As migrations `0001`-`0015` fazem parte do historico local e da homologacao
+ficticia. Migrations aplicadas nunca sao reescritas; qualquer divergencia deve
+ser investigada antes de um deploy, sem reset ou reaplicacao de SQL historico.
 
 ### Checklist de deploy para homologacao online
 

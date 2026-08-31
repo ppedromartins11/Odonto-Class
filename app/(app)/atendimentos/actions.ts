@@ -7,12 +7,22 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { DomainActionState } from "@/lib/agenda/types";
 import { validateEvolution, validateProcedureFormData } from "@/lib/clinical/validation";
 import { isValidUuid } from "@/lib/patients/validation";
+import { parseCents, parsePositiveInteger } from "@/lib/services/validation";
+import type { FinalizationPreviewItem } from "@/lib/services/types";
 
 function clinicalError(code?: string) {
   if (code === "42501") return "Você não tem permissão para acessar este registro clínico.";
   if (code === "P0002") return "Registro clínico não encontrado ou inacessível.";
   if (code === "23514" || code === "22023") return "A operação não é válida para o estado atual.";
   return "Não foi possível salvar o registro clínico.";
+}
+
+export async function previewAttendanceFinalization(attendanceId: string): Promise<{ error: string | null; items: FinalizationPreviewItem[] }> {
+  if (!(await requireDentist()) || !isValidUuid(attendanceId)) return { error: "Acesso clínico negado.", items: [] };
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("preview_attendance_finalization", { p_atendimento_id: attendanceId });
+  if (error) return { error: "Não foi possível revisar o estoque para finalizar.", items: [] };
+  return { error: null, items: (data ?? []) as FinalizationPreviewItem[] };
 }
 
 async function requireDentist() {
@@ -94,6 +104,7 @@ export async function finalizeAttendance(
   });
   if (error || !data) {
     console.error("Falha na RPC finalize_attendance", { code: error?.code });
+    if (error?.code === "P0001") return { success: false, error: "Não é possível finalizar porque há material inativo ou estoque insuficiente. Revise o resumo de consumo." };
     return { success: false, error: clinicalError(error?.code) };
   }
   const attendance = data as { paciente_id: string };
@@ -128,6 +139,25 @@ export async function createProcedure(
     return { success: false, error: clinicalError(error.code) };
   }
   revalidatePath(`/atendimentos/${attendanceId}`);
+  return { success: true, error: null };
+}
+
+export async function createServiceProcedure(
+  _previousState: DomainActionState,
+  formData: FormData
+): Promise<DomainActionState> {
+  if (!(await requireDentist())) return { success: false, error: "Acesso clínico restrito a dentista." };
+  const attendanceId = String(formData.get("attendanceId") ?? "");
+  const serviceId = String(formData.get("serviceId") ?? "");
+  const quantity = parsePositiveInteger(formData.get("quantidade"));
+  const cents = parseCents(formData.get("valorAplicado"));
+  if (!isValidUuid(attendanceId) || !isValidUuid(serviceId) || quantity === null || cents === null) return { success: false, error: "Revise os dados do serviço." };
+  const details = String(formData.get("detalhes") ?? "").trim();
+  if (details.length > 2000) return { success: false, error: "Use no máximo 2.000 caracteres nos detalhes." };
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("create_service_procedure", { p_atendimento_id: attendanceId, p_servico_id: serviceId, p_quantidade: quantity, p_valor_aplicado_centavos: cents, p_detalhes: details || null });
+  if (error) return { success: false, error: clinicalError(error.code) };
+  revalidatePath(`/atendimentos/${attendanceId}`); revalidatePath(`/pacientes`);
   return { success: true, error: null };
 }
 

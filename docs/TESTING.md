@@ -116,7 +116,7 @@ ficticios residuais dos prefixos da suite.
 
 - As migrations `0009` e `0010` foram aplicadas somente na homologacao
   ficticia em 26/08/2026, apos dry-run e reconciliacao do historico que ja
-  continha as migrations WIP `0007` e `0008`.
+  continha as migrations historicas `0007` e `0008`.
 - A suite remota completa passou com 29 testes. A cobertura operacional inclui
   prioridade padrao e permitida, assinatura legada de `create_task`, edicao,
   transicao de status, RLS, remocao logica e bloqueio de operacoes posteriores.
@@ -134,6 +134,18 @@ ficticios residuais dos prefixos da suite.
 - A suite cria somente fixtures `QA_FIN_` e as remove no `afterAll`.
   Apos a execucao de homologacao, a contagem de pacientes e usuarios
   `QA_FIN_` deve ser zero.
+
+## Sprint 13: Servicos, consumo e finalizacao
+
+- A suite remota `services.attendance-stock.authorization.test.ts` usa apenas
+  fixtures `QA_SVC_` e cobre catalogo administrativo, isolamento da recepcao,
+  isolamento entre dentistas, usuario inativo e Auth sem perfil.
+- Cobre servico sem material, snapshot de composicao, valor historico,
+  quantidade multiplicada, preview sem escrita, saldo suficiente e exato,
+  estoque insuficiente, material inativo, multiplos materiais, rollback,
+  indice contra dupla baixa e finalizacoes realmente concorrentes.
+- A limpeza remove somente os IDs descartaveis criados pela propria suite.
+  Ao concluir, nao pode restar registro com prefixo `QA_SVC_`.
 
 ## Sprint 9.5 — checklist de homologação manual
 

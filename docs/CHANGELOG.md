@@ -1,5 +1,17 @@
 # Changelog
 
+## Sprint 13 - Servicos e finalizacao com consumo de estoque
+
+- Migration `0015_servicos_atendimento_estoque.sql`: catalogo de servicos,
+  composicao de materiais, snapshot por procedimento e consumo automatico
+  atomico na finalizacao de atendimento.
+- Atendimento passa a exibir selecao de servico, quantidade, valor aplicado e
+  preview de consumo; procedimento manual permanece disponivel.
+- Adicionada cobertura remota `QA_SVC_` para RLS/RBAC, isolamento clinico,
+  concorrencia, rollback e limpeza de fixtures.
+- Dialogo de finalizacao recebeu foco inicial, ESC, fechamento por backdrop,
+  restauracao de foco e protecao contra duplo envio.
+
 ## Sprint 12 - Estoque
 
 - Cadastro compartilhado de materiais, movimentacoes atomicas e historico

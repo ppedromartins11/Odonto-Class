@@ -14,6 +14,22 @@
 
 `materiais_estoque` e `movimentacoes_estoque` negam DML direto. As RPCs validam sessao, usuario ativo, perfil, limites de quantidade e saldo. A movimentacao usa bloqueio de linha e e imutavel; a auditoria guarda somente IDs, tipo e saldos, sem motivo ou conteudo clinico.
 
+## Matriz do modulo Servicos e consumo (Sprint 13)
+
+| Acao | Administrador ativo | Dentista ativo | Recepcao ativa | Inativo/sem perfil |
+|---|---:|---:|---:|---:|
+| Criar, editar, ativar servico | Sim | Nao | Nao | Nao |
+| Configurar composicao | Sim | Nao | Nao | Nao |
+| Listar servicos ativos | Sim | Sim | Nao | Nao |
+| Registrar servico em atendimento proprio | Nao | Sim | Nao | Nao |
+| Ver preview/finalizar atendimento proprio | Nao | Sim | Nao | Nao |
+
+As tabelas de catalogo e snapshot negam DML direto para `authenticated`.
+As RPCs `SECURITY DEFINER` usam `search_path = ''`, derivam o profissional da
+sessao e verificam atendimento em andamento antes da escrita. O consumo usa o
+snapshot, nunca o catalogo atual, e sua movimentacao automatica e protegida por
+indice unico em `procedimento_material_consumo_id`.
+
 Este documento e uma analise tecnica, nao um parecer juridico. Pontos
 marcados como "requer validacao profissional" precisam de confirmacao
 com advogado/contador especializado em regulacao de saude antes de

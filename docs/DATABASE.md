@@ -1,5 +1,19 @@
 # Modelo de Dados
 
+## Servicos e consumo de estoque (Sprint 13)
+
+`0015_servicos_atendimento_estoque.sql` adiciona o catalogo administrativo
+`servicos`, sua composicao em `servico_materiais` e o snapshot imutavel
+`procedimento_materiais_consumo`. Procedimentos de catalogo guardam o
+servico, a quantidade e o valor aplicado em centavos; procedimentos antigos
+de texto livre continuam validos. A composicao e copiada no registro do
+procedimento e nunca e recalculada a partir do catalogo depois disso.
+
+`finalize_attendance()` le exclusivamente esse snapshot, bloqueia materiais
+em ordem deterministica e registra a saida automatica junto da finalizacao.
+Qualquer saldo insuficiente ou material inativo faz a transacao inteira falhar:
+atendimento, agenda, saldo, movimentacoes e auditoria nao ficam parciais.
+
 ## Estoque (Sprint 12)
 
 `0014_estoque.sql` adiciona `materiais_estoque` e `movimentacoes_estoque`.
@@ -12,10 +26,9 @@ autorizado; `INSERT`, `UPDATE` e `DELETE` diretos sao revogados. As RPCs
 transacionais bloqueiam a linha do material antes de atualizar o saldo, para
 impedir saidas concorrentes de gerar estoque negativo.
 
-> As migrations `0001`-`0006`, `0009`-`0013` foram aplicadas e validadas
-> em homologacao ficticia. As migrations `0007` e `0008` pertencem ao WIP
-> historico de Financeiro/Orcamentos/Validade e permanecem fora do `main`.
-> Todas as migrations aplicadas permanecem imutaveis.
+> As migrations `0001`-`0015` estao alinhadas na homologacao ficticia.
+> As migrations `0007` e `0008` sao historicas e foram preservadas sem
+> reescrita. Todas as migrations aplicadas permanecem imutaveis.
 
 ## Premissas
 
@@ -29,15 +42,17 @@ impedir saidas concorrentes de gerar estoque negativo.
 - Campos de auditoria padrao: `created_at`, `updated_at`, `created_by`,
   `updated_by`.
 
-## Tabelas implementadas no main RC (14)
+## Tabelas implementadas no main
 
 `usuarios`, `profissionais`, `pacientes`, `paciente_alertas_clinicos`,
 `agendamentos`, `atendimentos`,
 `procedimentos`, `documentos`, `retornos`, `tarefas`, `arquivos_paciente`,
-`auditoria`, `orcamentos`, `orcamento_itens` e `pagamentos`.
+`auditoria`, `orcamentos`, `orcamento_itens`, `pagamentos`, `materiais_estoque`,
+`movimentacoes_estoque`, `servicos`, `servico_materiais` e
+`procedimento_materiais_consumo`.
 
-`controle_validade` continua exclusivamente no WIP das migrations `0007` e
-`0008`; nao faz parte do modulo operacional homologado.
+`controle_validade` existe nas migrations historicas `0007` e `0008`, mas o
+modulo de validade/esterilizacao continua fora da homologacao operacional.
 
 ## Orcamentos (migration 0011)
 
@@ -125,8 +140,10 @@ os ajustes das decisoes PAV-09 a PAV-17:
   `em_andamento|finalizado`, evolucao sensivel e timestamps. Um agendamento
   origina no maximo um atendimento. Atendimento finalizado e imutavel.
 - `procedimentos`: pertence ao atendimento; descricao, dente/regiao em texto
-  livre, material, cor e detalhes opcionais. So pode mudar enquanto o
-  atendimento estiver em andamento; nenhuma exclusao fisica pela aplicacao.
+  livre, material, cor e detalhes opcionais. Para catalogo, referencia
+  `servico_id`, quantidade e valor aplicado em centavos; o consumo fica no
+  snapshot separado. So pode mudar enquanto o atendimento estiver em andamento;
+  nenhuma exclusao fisica pela aplicacao.
 - Indices cobrem agenda por inicio/profissional/paciente, historico de
   atendimento por paciente/profissional e procedimentos por atendimento.
 - Escritas diretas e `DELETE` estao revogados. RPCs fazem autorizacao,
@@ -294,6 +311,5 @@ Ver `docs/SECURITY.md` para o racional completo.
 
 ## Estado de validacao
 
-`0003` e `0004`, lint SQL e as suites RLS/RPC foram validados na homologacao
-ficticia. A `0004` foi a unica migration aplicada neste bloco; as migrations
-anteriores permanecem imutaveis.
+`0001`-`0015`, lint SQL e as suites RLS/RPC sao validados exclusivamente na
+homologacao ficticia. As migrations historicas permanecem imutaveis.

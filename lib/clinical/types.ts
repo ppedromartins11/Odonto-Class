@@ -23,6 +23,9 @@ export type Procedure = {
   material_utilizado: string | null;
   cor_resina: string | null;
   detalhes: string | null;
+  servico_id?: string | null;
+  quantidade?: number;
+  valor_aplicado_centavos?: number | null;
   created_at: string;
   updated_at: string;
   created_by: string;

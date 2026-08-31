@@ -63,8 +63,9 @@ deduplicacao automatica e busca por documento.
   diretamente a partir do paciente (PAV-15), registra evolucao e finaliza.
   Finalizar marca o agendamento relacionado como atendido na mesma transacao.
 - **Procedimentos**: descricao obrigatoria e campos opcionais de dente/regiao,
-  material, cor e detalhes minimos. Sem catalogo, odontograma, estoque ou
-  cobranca automatica.
+  material, cor e detalhes minimos. A Sprint 13 permite opcionalmente selecionar
+  um servico de catalogo com valor e consumo snapshotados; odontograma e
+  cobranca automatica continuam fora do escopo.
 - **RF-20 incremental**: eventos operacionais e clinicos sao auditados apenas
   por IDs, estados e nomes de campos; evolucao e detalhes clinicos nunca sao
   copiados para `auditoria`.

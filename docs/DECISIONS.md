@@ -7,7 +7,20 @@
 - Historico e completo para administrador/recepcao e restrito as proprias movimentacoes para dentista. Movimentacoes sao append-only.
 - Ajuste representa a nova contagem fisica, pode resultar em zero e exige motivo. Entrada/saida exigem quantidade positiva.
 - Alertas de estoque baixo, vencendo e vencido sao calculados, podem coexistir e nao escondem um ao outro. A janela de vencimento e de 30 dias.
-- Procedimentos continuam sem movimentacao automatica de estoque nesta sprint.
+- Procedimentos continuaram sem movimentacao automatica na Sprint 12.
+
+## PAV-24 - Servicos e consumo configuravel da Sprint 13
+
+- Catalogo de servicos e administrativo: somente administrador cria, altera,
+  ativa, inativa e configura materiais.
+- Dentista ativo seleciona somente servicos ativos ao registrar procedimento
+  no proprio atendimento; recepcao e administrador puro nao acessam conteudo
+  clinico por esse caminho.
+- Valor aplicado e composicao de materiais sao snapshots no procedimento.
+  Alteracoes posteriores de preco ou composicao nao alteram historico.
+- Consumo automatico ocorre somente ao finalizar atendimento, em uma unica
+  transacao com saldo suficiente. Material inativo, saldo insuficiente ou
+  tentativa duplicada abortam integralmente a operacao.
 
 ## PAV-22 - Orcamentos comerciais da Sprint 10
 
@@ -98,7 +111,7 @@ Itens ainda abertos: PAV-03 a PAV-08.
 | Acesso clinico | Papel unico vigente: apenas dentista ativo acessa os proprios atendimentos. Admin puro e recepcao recebem zero linhas. |
 | Evolucao historica | Editavel apenas em andamento. Finalizacao torna o registro e seus procedimentos imutaveis; sem apagamento silencioso. |
 | Dente/regiao | Campo `dente` textual opcional, com FDI sugerida e sem validacao bloqueante/odontograma (PAV-16). |
-| Procedimentos | Texto simples; sem catalogo, estoque, financeiro ou exclusao fisica. |
+| Procedimentos (base 0004) | Texto simples sem odontograma ou exclusao fisica; a Sprint 13 adiciona opcionalmente catalogo e consumo snapshotado. |
 | Fuso | Entrada e visualizacao em `America/Cuiaba`; persistencia em `timestamptz`. |
 | Dependencias | Agenda responsiva implementada sem biblioteca externa de calendario. |
 

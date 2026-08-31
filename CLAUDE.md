@@ -117,6 +117,9 @@ sinalize e aguarde confirmacao.
   implementado em migration aditiva `0004`; lint SQL e 23 testes remotos
   de Auth/Pacientes/RLS/RPC aprovados em homologacao ficticia. Aguarda
   homologacao manual antes do fechamento funcional.
+- **Sprint 13 (Servicos e consumo de estoque)**: migration `0015` adiciona
+  catalogo administrativo, composicao snapshotada por procedimento e consumo
+  atomico na finalizacao. Odontograma continua fora do escopo.
 
 ## Convencao estabelecida na Sprint 1 (seguir nas proximas sprints)
 

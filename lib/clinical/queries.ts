@@ -5,7 +5,7 @@ import type { Attendance, Procedure } from "./types";
 const ATTENDANCE_FIELDS =
   "id, agendamento_id, paciente_id, profissional_id, iniciado_em, finalizado_em, status, evolucao, created_at, updated_at, created_by, updated_by";
 const PROCEDURE_FIELDS =
-  "id, atendimento_id, descricao, dente, material_utilizado, cor_resina, detalhes, created_at, updated_at, created_by, updated_by";
+  "id, atendimento_id, descricao, dente, material_utilizado, cor_resina, detalhes, servico_id, quantidade, valor_aplicado_centavos, created_at, updated_at, created_by, updated_by";
 
 function clinicalFailure(scope: string, code?: string) {
   console.error(scope, { code });

@@ -30,13 +30,16 @@
       estorno/cancelamento administrativo e indicadores restritos ao admin.
 - [x] **Sprint 12** - Estoque simples: materiais, entradas, saidas, ajustes,
       historico append-only, alertas calculados, RLS/RPC e Dashboard operacional.
+- [ ] **Sprint 13** - Catalogo de servicos, valor aplicado historico,
+      composicao snapshotada e consumo automatico atomico na finalizacao.
+      Aguardando validacao final de integracao/homologacao antes de marcar concluida.
 - [ ] **Sprint 8** - Validade/esterilizacao (RF-17, RF-18). Schema parcial nas migrations `0007`/`0008`; UI, RLS especifica e homologacao ainda nao estao concluidos. Modulo desativado para o release candidate. Tabela:
       `controle_validade`.
 - [ ] **Sprint 9** - Testes e seguranca finais (RF-20, RN-05, RNF-01,
       RNF-07). `auditoria` minima ja existe desde a Sprint 1.5; ampliar
       eventos e revisar policies de todos os modulos.
-- [ ] **Sprint 10** - Orcamentos (RF-16): migration `0011`, UI, PDF e testes
-      implementados; pendente de aplicacao e homologacao em ambiente ficticio.
+- [x] **Sprint 10** - Orcamentos (RF-16): migration `0011`, UI, PDF e testes
+      implementados e preservados no historico de migrations.
 
 Detalhamento completo (objetivo, dependencias, testes, criterio de
 conclusao) por sprint esta na especificacao tecnica aprovada, secao 9.
@@ -52,7 +55,8 @@ regra deny-by-default aprovada na Sprint 1.5.
 - [x] Agenda dia/semana e filtro por profissional.
 - [x] Agendamento, remarcacao e estados operacionais.
 - [x] Atendimento agendado/direto, evolucao e finalizacao.
-- [x] Procedimentos simples sem odontograma/estoque/financeiro.
+- [x] Procedimentos simples preservados; a Sprint 13 adiciona opcionalmente
+      catalogo e consumo de estoque snapshotado, sem odontograma.
 - [x] RLS/RPC/auditoria e testes locais.
 - [x] Aplicar `0004` e executar suite RLS/RPC na homologacao ficticia
   (lint SQL sem erros; 23 testes de integracao aprovados).
