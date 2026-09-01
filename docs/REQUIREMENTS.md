@@ -64,8 +64,9 @@ deduplicacao automatica e busca por documento.
   Finalizar marca o agendamento relacionado como atendido na mesma transacao.
 - **Procedimentos**: descricao obrigatoria e campos opcionais de dente/regiao,
   material, cor e detalhes minimos. A Sprint 13 permite opcionalmente selecionar
-  um servico de catalogo com valor e consumo snapshotados; odontograma e
-  cobranca automatica continuam fora do escopo.
+  um servico de catalogo com valor e consumo snapshotados. A Sprint 14 adiciona
+  seleção visual dos dentes permanentes FDI por procedimento, sem interpretar
+  ou remover a região textual histórica. Cobrança automática continua fora.
 - **RF-20 incremental**: eventos operacionais e clinicos sao auditados apenas
   por IDs, estados e nomes de campos; evolucao e detalhes clinicos nunca sao
   copiados para `auditoria`.
@@ -106,7 +107,8 @@ RNF-10) do documento-fonte aplicam-se integralmente. Destaques:
 
 ## Fora do MVP (ver `docs/DECISIONS.md` para justificativa completa)
 
-WhatsApp automatico, aplicativo proprio, odontograma avancado, estoque
+WhatsApp automatico, aplicativo proprio, odontograma avancado por faces,
+condicoes/diagnostico odontologico, odontograma infantil, estoque
 completo, financeiro completo (parcelamento/contas a receber detalhado),
 integracao avancada com Google Calendar, anamnese digital, assinatura
 digital avancada, relatorios avancados/IA, multiunidade/multitenant.

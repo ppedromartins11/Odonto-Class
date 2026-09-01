@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-const QA_EMAIL_PREFIXES = ["qa_rc_", "qa_svc_", "qa_est_", "qa_orc_", "qa_fin_"];
-const QA_TEXT_PREFIXES = ["QA_RC_", "QA_SVC_", "QA_EST_", "QA_ORC_", "QA_FIN_"];
+const QA_EMAIL_PREFIXES = ["qa_rc_", "qa_svc_", "qa_odo_", "qa_est_", "qa_orc_", "qa_fin_"];
+const QA_TEXT_PREFIXES = ["QA_RC_", "QA_SVC_", "QA_ODO_", "QA_EST_", "QA_ORC_", "QA_FIN_"];
 
 function required(name: string) {
   const value = process.env[name];
@@ -84,6 +84,7 @@ describe("limpeza de fixtures QA da homologacao", () => {
     if (storagePaths.length) expect((await service.storage.from("arquivos-paciente").remove(storagePaths)).error).toBeNull();
 
     if (materialIds.length) await deleteWhereIds(service, "movimentacoes_estoque", "material_id", materialIds);
+    if (procedureIds.length) await deleteWhereIds(service, "procedimento_dentes", "procedimento_id", procedureIds);
     if (procedureIds.length) await deleteWhereIds(service, "procedimento_materiais_consumo", "procedimento_id", procedureIds);
     if (userIds.length) await deleteWhereIds(service, "auditoria", "usuario_id", userIds);
     if (paymentIds.length) await deleteWhereIds(service, "pagamentos", "id", paymentIds);

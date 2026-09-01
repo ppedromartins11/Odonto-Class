@@ -1,5 +1,16 @@
 # Changelog
 
+## Sprint 14 - Odontograma FDI por procedimento
+
+- Migration `0016_odontograma.sql` cria `procedimento_dentes`, RLS clínica e
+  a RPC idempotente `set_procedure_teeth`, sem alterar o campo textual legado.
+- Procedimentos manuais e de catálogo recebem seleção visual múltipla dos 32
+  dentes permanentes; o histórico usa chips FDI e fica imutável após finalizar.
+- Quantidade, valor aplicado e consumo de estoque permanecem independentes da
+  quantidade de dentes selecionados.
+- Testes locais cobrem domínio FDI; a suite remota `QA_ODO_` cobre RLS/RBAC,
+  imutabilidade, auditoria, DML direto e regressão de estoque.
+
 ## Sprint 13 - Servicos e finalizacao com consumo de estoque
 
 - Migration `0015_servicos_atendimento_estoque.sql`: catalogo de servicos,

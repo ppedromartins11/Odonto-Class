@@ -30,9 +30,11 @@
       estorno/cancelamento administrativo e indicadores restritos ao admin.
 - [x] **Sprint 12** - Estoque simples: materiais, entradas, saidas, ajustes,
       historico append-only, alertas calculados, RLS/RPC e Dashboard operacional.
-- [ ] **Sprint 13** - Catalogo de servicos, valor aplicado historico,
+- [x] **Sprint 13** - Catalogo de servicos, valor aplicado historico,
       composicao snapshotada e consumo automatico atomico na finalizacao.
-      Aguardando validacao final de integracao/homologacao antes de marcar concluida.
+- [ ] **Sprint 14** - Odontograma FDI permanente por procedimento. Migration
+      `0016` aplicada e integração/RLS remota aprovada; resta homologação visual
+      e responsiva antes do commit.
 - [ ] **Sprint 8** - Validade/esterilizacao (RF-17, RF-18). Schema parcial nas migrations `0007`/`0008`; UI, RLS especifica e homologacao ainda nao estao concluidos. Modulo desativado para o release candidate. Tabela:
       `controle_validade`.
 - [ ] **Sprint 9** - Testes e seguranca finais (RF-20, RN-05, RNF-01,
@@ -55,8 +57,8 @@ regra deny-by-default aprovada na Sprint 1.5.
 - [x] Agenda dia/semana e filtro por profissional.
 - [x] Agendamento, remarcacao e estados operacionais.
 - [x] Atendimento agendado/direto, evolucao e finalizacao.
-- [x] Procedimentos simples preservados; a Sprint 13 adiciona opcionalmente
-      catalogo e consumo de estoque snapshotado, sem odontograma.
+- [x] Procedimentos simples preservados; catálogo/consumo snapshotado na Sprint
+      13 e vínculo visual FDI separado na Sprint 14.
 - [x] RLS/RPC/auditoria e testes locais.
 - [x] Aplicar `0004` e executar suite RLS/RPC na homologacao ficticia
   (lint SQL sem erros; 23 testes de integracao aprovados).

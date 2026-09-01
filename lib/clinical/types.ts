@@ -26,10 +26,17 @@ export type Procedure = {
   servico_id?: string | null;
   quantidade?: number;
   valor_aplicado_centavos?: number | null;
+  teeth: FdiTooth[];
   created_at: string;
   updated_at: string;
   created_by: string;
   updated_by: string;
+};
+
+export type ProcedureActionState = DomainActionState & {
+  procedureId?: string;
+  procedureSaved?: boolean;
+  attemptedTeeth?: FdiTooth[];
 };
 
 export type ProcedureFormValues = {
@@ -39,3 +46,5 @@ export type ProcedureFormValues = {
   corResina: string | null;
   detalhes: string | null;
 };
+import type { DomainActionState } from "@/lib/agenda/types";
+import type { FdiTooth } from "@/lib/odontogram/fdi";

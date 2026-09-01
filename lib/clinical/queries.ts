@@ -5,7 +5,22 @@ import type { Attendance, Procedure } from "./types";
 const ATTENDANCE_FIELDS =
   "id, agendamento_id, paciente_id, profissional_id, iniciado_em, finalizado_em, status, evolucao, created_at, updated_at, created_by, updated_by";
 const PROCEDURE_FIELDS =
-  "id, atendimento_id, descricao, dente, material_utilizado, cor_resina, detalhes, servico_id, quantidade, valor_aplicado_centavos, created_at, updated_at, created_by, updated_by";
+  "id, atendimento_id, descricao, dente, material_utilizado, cor_resina, detalhes, servico_id, quantidade, valor_aplicado_centavos, created_at, updated_at, created_by, updated_by, procedimento_dentes(dente_fdi)";
+
+function normalizeProcedure(row: Record<string, unknown>): Procedure {
+  const relation = Array.isArray(row.procedimento_dentes)
+    ? row.procedimento_dentes as Array<{ dente_fdi?: number }>
+    : [];
+  const fields = { ...row };
+  delete fields.procedimento_dentes;
+  return {
+    ...fields,
+    teeth: relation
+      .map((item) => item.dente_fdi)
+      .filter((value): value is Procedure["teeth"][number] => typeof value === "number")
+      .sort((a, b) => a - b),
+  } as Procedure;
+}
 
 function clinicalFailure(scope: string, code?: string) {
   console.error(scope, { code });
@@ -93,7 +108,7 @@ export async function listProcedures(attendanceId: string) {
     .eq("atendimento_id", attendanceId)
     .order("created_at");
   if (error) clinicalFailure("PROCEDURE_LIST_FAILED", error.code);
-  return (data ?? []) as Procedure[];
+  return (data ?? []).map((item) => normalizeProcedure(item as Record<string, unknown>));
 }
 
 /**
@@ -124,7 +139,7 @@ export async function listPatientProcedures(patientId: string, limit = 50) {
     };
     const fields = { ...item } as Record<string, unknown>;
     delete fields.atendimentos;
-    return { ...fields, attendance } as Procedure & { attendance: typeof attendance };
+    return { ...normalizeProcedure(fields), attendance } as Procedure & { attendance: typeof attendance };
   });
 }
 
@@ -136,5 +151,5 @@ export async function getProcedure(id: string): Promise<Procedure | null> {
     .eq("id", id)
     .maybeSingle();
   if (error) clinicalFailure("PROCEDURE_LOAD_FAILED", error.code);
-  return (data as Procedure | null) ?? null;
+  return data ? normalizeProcedure(data as Record<string, unknown>) : null;
 }

@@ -147,6 +147,25 @@ ficticios residuais dos prefixos da suite.
 - A limpeza remove somente os IDs descartaveis criados pela propria suite.
   Ao concluir, nao pode restar registro com prefixo `QA_SVC_`.
 
+## Sprint 14: Odontograma FDI
+
+- Unitários cobrem os 32 códigos permanentes, rejeição de inválidos,
+  deduplicação, ordenação, seleção/deseleção, array vazio e serialização.
+- `odontogram.authorization.test.ts` usa somente fixtures `QA_ODO_` e cobre
+  seleção, substituição, remoção, RLS entre dentistas, recepção, administrador
+  puro, inativo, sem perfil e DML direto negado.
+- A finalização torna os vínculos imutáveis. A regressão de estoque confirma
+  que três dentes com quantidade clínica 1 consomem somente o snapshot de
+  quantidade 1.
+- O cleanup remove `procedimento_dentes` antes de procedimentos e confirma
+  zero identidades e registros textuais com prefixo `QA_ODO_`.
+- A aplicação remota da `0016` e a suite de integração dependem de migration
+  list e dry-run sem drift; skipped não deve ser tratado como aprovação.
+- Homologação técnica remota após a aplicação da `0016`: suíte dedicada
+  `QA_ODO_` com 8/8 testes e regressão completa com 10 arquivos/60 testes,
+  zero falhas e zero skips. O cleanup final passou e confirmou zero resíduos
+  dos prefixos QA conhecidos.
+
 ## Sprint 9.5 — checklist de homologação manual
 
 Executar exclusivamente na homologação fictícia, com dados descartáveis e

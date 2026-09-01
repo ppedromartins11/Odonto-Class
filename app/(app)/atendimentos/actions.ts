@@ -6,6 +6,8 @@ import { requireUser } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { DomainActionState } from "@/lib/agenda/types";
 import { validateEvolution, validateProcedureFormData } from "@/lib/clinical/validation";
+import type { ProcedureActionState } from "@/lib/clinical/types";
+import { parseFdiTeeth, type FdiTooth } from "@/lib/odontogram/fdi";
 import { isValidUuid } from "@/lib/patients/validation";
 import { parseCents, parsePositiveInteger } from "@/lib/services/validation";
 import type { FinalizationPreviewItem } from "@/lib/services/types";
@@ -15,6 +17,32 @@ function clinicalError(code?: string) {
   if (code === "P0002") return "Registro clínico não encontrado ou inacessível.";
   if (code === "23514" || code === "22023") return "A operação não é válida para o estado atual.";
   return "Não foi possível salvar o registro clínico.";
+}
+
+function parseTeethFromForm(formData: FormData): { teeth: FdiTooth[]; error: string | null } {
+  try {
+    return { teeth: parseFdiTeeth(formData.get("teeth")), error: null };
+  } catch {
+    return { teeth: [], error: "Revise os dentes selecionados." };
+  }
+}
+
+async function persistProcedureTeeth(procedureId: string, teeth: readonly FdiTooth[]) {
+  const supabase = await createSupabaseServerClient();
+  return supabase.rpc("set_procedure_teeth", {
+    p_procedimento_id: procedureId,
+    p_dentes: [...teeth],
+  });
+}
+
+function teethPartialFailure(procedureId: string, attemptedTeeth: FdiTooth[]): ProcedureActionState {
+  return {
+    success: false,
+    error: "Procedimento salvo, mas não foi possível vincular os dentes. Tente novamente.",
+    procedureId,
+    procedureSaved: true,
+    attemptedTeeth,
+  };
 }
 
 export async function previewAttendanceFinalization(attendanceId: string): Promise<{ error: string | null; items: FinalizationPreviewItem[] }> {
@@ -115,9 +143,9 @@ export async function finalizeAttendance(
 }
 
 export async function createProcedure(
-  _previousState: DomainActionState,
+  _previousState: ProcedureActionState,
   formData: FormData
-): Promise<DomainActionState> {
+): Promise<ProcedureActionState> {
   if (!(await requireDentist())) return { success: false, error: "Acesso clínico restrito a dentista." };
   const attendanceId = String(formData.get("attendanceId") ?? "");
   if (!isValidUuid(attendanceId)) return { success: false, error: "Atendimento inválido." };
@@ -125,8 +153,10 @@ export async function createProcedure(
   if (!parsed.success) {
     return { success: false, error: "Revise os campos destacados.", fieldErrors: parsed.fieldErrors };
   }
+  const parsedTeeth = parseTeethFromForm(formData);
+  if (parsedTeeth.error) return { success: false, error: parsedTeeth.error };
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc("create_procedure", {
+  const { data, error } = await supabase.rpc("create_procedure", {
     p_atendimento_id: attendanceId,
     p_descricao: parsed.data.descricao,
     p_dente: parsed.data.dente,
@@ -138,14 +168,24 @@ export async function createProcedure(
     console.error("Falha na RPC create_procedure", { code: error.code });
     return { success: false, error: clinicalError(error.code) };
   }
+  const procedureId = (data as { id?: string } | null)?.id;
+  if (!procedureId) return { success: false, error: "O procedimento foi salvo, mas não pôde ser confirmado na interface." };
+  if (parsedTeeth.teeth.length > 0) {
+    const { error: teethError } = await persistProcedureTeeth(procedureId, parsedTeeth.teeth);
+    if (teethError) {
+      console.error("Falha na RPC set_procedure_teeth após criar procedimento", { code: teethError.code });
+      revalidatePath(`/atendimentos/${attendanceId}`);
+      return teethPartialFailure(procedureId, parsedTeeth.teeth);
+    }
+  }
   revalidatePath(`/atendimentos/${attendanceId}`);
   return { success: true, error: null };
 }
 
 export async function createServiceProcedure(
-  _previousState: DomainActionState,
+  _previousState: ProcedureActionState,
   formData: FormData
-): Promise<DomainActionState> {
+): Promise<ProcedureActionState> {
   if (!(await requireDentist())) return { success: false, error: "Acesso clínico restrito a dentista." };
   const attendanceId = String(formData.get("attendanceId") ?? "");
   const serviceId = String(formData.get("serviceId") ?? "");
@@ -154,17 +194,29 @@ export async function createServiceProcedure(
   if (!isValidUuid(attendanceId) || !isValidUuid(serviceId) || quantity === null || cents === null) return { success: false, error: "Revise os dados do serviço." };
   const details = String(formData.get("detalhes") ?? "").trim();
   if (details.length > 2000) return { success: false, error: "Use no máximo 2.000 caracteres nos detalhes." };
+  const parsedTeeth = parseTeethFromForm(formData);
+  if (parsedTeeth.error) return { success: false, error: parsedTeeth.error };
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc("create_service_procedure", { p_atendimento_id: attendanceId, p_servico_id: serviceId, p_quantidade: quantity, p_valor_aplicado_centavos: cents, p_detalhes: details || null });
+  const { data, error } = await supabase.rpc("create_service_procedure", { p_atendimento_id: attendanceId, p_servico_id: serviceId, p_quantidade: quantity, p_valor_aplicado_centavos: cents, p_detalhes: details || null });
   if (error) return { success: false, error: clinicalError(error.code) };
+  const procedureId = (data as { id?: string } | null)?.id;
+  if (!procedureId) return { success: false, error: "O procedimento foi salvo, mas não pôde ser confirmado na interface." };
+  if (parsedTeeth.teeth.length > 0) {
+    const { error: teethError } = await persistProcedureTeeth(procedureId, parsedTeeth.teeth);
+    if (teethError) {
+      console.error("Falha na RPC set_procedure_teeth após criar serviço", { code: teethError.code });
+      revalidatePath(`/atendimentos/${attendanceId}`);
+      return teethPartialFailure(procedureId, parsedTeeth.teeth);
+    }
+  }
   revalidatePath(`/atendimentos/${attendanceId}`); revalidatePath(`/pacientes`);
   return { success: true, error: null };
 }
 
 export async function updateProcedure(
-  _previousState: DomainActionState,
+  _previousState: ProcedureActionState,
   formData: FormData
-): Promise<DomainActionState> {
+): Promise<ProcedureActionState> {
   if (!(await requireDentist())) return { success: false, error: "Acesso clínico restrito a dentista." };
   const procedureId = String(formData.get("procedureId") ?? "");
   const attendanceId = String(formData.get("attendanceId") ?? "");
@@ -175,6 +227,8 @@ export async function updateProcedure(
   if (!parsed.success) {
     return { success: false, error: "Revise os campos destacados.", fieldErrors: parsed.fieldErrors };
   }
+  const parsedTeeth = parseTeethFromForm(formData);
+  if (parsedTeeth.error) return { success: false, error: parsedTeeth.error };
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("update_procedure", {
     p_procedimento_id: procedureId,
@@ -188,6 +242,66 @@ export async function updateProcedure(
     console.error("Falha na RPC update_procedure", { code: error.code });
     return { success: false, error: clinicalError(error.code) };
   }
+  const { error: teethError } = await persistProcedureTeeth(procedureId, parsedTeeth.teeth);
+  if (teethError) {
+    console.error("Falha na RPC set_procedure_teeth após atualizar procedimento", { code: teethError.code });
+    revalidatePath(`/atendimentos/${attendanceId}`);
+    return teethPartialFailure(procedureId, parsedTeeth.teeth);
+  }
   revalidatePath(`/atendimentos/${attendanceId}`);
   redirect(`/atendimentos/${attendanceId}`);
+}
+
+export async function updateServiceProcedure(
+  _previousState: ProcedureActionState,
+  formData: FormData
+): Promise<ProcedureActionState> {
+  if (!(await requireDentist())) return { success: false, error: "Acesso clínico restrito a dentista." };
+  const procedureId = String(formData.get("procedureId") ?? "");
+  const attendanceId = String(formData.get("attendanceId") ?? "");
+  const quantity = parsePositiveInteger(formData.get("quantidade"));
+  const cents = parseCents(formData.get("valorAplicado"));
+  const details = String(formData.get("detalhes") ?? "").trim();
+  if (!isValidUuid(procedureId) || !isValidUuid(attendanceId) || quantity === null || cents === null) {
+    return { success: false, error: "Revise os dados do serviço." };
+  }
+  if (details.length > 2000) return { success: false, error: "Use no máximo 2.000 caracteres nos detalhes." };
+  const parsedTeeth = parseTeethFromForm(formData);
+  if (parsedTeeth.error) return { success: false, error: parsedTeeth.error };
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("update_service_procedure", {
+    p_procedimento_id: procedureId,
+    p_quantidade: quantity,
+    p_valor_aplicado_centavos: cents,
+    p_detalhes: details || null,
+  });
+  if (error) return { success: false, error: clinicalError(error.code) };
+  const { error: teethError } = await persistProcedureTeeth(procedureId, parsedTeeth.teeth);
+  if (teethError) {
+    console.error("Falha na RPC set_procedure_teeth após atualizar serviço", { code: teethError.code });
+    revalidatePath(`/atendimentos/${attendanceId}`);
+    return teethPartialFailure(procedureId, parsedTeeth.teeth);
+  }
+  revalidatePath(`/atendimentos/${attendanceId}`);
+  redirect(`/atendimentos/${attendanceId}`);
+}
+
+export async function saveProcedureTeeth(
+  _previousState: ProcedureActionState,
+  formData: FormData
+): Promise<ProcedureActionState> {
+  if (!(await requireDentist())) return { success: false, error: "Acesso clínico restrito a dentista." };
+  const procedureId = String(formData.get("procedureId") ?? "");
+  const attendanceId = String(formData.get("attendanceId") ?? "");
+  if (!isValidUuid(procedureId) || !isValidUuid(attendanceId)) return { success: false, error: "Procedimento inválido." };
+  const parsedTeeth = parseTeethFromForm(formData);
+  if (parsedTeeth.error) return { success: false, error: parsedTeeth.error };
+  const { error } = await persistProcedureTeeth(procedureId, parsedTeeth.teeth);
+  if (error) {
+    console.error("Falha na RPC set_procedure_teeth", { code: error.code });
+    return { success: false, error: clinicalError(error.code), procedureId, procedureSaved: true };
+  }
+  revalidatePath(`/atendimentos/${attendanceId}`);
+  revalidatePath("/pacientes");
+  return { success: true, error: null, procedureId, procedureSaved: true };
 }

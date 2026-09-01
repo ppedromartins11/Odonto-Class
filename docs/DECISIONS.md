@@ -1,5 +1,16 @@
 # Registro de Decisoes (ADR resumido)
 
+## PAV-25 - Odontograma FDI da Sprint 14
+
+- A primeira versão relaciona 0..N dentes permanentes FDI ao procedimento; não
+  modela faces, condições, diagnóstico, periodonto ou dentição infantil.
+- `procedimentos.dente` permanece como texto legado e não sofre conversão ou
+  interpretação automática.
+- Somente o dentista ativo responsável altera dentes enquanto o atendimento
+  está em andamento; finalização torna a seleção histórica e imutável.
+- Quantidade clínica, valor e consumo de estoque são independentes do número
+  de dentes selecionados.
+
 ## PAV-23 - Estoque simples da Sprint 12
 
 - Estoque e compartilhado pela clinica; nao ha propriedade de material por dentista, setor ou profissional.
@@ -110,7 +121,7 @@ Itens ainda abertos: PAV-03 a PAV-08.
 | Atendimento direto | Permitido com `agendamento_id` nulo (PAV-15). |
 | Acesso clinico | Papel unico vigente: apenas dentista ativo acessa os proprios atendimentos. Admin puro e recepcao recebem zero linhas. |
 | Evolucao historica | Editavel apenas em andamento. Finalizacao torna o registro e seus procedimentos imutaveis; sem apagamento silencioso. |
-| Dente/regiao | Campo `dente` textual opcional, com FDI sugerida e sem validacao bloqueante/odontograma (PAV-16). |
+| Dente/regiao | Campo `dente` textual opcional preservado; a Sprint 14 adiciona vínculo FDI estruturado separado, sem migrar o legado (PAV-16/PAV-25). |
 | Procedimentos (base 0004) | Texto simples sem odontograma ou exclusao fisica; a Sprint 13 adiciona opcionalmente catalogo e consumo snapshotado. |
 | Fuso | Entrada e visualizacao em `America/Cuiaba`; persistencia em `timestamptz`. |
 | Dependencias | Agenda responsiva implementada sem biblioteca externa de calendario. |

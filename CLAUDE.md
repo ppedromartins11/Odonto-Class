@@ -119,7 +119,11 @@ sinalize e aguarde confirmacao.
   homologacao manual antes do fechamento funcional.
 - **Sprint 13 (Servicos e consumo de estoque)**: migration `0015` adiciona
   catalogo administrativo, composicao snapshotada por procedimento e consumo
-  atomico na finalizacao. Odontograma continua fora do escopo.
+  atomico na finalizacao.
+- **Sprint 14 (Odontograma FDI)**: migration aditiva `0016` preparada para
+  vincular dentes permanentes a procedimentos sem migrar o campo textual
+  legado e sem alterar quantidade, valor ou estoque. Aplicada na homologacao
+  após migration list e dry-run alinhados; homologacao visual ainda pendente.
 
 ## Convencao estabelecida na Sprint 1 (seguir nas proximas sprints)
 

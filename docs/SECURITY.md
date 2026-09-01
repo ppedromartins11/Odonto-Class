@@ -30,6 +30,20 @@ sessao e verificam atendimento em andamento antes da escrita. O consumo usa o
 snapshot, nunca o catalogo atual, e sua movimentacao automatica e protegida por
 indice unico em `procedimento_material_consumo_id`.
 
+## Matriz do Odontograma (Sprint 14)
+
+| Ação | Dentista responsável ativo | Outro dentista | Administrador puro | Recepção | Inativo/sem perfil |
+|---|---:|---:|---:|---:|---:|
+| Consultar dentes do procedimento | Sim | Não | Não | Não | Não |
+| Substituir/remover dentes em atendimento em andamento | Sim | Não | Não | Não | Não |
+| Alterar após atendimento finalizado | Não | Não | Não | Não | Não |
+| DML direto | Não | Não | Não | Não | Não |
+
+`procedimento_dentes` nasce com RLS e somente `SELECT` autorizado. Escritas
+ocorrem exclusivamente pela RPC `set_procedure_teeth`, que deriva o dentista
+da sessão, bloqueia procedimento/atendimento e registra apenas IDs e quantidade
+de dentes. A auditoria não recebe evolução, descrição ou outros dados clínicos.
+
 Este documento e uma analise tecnica, nao um parecer juridico. Pontos
 marcados como "requer validacao profissional" precisam de confirmacao
 com advogado/contador especializado em regulacao de saude antes de

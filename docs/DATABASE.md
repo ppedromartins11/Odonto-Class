@@ -1,5 +1,18 @@
 # Modelo de Dados
 
+## Odontograma FDI (Sprint 14)
+
+`0016_odontograma.sql` adiciona `procedimento_dentes`, relação 0..N entre um
+procedimento e os 32 códigos FDI/ISO válidos da dentição permanente. A chave
+única `(procedimento_id, dente_fdi)` impede duplicidade; o campo textual
+`procedimentos.dente` permanece intacto para compatibilidade histórica.
+
+`set_procedure_teeth()` substitui a seleção de forma idempotente e atômica,
+somente pelo dentista ativo responsável e enquanto o atendimento está em
+andamento. Dentes não alteram `quantidade`, `valor_aplicado_centavos`, snapshot
+de materiais ou consumo do estoque. Superfícies, condições, diagnóstico e
+odontograma infantil permanecem fora desta versão.
+
 ## Servicos e consumo de estoque (Sprint 13)
 
 `0015_servicos_atendimento_estoque.sql` adiciona o catalogo administrativo
@@ -26,7 +39,9 @@ autorizado; `INSERT`, `UPDATE` e `DELETE` diretos sao revogados. As RPCs
 transacionais bloqueiam a linha do material antes de atualizar o saldo, para
 impedir saidas concorrentes de gerar estoque negativo.
 
-> As migrations `0001`-`0015` estao alinhadas na homologacao ficticia.
+> As migrations `0001`-`0016` estao alinhadas na homologacao ficticia. A
+> `0016` foi aplicada via CLI após migration list/dry-run e o dry-run posterior
+> confirmou o banco remoto atualizado.
 > As migrations `0007` e `0008` sao historicas e foram preservadas sem
 > reescrita. Todas as migrations aplicadas permanecem imutaveis.
 
@@ -48,8 +63,8 @@ impedir saidas concorrentes de gerar estoque negativo.
 `agendamentos`, `atendimentos`,
 `procedimentos`, `documentos`, `retornos`, `tarefas`, `arquivos_paciente`,
 `auditoria`, `orcamentos`, `orcamento_itens`, `pagamentos`, `materiais_estoque`,
-`movimentacoes_estoque`, `servicos`, `servico_materiais` e
-`procedimento_materiais_consumo`.
+`movimentacoes_estoque`, `servicos`, `servico_materiais`,
+`procedimento_materiais_consumo` e `procedimento_dentes`.
 
 `controle_validade` existe nas migrations historicas `0007` e `0008`, mas o
 modulo de validade/esterilizacao continua fora da homologacao operacional.
@@ -123,7 +138,8 @@ os ajustes das decisoes PAV-09 a PAV-17:
 - **atendimentos.agendamento_id**: nullable - atendimento pode existir
   sem agendamento previo (PAV-15).
 - **procedimentos.dente**: texto livre; convencao proposta FDI (PAV-16),
-  pendente de confirmacao dos dentistas antes de uso em producao.
+  preservado como legado. A seleção estruturada FDI usa
+  `procedimento_dentes` e não tenta interpretar esse texto.
 - **pacientes** e demais tabelas clinicas: sem exclusao fisica (PAV-17);
   usar `ativo=false`/status equivalente.
 - **auditoria**: append-only - RLS deve impedir `UPDATE`/`DELETE` por
