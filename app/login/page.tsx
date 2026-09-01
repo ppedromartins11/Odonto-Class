@@ -1,7 +1,6 @@
-import { Cross } from "lucide-react";
-import { CLINIC_NAME, CLINIC_TAGLINE } from "@/lib/config/clinic";
 import { getCurrentUser } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import { LoginForm } from "./LoginForm";
 
 /**
@@ -37,17 +36,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const initialError = REASON_MESSAGES[reasonKey] ?? null;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm">
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center mb-3">
-            <Cross className="w-5 h-5 text-white" />
-          </div>
-          <h1 className="text-lg font-semibold text-foreground">{CLINIC_NAME}</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">{CLINIC_TAGLINE}</p>
+    <div className="flex min-h-screen items-center justify-center bg-secondary/30 px-4 py-8">
+      <div className="w-full max-w-md">
+        <div className="mb-7 flex justify-center">
+          <BrandLogo className="w-72 max-w-[82vw] drop-shadow-sm" priority />
         </div>
 
-        <div className="bg-card border border-border rounded-lg p-6 shadow-sm">
+        <div className="rounded-xl border border-border bg-card p-6 shadow-sm sm:p-7">
           <h2 className="text-base font-medium text-card-foreground mb-4">Entrar</h2>
           <LoginForm initialError={initialError} />
         </div>

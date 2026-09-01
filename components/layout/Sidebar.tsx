@@ -16,10 +16,10 @@ import {
   ShieldCheck,
   RefreshCw,
   UserCog,
-  Cross,
 } from "lucide-react";
 import { CLINIC_NAME, CLINIC_TAGLINE } from "@/lib/config/clinic";
 import type { UsuarioAtual } from "@/lib/auth/session";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 
 /**
  * Estrutura e visual adaptados de src/app/components/Sidebar.tsx do
@@ -52,19 +52,17 @@ export function Sidebar({ usuario }: { usuario: UsuarioAtual }) {
 
   return (
     <aside className="fixed bottom-0 left-0 z-20 flex h-14 w-full flex-col border-t border-sidebar-border bg-sidebar md:bottom-auto md:top-0 md:h-full md:w-56 md:border-r md:border-t-0">
-      <div className="hidden items-center gap-2.5 border-b border-sidebar-border px-5 py-5 md:flex">
-        <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
-          <Cross className="w-4 h-4 text-white" />
-        </div>
-        <div>
-          <span className="text-sm font-semibold text-sidebar-foreground tracking-tight">
+      <Link href="/dashboard" aria-label={`${CLINIC_NAME} — ir ao Dashboard`} className="hidden items-center gap-2.5 border-b border-sidebar-border px-4 py-3.5 transition-colors hover:bg-secondary/50 md:flex">
+        <BrandLogo variant="mark" className="w-11 shrink-0 rounded-md" priority />
+        <div className="min-w-0">
+          <span className="block truncate text-sm font-semibold tracking-tight text-sidebar-foreground">
             {CLINIC_NAME}
           </span>
-          <p className="text-[10px] text-muted-foreground leading-none mt-0.5">
+          <p className="mt-0.5 truncate text-[10px] leading-none text-muted-foreground">
             {CLINIC_TAGLINE}
           </p>
         </div>
-      </div>
+      </Link>
 
       <nav className="flex-1 overflow-x-auto py-1 md:overflow-y-auto md:py-3">
         <div className="flex h-full items-center gap-1 px-2 md:block md:h-auto md:space-y-0.5 md:px-3">
