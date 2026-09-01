@@ -32,11 +32,11 @@
       historico append-only, alertas calculados, RLS/RPC e Dashboard operacional.
 - [x] **Sprint 13** - Catalogo de servicos, valor aplicado historico,
       composicao snapshotada e consumo automatico atomico na finalizacao.
-- [ ] **Sprint 14** - Odontograma FDI permanente por procedimento. Migration
-      `0016` aplicada e integração/RLS remota aprovada; resta homologação visual
-      e responsiva antes do commit.
-- [ ] **Sprint 8** - Validade/esterilizacao (RF-17, RF-18). Schema parcial nas migrations `0007`/`0008`; UI, RLS especifica e homologacao ainda nao estao concluidos. Modulo desativado para o release candidate. Tabela:
-      `controle_validade`.
+- [x] **Sprint 14** - Odontograma FDI permanente por procedimento. Migration
+      `0016`, integracao/RLS e homologacao visual aprovadas.
+- [x] **Sprint 15** - Validade, lotes e esterilizacao (RF-17/RF-18).
+      Migrations `0017`/`0018`, integracao/RLS, QA remoto e homologacao visual
+      aprovados. FEFO clinico permanece em Sprint futura especifica.
 - [ ] **Sprint 9** - Testes e seguranca finais (RF-20, RN-05, RNF-01,
       RNF-07). `auditoria` minima ja existe desde a Sprint 1.5; ampliar
       eventos e revisar policies de todos os modulos.
