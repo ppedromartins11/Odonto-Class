@@ -232,3 +232,23 @@ As incompatibilidades que nao puderam ser verificadas no ambiente
 original foram resolvidas e testadas na Sprint 1.5. Permanecem externos
 somente a execucao do banco/RLS, SMTP/redirects e MFA descritos no gate
 acima.
+
+## Sprint 15 - decisoes de Validade, lotes e esterilizacao
+
+- `controle_validade` e legado/WIP historico: permanece no schema, sem UI e
+  sem ser fonte de verdade do novo modulo.
+- Saldo do lote e saldo fisico; `materiais_estoque.quantidade_atual` e o
+  agregado. Toda RPC controlada atualiza ambos e valida o invariante.
+- Ativar controle em material com saldo exige lote inicial explicito. A
+  desativacao so e permitida com todos os lotes e o agregado zerados.
+- Vencimento nao movimenta estoque: o lote segue fisicamente registrado, mas
+  fica indisponivel para uso normal. Descarte/perda exigem finalidade e motivo.
+- FEFO e a baixa clinica por lote ficaram para Sprint especifica. Ate la,
+  atendimento com material controlado e bloqueado antes de qualquer escrita.
+- Validade de pacote e informada pelo operador, deve ser posterior ou igual a
+  esterilizacao e e calculada com `America/Cuiaba`.
+- Admin gerencia tudo; recepcao opera entradas/saidas/ciclos/pacotes sem ajuste
+  administrativo; dentista possui somente leitura operacional.
+- Metadados de equipamento podem ser corrigidos pelo administrador, inclusive
+  quando inativo. Ativacao/inativacao continua RPC separada; ciclos historicos
+  exibem o cadastro atual por JOIN, sem snapshot retroativo nesta Sprint.

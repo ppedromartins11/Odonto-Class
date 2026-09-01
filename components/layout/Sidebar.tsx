@@ -14,6 +14,7 @@ import {
   Boxes,
   Wrench,
   ShieldCheck,
+  RefreshCw,
   UserCog,
   Cross,
 } from "lucide-react";
@@ -41,7 +42,8 @@ const NAV_ITEMS = [
   { href: "/estoque", label: "Estoque", icon: Boxes, enabled: true },
   { href: "/servicos", label: "Serviços", icon: Wrench, enabled: true, adminOnly: true },
   { href: "/orcamentos", label: "Orçamentos", icon: ClipboardList, enabled: true },
-  { href: "/validade", label: "Val. e Esterilização", icon: ShieldCheck, enabled: false },
+  { href: "/validade", label: "Validade e lotes", icon: ShieldCheck, enabled: true },
+  { href: "/esterilizacao", label: "Esterilização", icon: RefreshCw, enabled: true },
   { href: "/usuarios", label: "Usuários", icon: UserCog, enabled: true, adminOnly: true },
 ] as const;
 

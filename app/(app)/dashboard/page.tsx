@@ -10,6 +10,7 @@ import type { ReturnStatus, TaskStatus } from "@/lib/operational/types";
 import { getPaymentSummary } from "@/lib/financial/queries";
 import { formatCents } from "@/lib/financial/validation";
 import { getStockSummary } from "@/lib/stock/queries";
+import { getValiditySterilizationSummary } from "@/lib/validity/queries";
 
 const APPOINTMENT_STATUS: Record<AppointmentStatus, { label: string; tone: "info" | "success" | "neutral" | "danger" | "warning" }> = {
   agendado: { label: "Agendado", tone: "info" },
@@ -58,6 +59,16 @@ async function loadDashboardStockSummary(enabled: boolean) {
   }
 }
 
+async function loadDashboardValiditySummary(enabled: boolean) {
+  if (!enabled) return { summary: null, unavailable: false };
+  try {
+    return { summary: await getValiditySterilizationSummary(), unavailable: false };
+  } catch {
+    console.error("DASHBOARD_VALIDITY_SUMMARY_UNAVAILABLE");
+    return { summary: null, unavailable: true };
+  }
+}
+
 export default async function DashboardPage() {
   const user = await requireUser();
   const today = todayInClinic();
@@ -65,13 +76,15 @@ export default async function DashboardPage() {
     ? (await listActiveProfessionals()).find((professional) => professional.usuario_id === user.id)
     : undefined;
   const professionalId = user.perfil === "dentista" ? ownProfessional?.id ?? null : null;
-  const [appointments, operational, financialSummary, stock] = await Promise.all([
+  const [appointments, operational, financialSummary, stock, validity] = await Promise.all([
     user.perfil === "dentista" && !professionalId ? Promise.resolve([]) : listAgenda({ startDate: today, endDate: addDays(today, 1), professionalId }),
     getDashboardOperationalData(today),
     user.perfil === "administrador" ? getPaymentSummary(`${today.slice(0, 7)}-01`, today) : Promise.resolve(null),
     loadDashboardStockSummary(user.perfil === "administrador" || user.perfil === "recepcao"),
+    loadDashboardValiditySummary(user.perfil === "administrador" || user.perfil === "recepcao"),
   ]);
   const stockSummary = stock.summary;
+  const validitySummary = validity.summary;
   const { pendingTasks, pendingTaskCount, overdueTaskCount, relevantReturns, pendingReturnCount, overdueReturnCount } = operational;
   const todayAppointments = [...appointments].sort((a, b) => a.inicio.localeCompare(b.inicio));
   const notConfirmed = todayAppointments.filter((item) => item.status === "agendado");
@@ -84,6 +97,12 @@ export default async function DashboardPage() {
   if (stockSummary?.estoque_baixo) alerts.push({ id: "stock-low", text: `${stockSummary.estoque_baixo} ${stockSummary.estoque_baixo === 1 ? "material está" : "materiais estão"} com estoque baixo`, href: "/estoque?status=estoque_baixo" });
   if (stockSummary?.vencendo) alerts.push({ id: "stock-expiring", text: `${stockSummary.vencendo} ${stockSummary.vencendo === 1 ? "material vence" : "materiais vencem"} em até 30 dias`, href: "/estoque?status=vencendo" });
   if (stockSummary?.vencidos) alerts.push({ id: "stock-expired", text: `${stockSummary.vencidos} ${stockSummary.vencidos === 1 ? "material vencido" : "materiais vencidos"}`, href: "/estoque?status=vencido" });
+  if (validity.unavailable) alerts.push({ id: "validity-unavailable", text: "Os alertas de lotes e esterilização não puderam ser carregados.", href: "/validade" });
+  if (validitySummary?.lotes_vencendo) alerts.push({ id: "lots-expiring", text: `${validitySummary.lotes_vencendo} ${validitySummary.lotes_vencendo === 1 ? "lote vence" : "lotes vencem"} em até 30 dias`, href: "/validade?status=proximo_do_vencimento" });
+  if (validitySummary?.lotes_vencidos) alerts.push({ id: "lots-expired", text: `${validitySummary.lotes_vencidos} ${validitySummary.lotes_vencidos === 1 ? "lote vencido" : "lotes vencidos"}`, href: "/validade?status=vencido" });
+  if (validitySummary?.pacotes_vencendo) alerts.push({ id: "packages-expiring", text: `${validitySummary.pacotes_vencendo} ${validitySummary.pacotes_vencendo === 1 ? "pacote esterilizado vence" : "pacotes esterilizados vencem"} em até 30 dias`, href: "/esterilizacao?pacote=proximo_do_vencimento" });
+  if (validitySummary?.pacotes_vencidos) alerts.push({ id: "packages-expired", text: `${validitySummary.pacotes_vencidos} ${validitySummary.pacotes_vencidos === 1 ? "pacote esterilizado vencido" : "pacotes esterilizados vencidos"}`, href: "/esterilizacao?pacote=vencido" });
+  if (validitySummary?.ciclos_reprovados) alerts.push({ id: "cycles-rejected", text: `${validitySummary.ciclos_reprovados} ${validitySummary.ciclos_reprovados === 1 ? "ciclo foi reprovado" : "ciclos foram reprovados"} nos últimos 30 dias`, href: "/esterilizacao?ciclo=reprovado" });
   const firstName = user.nome.split(" ")[0] || user.nome;
   const canManageAppointments = user.perfil === "administrador" || user.perfil === "recepcao";
 

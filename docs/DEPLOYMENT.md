@@ -107,6 +107,22 @@ MFA administrativo, backup/restauracao e configuracao de ambiente.
 8. Antes do go-live, configurar e testar MFA/AAL2 para todo
    administrador. Enquanto isso nao ocorrer, producao nao esta aprovada.
 
+## Gate de banco da Sprint 15
+
+Antes de liberar as rotas de Validade/Esterilizacao no ambiente remoto:
+
+1. `migration list --linked` deve mostrar `0001`-`0016` alinhadas.
+2. `db push --linked --dry-run` deve listar somente `0017_validade_esterilizacao.sql`.
+3. Aplicar exclusivamente a `0017`; depois confirmar `0001`-`0017` alinhadas
+   e que somente `0018_esterilizacao_equipamentos_edicao.sql` esta pendente.
+4. Aplicar exclusivamente a `0018`; depois repetir listagem e dry-run ate o
+   remoto ficar atualizado.
+5. Executar a suite `QA_VLD_`/`QA_STER_` somente na homologacao ficticia e
+   confirmar cleanup antes de qualquer uso operacional.
+
+Nao manipular `schema_migrations` manualmente nem improvisar autenticacao se o
+token do CLI nao estiver disponivel.
+
 ## Backup e recuperacao (RNF-07)
 
 A definir formalmente quando o banco definitivo existir (Sprint 1 em

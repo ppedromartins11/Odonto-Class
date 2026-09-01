@@ -132,6 +132,7 @@ export async function finalizeAttendance(
   });
   if (error || !data) {
     console.error("Falha na RPC finalize_attendance", { code: error?.code });
+    if (error?.message?.includes("LOT_CONTROLLED_CLINICAL_CONSUMPTION_PENDING")) return { success: false, error: "Este atendimento usa material controlado por lote. A baixa clínica automática por lote ficará disponível em uma etapa futura; registre o consumo operacional antes de finalizar." };
     if (error?.code === "P0001") return { success: false, error: "Não é possível finalizar porque há material inativo ou estoque insuficiente. Revise o resumo de consumo." };
     return { success: false, error: clinicalError(error?.code) };
   }

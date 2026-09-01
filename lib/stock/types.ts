@@ -16,6 +16,7 @@ export type StockMaterial = {
   validade: string | null;
   fornecedor: string | null;
   ativo: boolean;
+  controla_lote_validade?: boolean;
   estoque_baixo: boolean;
   vencendo: boolean;
   vencido: boolean;

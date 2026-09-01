@@ -1,5 +1,33 @@
 # Modelo de Dados
 
+## Validade, lotes e esterilizacao (Sprint 15)
+
+`0017_validade_esterilizacao.sql` adiciona `materiais_lotes` e
+`movimentacoes_lotes`. Para material controlado, `materiais_estoque` guarda o
+saldo agregado e a soma dos lotes guarda o mesmo saldo fisico; RPCs com lock
+atualizam os dois lados e verificam o invariante antes do commit. O saldo
+disponivel exclui lotes vencidos/inativos sem apagar ou reduzir o saldo fisico.
+
+`movimentacoes_lotes` e detalhe 1..N de `movimentacoes_estoque`, permitindo
+uma futura baixa FEFO com varios lotes sem redesenho. FEFO nao e executado nesta
+versao: `finalize_attendance()` falha antes de qualquer mudanca se o snapshot
+clinico contiver material controlado por lote.
+
+`equipamentos_esterilizacao`, `ciclos_esterilizacao` e
+`pacotes_esterilizacao` modelam o processo operacional sem vinculo com paciente
+ou prontuario. Pacotes so ficam ativos quando o ciclo termina como concluido;
+ciclo reprovado/cancelado descarta os pacotes pendentes. Validade e situacao
+sao derivadas com a data da clinica em `America/Cuiaba`.
+
+`0018_esterilizacao_equipamentos_edicao.sql` adiciona somente a RPC
+`update_sterilization_equipment`. Ela corrige metadados do equipamento sob
+lock, inclusive quando inativo, sem alterar o status nem ciclos/pacotes. Como
+os ciclos consultam o equipamento por JOIN, exibem o cadastro atual; esta
+migration nao cria snapshot retroativo.
+
+`controle_validade` permanece legado/WIP das migrations `0007/0008`, sem rota
+ou escrita nova, apenas para compatibilidade historica.
+
 ## Odontograma FDI (Sprint 14)
 
 `0016_odontograma.sql` adiciona `procedimento_dentes`, relação 0..N entre um
@@ -64,10 +92,12 @@ impedir saidas concorrentes de gerar estoque negativo.
 `procedimentos`, `documentos`, `retornos`, `tarefas`, `arquivos_paciente`,
 `auditoria`, `orcamentos`, `orcamento_itens`, `pagamentos`, `materiais_estoque`,
 `movimentacoes_estoque`, `servicos`, `servico_materiais`,
-`procedimento_materiais_consumo` e `procedimento_dentes`.
+`procedimento_materiais_consumo`, `procedimento_dentes`, `materiais_lotes`,
+`movimentacoes_lotes`, `equipamentos_esterilizacao`,
+`ciclos_esterilizacao` e `pacotes_esterilizacao`.
 
-`controle_validade` existe nas migrations historicas `0007` e `0008`, mas o
-modulo de validade/esterilizacao continua fora da homologacao operacional.
+`controle_validade` existe nas migrations historicas `0007` e `0008`, mas foi
+classificada como legado/WIP. O modulo operacional nao consulta essa tabela.
 
 ## Orcamentos (migration 0011)
 
@@ -128,10 +158,9 @@ os ajustes das decisoes PAV-09 a PAV-17:
 - **orcamento_itens**: `descricao` texto livre + `quantidade` +
   `valor_unitario` + `valor_total`; sem FK para catalogo de
   procedimentos nesta fase (PAV-11).
-- **controle_validade**: campo `categoria` (enum: material/
-  esterilizacao) + `detalhes` (jsonb) para campos especificos de
-  esterilizacao (lote, ciclo, responsavel tecnico) sem precisar de
-  tabela separada (PAV-12).
+- **controle_validade**: estrutura historica das migrations `0007/0008`, sem
+  `jsonb` e sem relacao suficiente com estoque/ciclos. Foi preservada, mas nao
+  e fonte do modulo funcional da Sprint 15.
 - **agendamentos**: constraint de nao-overlap por profissional sem
   excecao de encaixe (PAV-13); a interface pode expor uma lista de
   "consultas a confirmar" para apoiar a confirmacao manual (PAV-14).

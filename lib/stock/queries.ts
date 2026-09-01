@@ -31,7 +31,7 @@ export async function getStockSummary(): Promise<StockSummary> {
 
 export async function getStockMaterial(id: string) {
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.from("materiais_estoque").select("id,nome,categoria,unidade,quantidade_atual,estoque_minimo,validade,fornecedor,ativo").eq("id", id).maybeSingle();
+  const { data, error } = await supabase.from("materiais_estoque").select("id,nome,categoria,unidade,quantidade_atual,estoque_minimo,validade,fornecedor,ativo,controla_lote_validade").eq("id", id).maybeSingle();
   if (error) fail("STOCK_MATERIAL_LOAD_FAILED", error.code);
   return data as Omit<StockMaterial, "estoque_baixo" | "vencendo" | "vencido" | "total_count"> | null;
 }

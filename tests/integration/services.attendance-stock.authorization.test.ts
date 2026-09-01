@@ -165,6 +165,12 @@ describe("Sprint 13: servicos, consumo de estoque e finalizacao atomica", () => 
   afterAll(async () => {
     if (!service) return;
     const userIds = users.map((item) => item.id);
+    if (materialIds.length) {
+      const { data: lots } = await service.from("materiais_lotes").select("id").in("material_id", materialIds);
+      const lotIds = (lots ?? []).map((item) => item.id);
+      if (lotIds.length) await service.from("movimentacoes_lotes").delete().in("lote_id", lotIds);
+      if (lotIds.length) await service.from("materiais_lotes").delete().in("id", lotIds);
+    }
     if (materialIds.length) await service.from("movimentacoes_estoque").delete().in("material_id", materialIds);
     if (procedureIds.length) await service.from("procedimento_materiais_consumo").delete().in("procedimento_id", procedureIds);
     if (userIds.length) await service.from("auditoria").delete().in("usuario_id", userIds);
@@ -317,6 +323,21 @@ describe("Sprint 13: servicos, consumo de estoque e finalizacao atomica", () => 
     expect([first, second].filter((result) => result.error)).toHaveLength(1);
     expect(await getQuantity(materialId)).toBe(0);
     expect((await service.from("movimentacoes_estoque").select("id").eq("material_id", materialId).not("atendimento_id", "is", null)).data).toHaveLength(1);
+  });
+
+  it("bloqueia finalizacao clinica com material controlado por lote antes de qualquer baixa", async () => {
+    const materialId = await createMaterial(3);
+    const serviceId = await createService();
+    await configure(serviceId, materialId, 1);
+    expect((await admin.rpc("set_stock_lot_control", { p_material_id: materialId, p_controla: true, p_codigo_lote_inicial: `${PREFIX}LOTE`, p_data_validade: "2099-12-31", p_data_fabricacao: null, p_fornecedor: null })).error).toBeNull();
+    const attendanceId = await directAttendance(dentistA, await createPatient());
+    await addServiceProcedure(dentistA, attendanceId, serviceId);
+    const result = await dentistA.rpc("finalize_attendance", { p_atendimento_id: attendanceId, p_evolucao: `${PREFIX}Lote bloqueado` });
+    expect(result.error?.message).toContain("LOT_CONTROLLED_CLINICAL_CONSUMPTION_PENDING");
+    expect(await getQuantity(materialId)).toBe(3);
+    expect((await service.from("movimentacoes_estoque").select("id").eq("atendimento_id", attendanceId)).data).toEqual([]);
+    const { data: attendance } = await service.from("atendimentos").select("status,finalizado_em").eq("id", attendanceId).single();
+    expect(attendance).toMatchObject({ status: "em_andamento", finalizado_em: null });
   });
 
   it("nega acesso clinico cruzado, DML direto e usuarios inativo ou sem perfil", async () => {

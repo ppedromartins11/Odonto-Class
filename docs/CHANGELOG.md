@@ -1,5 +1,24 @@
 # Changelog
 
+## Sprint 15.1 - Edicao de equipamentos de esterilizacao
+
+- Migration `0018_esterilizacao_equipamentos_edicao.sql` adiciona a RPC
+  administrativa `update_sterilization_equipment` com lock, validacao e
+  auditoria somente dos nomes dos campos alterados.
+- A edicao preserva o status ativo/inativo e nao altera ciclos, pacotes ou
+  snapshots historicos; leituras por JOIN continuam exibindo o cadastro atual.
+
+## Sprint 15 - Validade, lotes e esterilizacao
+
+- Migration `0017_validade_esterilizacao.sql` adiciona controle opcional por
+  lote, historico 1..N, equipamentos, ciclos e pacotes esterilizados.
+- Entradas, saidas e ajustes mantem lote e saldo agregado atomicos; vencidos
+  ficam indisponiveis sem desaparecer do saldo fisico ou historico.
+- Novas rotas `/validade` e `/esterilizacao`, alertas no Dashboard e RBAC
+  server-side. Dentista e somente leitura; ajuste/inativacao sao admin.
+- FEFO nao foi implementado. A finalizacao clinica bloqueia material controlado
+  antes de qualquer baixa para nao fingir rastreabilidade.
+
 ## Sprint 14 - Odontograma FDI por procedimento
 
 - Migration `0016_odontograma.sql` cria `procedimento_dentes`, RLS clínica e

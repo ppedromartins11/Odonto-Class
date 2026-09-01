@@ -124,6 +124,11 @@ sinalize e aguarde confirmacao.
   vincular dentes permanentes a procedimentos sem migrar o campo textual
   legado e sem alterar quantidade, valor ou estoque. Aplicada na homologacao
   após migration list e dry-run alinhados; homologacao visual ainda pendente.
+- **Sprint 15 (Validade, lotes e esterilizacao)**: migrations aditivas `0017`
+  e `0018` homologadas. `controle_validade` permanece legado/WIP; o novo fluxo
+  usa lotes, movimentos detalhados, equipamentos, ciclos e pacotes. FEFO nao
+  faz parte desta Sprint e materiais controlados bloqueiam a finalizacao
+  clinica antes de qualquer escrita ate existir baixa automatica rastreavel.
 
 ## Convencao estabelecida na Sprint 1 (seguir nas proximas sprints)
 

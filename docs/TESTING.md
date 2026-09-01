@@ -189,3 +189,19 @@ limpando somente o que for criado no roteiro.
 - **Responsividade:** repetir navegação principal em 1366×768, 1920×1080 e
   viewport móvel; tabelas não podem transbordar fora do contêiner, drawers
   fecham e formulários permanecem utilizáveis.
+
+## Sprint 15: Validade, lotes e esterilizacao
+
+- Unitarios cobrem hoje, +30 dias, vencido, valido, esgotado, data invalida,
+  status de pacote e transicoes de ciclo.
+- `validity-sterilization.authorization.test.ts` usa fixtures `QA_VLD_` e
+  `QA_STER_`: ativacao com lote inicial, invariante lote/agregado, entrada,
+  saida, descarte vencido, ajuste admin, concorrencia, RLS/RBAC, DML direto,
+  equipamentos, ciclos, pacotes, irreversibilidade e auditoria sem texto livre.
+- A Sprint 15.1 acrescenta edicao de equipamento ativo/inativo, limpeza de
+  opcionais, colisao de identificacao, auditoria por nomes de campos e negacao
+  para recepcao, dentista, inativo, sem perfil e DML direto.
+- A regressao de Servicos testa que material controlado bloqueia a finalizacao
+  antes de saldo, atendimento ou movimentacao serem alterados.
+- O cleanup remove filhos antes de lotes/ciclos/materiais e confirma zero
+  residuos dos novos prefixos. FEFO nao e testado porque nao foi implementado.

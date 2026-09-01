@@ -93,6 +93,21 @@ Administrador puro e recepcao nao recebem conteudo clinico.
 - O PDF e gerado sob demanda no servidor e a ficha 360 mostra somente os
   orcamentos autorizados pelo perfil autenticado.
 
+## Sprint 15 - Validade, lotes e esterilizacao
+
+- **RF-17**: materiais podem optar por controle por lote. Entradas, saidas e
+  ajustes autorizados atualizam lote, saldo agregado, historico e auditoria na
+  mesma transacao. Saldo fisico vencido permanece registrado, mas nao e saldo
+  disponivel para uso.
+- **RF-18**: equipamentos, ciclos e pacotes esterilizados possuem historico
+  operacional, validade calculada em `America/Cuiaba` e transicoes
+  irreversiveis apos uso/descarte.
+- `controle_validade` das migrations `0007/0008` e legado/WIP historico e nao
+  recebe UI. O fluxo funcional usa exclusivamente a migration `0017`.
+- FEFO clinico automatico nao faz parte desta Sprint. Atendimento com material
+  controlado por lote e bloqueado antes de qualquer escrita; materiais sem
+  lote preservam integralmente o comportamento da Sprint 13.
+
 Regras de negocio (RN-01 a RN-10) e requisitos nao-funcionais (RNF-01 a
 RNF-10) do documento-fonte aplicam-se integralmente. Destaques:
 

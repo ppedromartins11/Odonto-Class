@@ -220,3 +220,19 @@ ocorrem na mesma transacao.
 Auditoria nunca armazena evolucao, descricao/material/detalhes do procedimento
 ou observacao administrativa. Apenas IDs, transicoes, horarios e nomes de
 campos necessarios para rastreabilidade operacional.
+
+## Matriz de Validade/Lotes/Esterilizacao (Sprint 15)
+
+| Acao | Administrador | Recepcao | Dentista | Inativo/sem perfil |
+|---|---:|---:|---:|---:|
+| Consultar lotes, ciclos, pacotes e equipamentos | Sim | Sim | Sim | Nao |
+| Entrada/saida operacional por lote | Sim | Sim | Nao | Nao |
+| Ajuste, correcao e inativacao de lote | Sim | Nao | Nao | Nao |
+| Cadastrar, editar ou inativar equipamento | Sim | Nao | Nao | Nao |
+| Iniciar/finalizar ciclo e criar/usar pacote | Sim | Sim | Nao | Nao |
+| Resumo agregado no Dashboard | Sim | Sim | Nao | Nao |
+
+Novas tabelas usam RLS e nao aceitam `INSERT`, `UPDATE` ou `DELETE` direto de
+`authenticated`. Mutacoes passam por RPCs `SECURITY DEFINER` com
+`search_path = ''`, usuario ativo e perfil verificados. Auditoria recebe IDs,
+quantidades e transicoes, nunca motivo livre, observacoes de ciclo ou secrets.
