@@ -22,6 +22,8 @@
 - [x] **Bloco clinico integrado (substitui Sprints 3/4 separadas)** - Agenda,
       atendimento e procedimentos homologados manualmente.
 - [x] **Sprint 5** - Documentos/PDF e arquivos privados (RF-10, RF-11).
+- [x] **Padronização documental oficial** - migration `0019`, templates A4,
+      autoria por atendimento, CID isolado e PDFs imutáveis/versionados.
 - [x] **Sprint 6** - Retornos e tarefas (RF-12, RF-13). Tabelas:
       `retornos`, `tarefas`; tarefas simples, sem recorrencia, com prioridade,
       status operacional e remocao logica.

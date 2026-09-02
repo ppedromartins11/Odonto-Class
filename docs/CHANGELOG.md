@@ -1,5 +1,16 @@
 # Changelog
 
+## Documentos oficiais Odonto Class
+
+- Migration `0019_documentos_oficiais.sql`: tipos específicos de declaração,
+  campos estruturados, CID clínico isolado e RPC v2 sem autoria arbitrária.
+- Atestado e declarações ganham identidade documental A4, CRO, assinatura
+  física, header/footer e hash do PDF privado efetivamente armazenado.
+- Orçamentos passam a emitir versões privadas e imutáveis (N+1), com download
+  da versão exata e sem regeneração silenciosa.
+- RPC documental legada deixa de ser executável por clientes autenticados;
+  histórico e downloads legados permanecem preservados.
+
 ## Sprint 15.1 - Edicao de equipamentos de esterilizacao
 
 - Migration `0018_esterilizacao_equipamentos_edicao.sql` adiciona a RPC

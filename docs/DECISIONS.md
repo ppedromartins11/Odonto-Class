@@ -252,3 +252,16 @@ acima.
 - Metadados de equipamento podem ser corrigidos pelo administrador, inclusive
   quando inativo. Ativacao/inativacao continua RPC separada; ciclos historicos
   exibem o cadastro atual por JOIN, sem snapshot retroativo nesta Sprint.
+
+## Documentos oficiais - decisões da migration 0019
+
+- `profissional_id` continua sendo o autor e `created_by` o preparador; não se
+  criam colunas redundantes.
+- Todo novo documento exige atendimento real do mesmo paciente e autor.
+- CID fica em tabela clínica separada e nunca é visível a admin/recepção.
+- Assinatura é física. Não há imagem, desenho, ICP-Brasil ou alegação de
+  assinatura digital.
+- O PDF privado é o snapshot oficial. SHA-256 e layout versionam a emissão;
+  dados atuais não alteram downloads históricos.
+- A emissão de orçamento é explícita e cria versão N+1. A rota antiga deixa de
+  gerar conteúdo atual silenciosamente e baixa somente versão já emitida.

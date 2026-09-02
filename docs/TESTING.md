@@ -205,3 +205,16 @@ limpando somente o que for criado no roteiro.
   antes de saldo, atendimento ou movimentacao serem alterados.
 - O cleanup remove filhos antes de lotes/ciclos/materiais e confirma zero
   residuos dos novos prefixos. FEFO nao e testado porque nao foi implementado.
+
+## Documentos oficiais (migration 0019)
+
+- Unitários validam A4, acentuação, logo RGBA, três templates, CRO e orçamento
+  multipágina com cabeçalho repetido.
+- `documents-official.authorization.test.ts` usa somente `QA_DOC_` e cobre
+  dentistas A/B, admin, recepção, inativo, sem perfil, CID autorizado/negado,
+  isolamento do CID, RPC legada, DML direto, RLS e versões 1/2 de orçamento.
+- Snapshot é provado pelo SHA-256 e pela recuperação do mesmo path privado;
+  versões de orçamento têm IDs, paths e hashes distintos e são imutáveis.
+- QA visual renderiza atestado, duas declarações e orçamento de cinco páginas;
+  também verifica impressão simulada em escala de cinza. Artefatos temporários
+  em `tmp/pdfs` devem ser removidos após a inspeção.

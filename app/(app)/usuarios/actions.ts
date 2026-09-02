@@ -6,8 +6,9 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getSiteUrl } from "@/lib/config/site";
 import { recordAuditEvent } from "@/lib/audit/server";
+import { normalizeUserProfileInput } from "@/lib/users/profile";
 import type { PerfilUsuario } from "@/lib/auth/session";
-import type { CreateUsuarioState, UpdateUsuarioAccessState } from "./types";
+import type { CreateUsuarioState, UpdateUsuarioAccessState, UpdateUsuarioProfileState } from "./types";
 
 const PERFIS_VALIDOS: PerfilUsuario[] = ["administrador", "dentista", "recepcao"];
 
@@ -186,6 +187,41 @@ export async function updateUsuarioAccess(
         success: false,
       };
     }
+  }
+
+  revalidatePath("/usuarios");
+  return { error: null, success: true };
+}
+
+export async function updateUsuarioProfile(
+  formData: FormData
+): Promise<UpdateUsuarioProfileState> {
+  await requireAdmin();
+  const usuarioId = String(formData.get("usuarioId") ?? "").trim();
+  if (!usuarioId) return { error: "Usuário inválido.", success: false };
+
+  const parsed = normalizeUserProfileInput({
+    nome: formData.get("nome"),
+    registroProfissional: formData.get("registroProfissional"),
+  });
+  if ("error" in parsed) return { error: parsed.error, success: false };
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("update_user_profile", {
+    p_usuario_id: usuarioId,
+    p_nome: parsed.data.nome,
+    p_registro_profissional: parsed.data.registroProfissional,
+  });
+
+  if (error) {
+    const messages: Record<string, string> = {
+      "23505": "Este registro profissional já está associado a outro dentista.",
+      "42501": "Apenas um administrador ativo pode alterar dados de usuário.",
+      P0002: "Usuário não encontrado.",
+      "23514": "Os dados profissionais não puderam ser atualizados. Revise os campos e tente novamente.",
+    };
+    console.error("Falha na RPC update_user_profile", { code: error.code });
+    return { error: messages[error.code] ?? "Não foi possível atualizar o usuário.", success: false };
   }
 
   revalidatePath("/usuarios");

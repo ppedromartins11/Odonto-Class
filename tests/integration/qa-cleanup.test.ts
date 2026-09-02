@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-const QA_EMAIL_PREFIXES = ["qa_rc_", "qa_svc_", "qa_odo_", "qa_est_", "qa_orc_", "qa_fin_", "qa_vld_", "qa_ster_"];
-const QA_TEXT_PREFIXES = ["QA_RC_", "QA_SVC_", "QA_ODO_", "QA_EST_", "QA_ORC_", "QA_FIN_", "QA_VLD_", "QA_STER_"];
+const QA_EMAIL_PREFIXES = ["qa_rc_", "qa_svc_", "qa_odo_", "qa_est_", "qa_orc_", "qa_fin_", "qa_vld_", "qa_ster_", "qa_doc_"];
+const QA_TEXT_PREFIXES = ["QA_RC_", "QA_SVC_", "QA_ODO_", "QA_EST_", "QA_ORC_", "QA_FIN_", "QA_VLD_", "QA_STER_", "QA_DOC_"];
 
 function required(name: string) {
   const value = process.env[name];
@@ -67,13 +67,20 @@ describe("limpeza de fixtures QA da homologacao", () => {
       : { data: [], error: null };
     expect(attendanceRows.error).toBeNull();
     expect(attendanceByProfessional.error).toBeNull();
-    const attendanceIds = [...new Set([...(attendanceRows.data ?? []), ...(attendanceByProfessional.data ?? [])].map((row) => row.id))];
+    const initialAttendanceIds = [...new Set([...(attendanceRows.data ?? []), ...(attendanceByProfessional.data ?? [])].map((row) => row.id))];
 
     const procedureRows = userIds.length
-      ? await service.from("procedimentos").select("id").or(`created_by.in.(${idFilter}),updated_by.in.(${idFilter})${attendanceIds.length ? `,atendimento_id.in.(${attendanceIds.join(",")})` : ""}`)
+      ? await service.from("procedimentos").select("id,atendimento_id").or(`created_by.in.(${idFilter}),updated_by.in.(${idFilter})${initialAttendanceIds.length ? `,atendimento_id.in.(${initialAttendanceIds.join(",")})` : ""}`)
       : { data: [], error: null };
     expect(procedureRows.error).toBeNull();
-    const procedureIds = (procedureRows.data ?? []).map((row) => row.id);
+    const qaProcedureResults = await Promise.all(QA_TEXT_PREFIXES.map((prefix) => service
+      .from("procedimentos")
+      .select("id,atendimento_id")
+      .ilike("descricao", `${prefix.replace(/_/g, "\\_")}%`)));
+    qaProcedureResults.forEach((result) => expect(result.error).toBeNull());
+    const allProcedureRows = [...(procedureRows.data ?? []), ...qaProcedureResults.flatMap((result) => result.data ?? [])];
+    const procedureIds = [...new Set(allProcedureRows.map((row) => row.id))];
+    const attendanceIds = [...new Set([...initialAttendanceIds, ...allProcedureRows.map((row) => row.atendimento_id).filter((id): id is string => Boolean(id))])];
 
     const serviceRows = userIds.length
       ? await service.from("servicos").select("id").or(`created_by.in.(${idFilter}),updated_by.in.(${idFilter})`)
@@ -90,8 +97,12 @@ describe("limpeza de fixtures QA da homologacao", () => {
     const movementRows = materialIds.length
       ? await service.from("movimentacoes_estoque").select("id").in("material_id", materialIds)
       : { data: [], error: null };
+    const procedureMovementRows = procedureIds.length
+      ? await service.from("movimentacoes_estoque").select("id").in("procedimento_id", procedureIds)
+      : { data: [], error: null };
     expect(movementRows.error).toBeNull();
-    const movementIds = (movementRows.data ?? []).map((row) => row.id);
+    expect(procedureMovementRows.error).toBeNull();
+    const movementIds = [...new Set([...(movementRows.data ?? []), ...(procedureMovementRows.data ?? [])].map((row) => row.id))];
 
     const lotRows = materialIds.length
       ? await service.from("materiais_lotes").select("id").in("material_id", materialIds)
@@ -117,6 +128,24 @@ describe("limpeza de fixtures QA da homologacao", () => {
     expect(budgetRows.error).toBeNull();
     const budgetIds = (budgetRows.data ?? []).map((row) => row.id);
 
+    const documentFilters = [
+      userIds.length ? `created_by.in.(${idFilter})` : "",
+      attendanceIds.length ? `atendimento_id.in.(${attendanceIds.join(",")})` : "",
+      patientIds.length ? `paciente_id.in.(${patientIds.join(",")})` : "",
+    ].filter(Boolean).join(",");
+    const documentRows = documentFilters
+      ? await service.from("documentos").select("id,storage_path").or(documentFilters)
+      : { data: [], error: null };
+    expect(documentRows.error).toBeNull();
+    const documentIds = (documentRows.data ?? []).map((row) => row.id);
+    const documentStoragePaths = (documentRows.data ?? []).map((row) => row.storage_path);
+    const budgetVersionRows = budgetIds.length
+      ? await service.from("orcamento_pdf_versoes").select("id,storage_path").in("orcamento_id", budgetIds)
+      : { data: [], error: null };
+    expect(budgetVersionRows.error).toBeNull();
+    const budgetVersionIds = (budgetVersionRows.data ?? []).map((row) => row.id);
+    const budgetStoragePaths = (budgetVersionRows.data ?? []).map((row) => row.storage_path);
+
     const paymentFilters = [
       patientIds.length ? `paciente_id.in.(${patientIds.join(",")})` : "",
       budgetIds.length ? `orcamento_id.in.(${budgetIds.join(",")})` : "",
@@ -131,19 +160,22 @@ describe("limpeza de fixtures QA da homologacao", () => {
       ? await service.from("arquivos_paciente").select("storage_path").or(`uploaded_by.in.(${idFilter}),updated_by.in.(${idFilter})`)
       : { data: [], error: null };
     expect(fileRows.error).toBeNull();
-    const storagePaths = (fileRows.data ?? []).map((row) => row.storage_path);
+    const storagePaths = [...(fileRows.data ?? []).map((row) => row.storage_path), ...documentStoragePaths, ...budgetStoragePaths];
     if (storagePaths.length) expect((await service.storage.from("arquivos-paciente").remove(storagePaths)).error).toBeNull();
 
     if (cycleIds.length) await deleteWhereIds(service, "pacotes_esterilizacao", "ciclo_id", cycleIds);
     if (cycleIds.length) await deleteWhereIds(service, "ciclos_esterilizacao", "id", cycleIds);
     if (equipmentIds.length) await deleteWhereIds(service, "equipamentos_esterilizacao", "id", equipmentIds);
     if (movementIds.length) await deleteWhereIds(service, "movimentacoes_lotes", "movimentacao_id", movementIds);
+    if (movementIds.length) await deleteWhereIds(service, "movimentacoes_estoque", "id", movementIds);
     if (lotIds.length) await deleteWhereIds(service, "materiais_lotes", "id", lotIds);
-    if (materialIds.length) await deleteWhereIds(service, "movimentacoes_estoque", "material_id", materialIds);
     if (procedureIds.length) await deleteWhereIds(service, "procedimento_dentes", "procedimento_id", procedureIds);
     if (procedureIds.length) await deleteWhereIds(service, "procedimento_materiais_consumo", "procedimento_id", procedureIds);
     if (userIds.length) await deleteWhereIds(service, "auditoria", "usuario_id", userIds);
     if (paymentIds.length) await deleteWhereIds(service, "pagamentos", "id", paymentIds);
+    if (documentIds.length) await deleteWhereIds(service, "documento_cid", "documento_id", documentIds);
+    if (documentIds.length) await deleteWhereIds(service, "documentos", "id", documentIds);
+    if (budgetVersionIds.length) await deleteWhereIds(service, "orcamento_pdf_versoes", "id", budgetVersionIds);
     if (budgetIds.length) await deleteWhereIds(service, "orcamento_itens", "orcamento_id", budgetIds);
     if (budgetIds.length) await deleteWhereIds(service, "orcamentos", "id", budgetIds);
     if (procedureIds.length) await deleteWhereIds(service, "procedimentos", "id", procedureIds);
@@ -152,7 +184,6 @@ describe("limpeza de fixtures QA da homologacao", () => {
     if (serviceIds.length) await deleteWhereIds(service, "servicos", "id", serviceIds);
     if (materialIds.length) await deleteWhereIds(service, "materiais_estoque", "id", materialIds);
     if (userIds.length) {
-      await deleteWhereIds(service, "documentos", "created_by", userIds);
       await deleteWhereIds(service, "arquivos_paciente", "uploaded_by", userIds);
       await deleteWhereIds(service, "retornos", "created_by", userIds);
       await deleteWhereIds(service, "tarefas", "created_by", userIds);
@@ -172,8 +203,8 @@ describe("limpeza de fixtures QA da homologacao", () => {
     }
 
     let finalAuthUsers = await listAuthUsers(service);
-    for (let attempt = 0; attempt < 15 && finalAuthUsers.some((user) => QA_EMAIL_PREFIXES.some((prefix) => user.email?.startsWith(prefix))); attempt += 1) {
-      await new Promise<void>((resolve) => setTimeout(resolve, 2_000));
+    for (let attempt = 0; attempt < 10 && finalAuthUsers.some((user) => QA_EMAIL_PREFIXES.some((prefix) => user.email?.startsWith(prefix))); attempt += 1) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 500));
       finalAuthUsers = await listAuthUsers(service);
     }
     expect(finalAuthUsers.filter((user) => QA_EMAIL_PREFIXES.some((prefix) => user.email?.startsWith(prefix)))).toHaveLength(0);

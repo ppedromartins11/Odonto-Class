@@ -1,10 +1,58 @@
 import "server-only";
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import type { DocumentType } from "./types";
+import { DocumentPdfLayout } from "../documents/pdf-layout";
+import { formatDocumentDate, formatDocumentDateTime, formatDocumentTime, sentence } from "../documents/format";
+import { loadDocumentLogo } from "../documents/logo";
+import type { OfficialDocumentPdfInput } from "../documents/types";
 
-export async function renderPatientDocumentPdf(input: { clinicName: string; patientName: string; professionalName: string; type: DocumentType; issuedAt: string; periodStart?: string | null; periodEnd?: string | null; additionalText?: string | null }) {
-  const pdf = await PDFDocument.create(); const page = pdf.addPage([595, 842]); const font = await pdf.embedFont(StandardFonts.Helvetica); const bold = await pdf.embedFont(StandardFonts.HelveticaBold); const lines: string[] = [input.clinicName, input.type === "atestado" ? "ATESTADO" : "DECLARAÇÃO", `Paciente: ${input.patientName}`, `Profissional: ${input.professionalName}`, `Data: ${input.issuedAt}`];
-  if (input.type === "atestado" && input.periodStart) lines.push(`Período: ${input.periodStart}${input.periodEnd ? ` a ${input.periodEnd}` : ""}`);
-  lines.push(input.additionalText || (input.type === "atestado" ? "Atesto, para os devidos fins, a informação acima." : "Declaro, para os devidos fins, o comparecimento do paciente."));
-  let y = 780; lines.forEach((line, i) => { const size = i < 2 ? 16 : 11; page.drawText(line, { x: 54, y, size, font: i < 2 ? bold : font, color: rgb(0.12, 0.16, 0.22), maxWidth: 487, lineHeight: 16 }); y -= i < 2 ? 38 : 32; }); page.drawLine({ start: { x: 360, y: 120 }, end: { x: 540, y: 120 }, thickness: 1, color: rgb(0.4, 0.4, 0.4) }); page.drawText("Assinatura do profissional", { x: 380, y: 105, size: 9, font }); return Buffer.from(await pdf.save());
+const titles = {
+  atestado: "ATESTADO ODONTOLÓGICO",
+  declaracao_comparecimento: "DECLARAÇÃO DE COMPARECIMENTO",
+  declaracao_acompanhamento: "DECLARAÇÃO DE ACOMPANHAMENTO",
+} as const;
+
+export async function renderPatientDocumentPdf(input: OfficialDocumentPdfInput) {
+  const layout = await DocumentPdfLayout.create({
+    clinicName: input.clinicName,
+    clinicTagline: input.clinicTagline,
+    logoBytes: await loadDocumentLogo(),
+  });
+  layout.title(titles[input.type]);
+  if (input.preparedForPhysicalSignature) layout.statusBanner("PREPARADO PARA ASSINATURA FÍSICA DO PROFISSIONAL AUTOR");
+
+  layout.labelValue("Paciente", input.patientName);
+  layout.labelValue("Finalidade", input.purpose);
+  layout.gap(12);
+
+  if (input.type === "atestado") {
+    layout.paragraph(`Atesto que ${input.patientName} recebeu atendimento odontológico nesta clínica em ${formatDocumentDate(input.attendanceStart ?? input.issuedAt)}.`);
+    if (input.absenceQuantity && input.absenceUnit) {
+      const unit = input.absenceQuantity === 1
+        ? input.absenceUnit === "dias" ? "dia" : "hora"
+        : input.absenceUnit;
+      layout.paragraph(`Recomenda-se o afastamento de suas atividades por ${input.absenceQuantity} ${unit}, a contar da data de emissão.`);
+    }
+    if (input.additionalText) layout.paragraph(sentence(input.additionalText));
+    if (input.cidCode) layout.labelValue("CID (incluído mediante autorização registrada)", input.cidCode);
+  } else if (input.type === "declaracao_comparecimento") {
+    layout.paragraph(
+      `Declaro que ${input.patientName} compareceu à clínica em ${formatDocumentDate(input.attendanceStart!)}, ` +
+      `das ${formatDocumentTime(input.attendanceStart!)} às ${formatDocumentTime(input.attendanceEnd!)}, para ${sentence(input.purpose).toLowerCase()}`
+    );
+  } else {
+    layout.paragraph(
+      `Declaro que ${input.companionName} acompanhou ${input.patientName} durante atendimento odontológico ` +
+      `em ${formatDocumentDate(input.attendanceStart!)}, das ${formatDocumentTime(input.attendanceStart!)} às ${formatDocumentTime(input.attendanceEnd!)}.`
+    );
+    if (input.companionIdentification) layout.labelValue("Identificação mínima do acompanhante", input.companionIdentification);
+    if (input.companionRelationship) layout.labelValue("Relação/responsabilidade", input.companionRelationship);
+  }
+
+  layout.gap(22);
+  layout.paragraph(`${input.clinicName}, ${formatDocumentDate(input.issuedAt)}.`, { size: 10 });
+  layout.signature({ professionalName: input.professionalName, registration: input.professionalRegistration });
+  return layout.save();
+}
+export function describeDocumentPeriod(start?: string | null, end?: string | null) {
+  if (!start || !end) return null;
+  return `${formatDocumentDateTime(start)}–${formatDocumentDateTime(end)}`;
 }

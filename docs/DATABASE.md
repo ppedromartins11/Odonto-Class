@@ -358,3 +358,20 @@ Ver `docs/SECURITY.md` para o racional completo.
 
 `0001`-`0015`, lint SQL e as suites RLS/RPC sao validados exclusivamente na
 homologacao ficticia. As migrations historicas permanecem imutaveis.
+
+## Documentos oficiais e PDFs emitidos (migration 0019)
+
+`documentos` recebe de forma aditiva atendimento, finalidade, comparecimento,
+afastamento estruturado, acompanhante, `layout_version` e `pdf_sha256`.
+`profissional_id` é o autor; `created_by` é o preparador. Registros legados
+continuam válidos com os novos campos nulos/default.
+
+`documento_cid` mantém código e evidência mínima de autorização fora da linha
+administrativa, com RLS exclusiva do dentista autor. `orcamento_pdf_versoes`
+é append-only e guarda versão, path privado, hash, layout, tamanho e emissor.
+Unique `(orcamento_id, versao)` e lock do orçamento serializam N+1.
+
+As RPCs novas são `list_document_author_attendances`,
+`create_official_document` e `register_budget_pdf_version`. DML direto é
+revogado. `create_document_metadata` permanece para compatibilidade do schema,
+mas sem `EXECUTE` para `authenticated`.

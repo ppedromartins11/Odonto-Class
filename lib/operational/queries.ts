@@ -1,6 +1,7 @@
 import "server-only";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type {
+  DocumentAuthorAttendance,
   DocumentType,
   OperationalDocument,
   OperationalReturn,
@@ -14,7 +15,7 @@ const RETURN_FIELDS =
 const TASK_FIELDS =
   "id,titulo,descricao,status,prioridade,prazo,responsavel_id,paciente_id,agendamento_id,created_by,created_at,pacientes(nome),responsavel:usuarios!tarefas_responsavel_id_fkey(nome)";
 const DOCUMENT_FIELDS =
-  "id,paciente_id,profissional_id,tipo,emitido_em,periodo_inicio,periodo_fim,texto_adicional,nome_arquivo,tamanho_bytes,created_at";
+  "id,paciente_id,profissional_id,tipo,emitido_em,periodo_inicio,periodo_fim,texto_adicional,nome_arquivo,tamanho_bytes,created_at,atendimento_id,finalidade,comparecimento_inicio,comparecimento_fim,afastamento_quantidade,afastamento_unidade,acompanhante_nome,layout_version,pdf_sha256,created_by";
 const FILE_FIELDS =
   "id,paciente_id,nome_original,mime_type,tamanho_bytes,categoria,status,created_at,uploaded_by";
 
@@ -254,6 +255,13 @@ export async function listDocuments(patientId: string, limit?: number) {
   const { data, error } = await query;
   if (error) fail("DOCUMENTS_LOAD_FAILED", error.code);
   return (data ?? []) as PatientDocument[];
+}
+
+export async function listDocumentAuthorAttendances(patientId: string) {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("list_document_author_attendances", { p_paciente_id: patientId });
+  if (error) fail("DOCUMENT_AUTHOR_ATTENDANCES_LOAD_FAILED", error.code);
+  return (data ?? []) as DocumentAuthorAttendance[];
 }
 
 export async function listOperationalDocuments({

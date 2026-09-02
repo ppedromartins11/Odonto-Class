@@ -1,15 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Download } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { requireUser } from "@/lib/auth/session";
 import { listActiveProfessionals } from "@/lib/agenda/queries";
 import { getPatient } from "@/lib/patients/queries";
 import { isValidUuid } from "@/lib/patients/validation";
 import { formatCents } from "@/lib/budgets/validation";
-import { getBudget } from "@/lib/budgets/queries";
+import { getBudget, listBudgetPdfVersions } from "@/lib/budgets/queries";
 import type { BudgetStatus } from "@/lib/budgets/types";
 import { BudgetEditor } from "../BudgetEditor";
 import { BudgetStatusActions } from "../BudgetStatusActions";
+import { BudgetPdfVersions } from "../BudgetPdfVersions";
 
 const labels: Record<BudgetStatus, string> = {
   rascunho: "Rascunho",
@@ -28,9 +29,10 @@ export default async function BudgetDetailPage({ params }: { params: Promise<{ i
   const budget = await getBudget(id);
   if (!budget) notFound();
 
-  const [patient, professionals] = await Promise.all([
+  const [patient, professionals, pdfVersions] = await Promise.all([
     getPatient(budget.paciente_id),
     listActiveProfessionals(),
+    listBudgetPdfVersions(budget.id),
   ]);
   const canRegisterPayment = budget.effective_status === "aprovado"
     && (user.perfil === "administrador" || user.perfil === "recepcao");
@@ -48,9 +50,6 @@ export default async function BudgetDetailPage({ params }: { params: Promise<{ i
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <a href={`/api/orcamentos/${budget.id}/pdf`} className="inline-flex h-9 items-center gap-2 rounded border px-3 text-sm font-medium hover:bg-secondary">
-            <Download className="h-4 w-4" />Baixar PDF
-          </a>
           {canRegisterPayment && (
             <Link href={`/financeiro/novo?paciente=${budget.paciente_id}&orcamento=${budget.id}`} className="inline-flex h-9 items-center rounded bg-primary px-3 text-sm font-medium text-primary-foreground">
               Registrar pagamento
@@ -78,6 +77,7 @@ export default async function BudgetDetailPage({ params }: { params: Promise<{ i
           <BudgetStatusActions budgetId={budget.id} status={budget.effective_status} />
         </>
       )}
+      <BudgetPdfVersions budgetId={budget.id} versions={pdfVersions} />
     </div>
   );
 }

@@ -236,3 +236,19 @@ Novas tabelas usam RLS e nao aceitam `INSERT`, `UPDATE` ou `DELETE` direto de
 `authenticated`. Mutacoes passam por RPCs `SECURITY DEFINER` com
 `search_path = ''`, usuario ativo e perfil verificados. Auditoria recebe IDs,
 quantidades e transicoes, nunca motivo livre, observacoes de ciclo ou secrets.
+
+## Matriz de documentos oficiais (migration 0019)
+
+| Ação | Admin | Recepção | Dentista autor | Outro dentista | Inativo/sem perfil |
+|---|---:|---:|---:|---:|---:|
+| Emitir atestado | Não | Não | Sim, com atendimento e CRO | Não | Não |
+| Preparar declaração | Sim | Sim | Sim, própria | Não | Não |
+| Ler CID | Não | Não | Sim, somente próprio | Não | Não |
+| Emitir versão de orçamento | Todos autorizados pelo orçamento | Todos autorizados pelo orçamento | Somente próprio | Não | Não |
+| DML direto | Não | Não | Não | Não | Não |
+
+`create_official_document` resolve autoria por atendimento e repete toda a
+autorização no banco. A execução de `create_document_metadata` foi revogada de
+`authenticated`, fechando o bypass legado sem apagar documentos antigos.
+`documento_cid` isola o dado clínico da leitura operacional. PDFs permanecem
+em bucket privado; downloads usam RLS e URL assinada de 300 segundos.

@@ -29,6 +29,7 @@ describe("bloco operacional: RLS, Storage, documentos, retornos e tarefas", () =
     expect((await admin.rpc("update_user_access", { p_usuario_id: inactiveIdentity.id, p_perfil: null, p_status: "inativo" })).error).toBeNull();
     expect((await service.from("usuarios").delete().eq("id", orphanIdentity.id)).error).toBeNull();
     const { data: professional } = await service.from("profissionais").select("id").eq("usuario_id", dentistAIdentity.id).single(); professionalA = professional?.id ?? ""; if (!professionalA) throw new Error("Profissional ficticio ausente.");
+    expect((await service.from("profissionais").update({ registro_profissional: "CRO-MT 54321" }).eq("id", professionalA)).error).toBeNull();
     const { data: patient, error } = await reception.rpc("create_patient", { p_nome: `QA_RC_Paciente_operacional_${randomUUID()}`, p_data_nascimento: "1990-01-15", p_telefone_contato: "+00 00000-0000", p_documento_identificacao: null, p_alergias: null, p_intolerancias: null, p_medicamentos_em_uso: null }); if (error || !patient) throw error ?? new Error("Paciente nao criado."); patientId = (patient as { id: string }).id;
   });
 
@@ -74,9 +75,11 @@ describe("bloco operacional: RLS, Storage, documentos, retornos e tarefas", () =
     const { data: metadata } = await service.from("arquivos_paciente").select("*").eq("id", clinicalFileId).single(); expect(JSON.stringify(metadata)).not.toContain("token=");
   });
 
-  it("gera metadado de PDF privado, isola documento e nao audita conteudo", async () => {
+  it("gera documento oficial privado, bloqueia RPC legada e nao audita conteudo", async () => {
     const documentPath = pathFor(patientId, true); const bytes = new Uint8Array([37, 80, 68, 70, 45]); expect((await service.storage.from("arquivos-paciente").upload(documentPath, bytes, { contentType: "application/pdf", upsert: false })).error).toBeNull();
-    const created = await admin.rpc("create_document_metadata", { p_paciente_id: patientId, p_profissional_id: professionalA, p_tipo: "atestado", p_emitido_em: new Date().toISOString().slice(0, 10), p_periodo_inicio: null, p_periodo_fim: null, p_texto_adicional: "QA_RC_conteudo_clinico_nao_auditavel", p_storage_path: documentPath, p_nome_arquivo: "QA_RC_atestado.pdf", p_tamanho_bytes: 5 }); expect(created.error).toBeNull(); documentId = (created.data as { id: string }).id; auditIds.push(documentId);
+    const attendance = await dentistA.rpc("create_direct_attendance", { p_paciente_id: patientId }); expect(attendance.error).toBeNull(); const documentAttendanceId = (attendance.data as { id: string }).id; auditIds.push(documentAttendanceId);
+    const created = await dentistA.rpc("create_official_document", { p_paciente_id: patientId, p_atendimento_id: documentAttendanceId, p_profissional_autor_id: professionalA, p_tipo: "atestado", p_emitido_em: new Date().toISOString().slice(0, 10), p_finalidade: "QA_RC_justificativa", p_comparecimento_inicio: null, p_comparecimento_fim: null, p_afastamento_quantidade: null, p_afastamento_unidade: null, p_acompanhante_nome: null, p_acompanhante_identificacao: null, p_acompanhante_relacao: null, p_texto_adicional: "QA_RC_conteudo_clinico_nao_auditavel", p_cid_codigo: null, p_cid_autorizado: false, p_cid_autorizador_tipo: null, p_storage_path: documentPath, p_nome_arquivo: "QA_RC_atestado.pdf", p_tamanho_bytes: 5, p_layout_version: 2, p_pdf_sha256: "a".repeat(64) }); expect(created.error).toBeNull(); documentId = (created.data as { id: string }).id; auditIds.push(documentId);
+    expect((await admin.rpc("create_document_metadata", { p_paciente_id: patientId, p_profissional_id: professionalA, p_tipo: "atestado", p_emitido_em: new Date().toISOString().slice(0, 10), p_periodo_inicio: null, p_periodo_fim: null, p_texto_adicional: null, p_storage_path: `${patientId}/documentos/${randomUUID()}.pdf`, p_nome_arquivo: "QA_RC_legado.pdf", p_tamanho_bytes: 5 })).error).not.toBeNull();
     expect((await dentistA.from("documentos").select("id").eq("id", documentId)).data).toHaveLength(1); expect((await dentistB.from("documentos").select("id").eq("id", documentId)).data).toEqual([]);
     const { data: audit } = await admin.from("auditoria").select("dados").eq("entidade_id", documentId); expect(JSON.stringify(audit)).not.toContain("QA_RC_conteudo_clinico_nao_auditavel");
   });

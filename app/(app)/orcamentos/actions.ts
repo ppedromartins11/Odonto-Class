@@ -1,5 +1,6 @@
 "use server";
 
+import { createHash, randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth/session";
@@ -7,6 +8,11 @@ import { isValidUuid } from "@/lib/patients/validation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isBudgetStatus, parseCents } from "@/lib/budgets/validation";
 import type { BudgetActionState } from "@/lib/budgets/types";
+import { getBudget } from "@/lib/budgets/queries";
+import { renderBudgetPdf } from "@/lib/budgets/pdf";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { CLINIC_NAME, CLINIC_TAGLINE } from "@/lib/config/clinic";
+import { DOCUMENT_LAYOUT_VERSION } from "@/lib/documents/theme";
 
 type ItemInput = { id?: string; descricao: string; quantidade: number; valorUnitarioCentavos: number; removed?: boolean };
 const result = (error: string | null, fieldErrors?: Record<string, string>): BudgetActionState => ({ success: !error, error, fieldErrors });
@@ -67,4 +73,34 @@ export async function changeBudgetStatus(_: BudgetActionState, form: FormData): 
   const supabase = await createSupabaseServerClient(); const { error } = await supabase.rpc("set_budget_status", { p_orcamento_id: id, p_status: status });
   if (error) return result("Não foi possível alterar o status do orçamento.");
   revalidatePath("/orcamentos"); revalidatePath(`/orcamentos/${id}`); return result(null);
+}
+
+export async function issueBudgetPdf(_: BudgetActionState, form: FormData): Promise<BudgetActionState> {
+  await requireUser();
+  const budgetId = String(form.get("budgetId") ?? "");
+  if (!isValidUuid(budgetId)) return result("Orçamento inválido.");
+  const budget = await getBudget(budgetId);
+  if (!budget) return result("Orçamento não encontrado ou sem acesso.");
+
+  const bytes = await renderBudgetPdf({ ...budget, clinicName: CLINIC_NAME, clinicTagline: CLINIC_TAGLINE });
+  const hash = createHash("sha256").update(bytes).digest("hex");
+  const path = `${budget.id}/orcamentos/${randomUUID()}.pdf`;
+  const admin = createSupabaseAdminClient();
+  const upload = await admin.storage.from("arquivos-paciente").upload(path, bytes, { contentType: "application/pdf", upsert: false });
+  if (upload.error) return result("Não foi possível armazenar a versão privada do PDF.");
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("register_budget_pdf_version", {
+    p_orcamento_id: budget.id,
+    p_storage_path: path,
+    p_pdf_sha256: hash,
+    p_layout_version: DOCUMENT_LAYOUT_VERSION,
+    p_tamanho_bytes: bytes.length,
+  });
+  if (error) {
+    await admin.storage.from("arquivos-paciente").remove([path]);
+    return result("Não foi possível registrar a versão emitida do orçamento.");
+  }
+  revalidatePath(`/orcamentos/${budget.id}`);
+  return { success: true, error: null };
 }

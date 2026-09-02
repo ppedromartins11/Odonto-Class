@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/Badge";
 import { NovoUsuarioDialog } from "./NovoUsuarioDialog";
 import { UsuarioAccessControls } from "./UsuarioAccessControls";
+import { EditarUsuarioDialog } from "./EditarUsuarioDialog";
 import type { PerfilUsuario } from "@/lib/auth/session";
 
 /**
@@ -51,13 +52,14 @@ function initials(nome: string) {
   return (first + last).toUpperCase();
 }
 
-export default async function UsuariosPage() {
+export default async function UsuariosPage({ searchParams }: { searchParams: Promise<{ editar?: string }> }) {
   const currentAdmin = await requireAdmin();
+  const { editar } = await searchParams;
 
   const supabase = await createSupabaseServerClient();
   const { data: usuarios, error } = await supabase
     .from("usuarios")
-    .select("id, nome, email, perfil, status")
+    .select("id, nome, email, perfil, status, profissionais(registro_profissional)")
     .order("nome");
 
   if (error) {
@@ -126,6 +128,9 @@ export default async function UsuariosPage() {
                 <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">
                   Acesso
                 </th>
+                <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Ações
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -166,6 +171,18 @@ export default async function UsuariosPage() {
                         perfilAtual={usuario.perfil as PerfilUsuario}
                         statusAtual={usuario.status as "ativo" | "inativo"}
                         isCurrentUser={usuario.id === currentAdmin.id}
+                      />
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <EditarUsuarioDialog
+                        user={{
+                          id: usuario.id,
+                          nome: usuario.nome,
+                          email: usuario.email,
+                          perfil: usuario.perfil as PerfilUsuario,
+                          registroProfissional: usuario.profissionais?.[0]?.registro_profissional ?? null,
+                        }}
+                        openByDefault={editar === usuario.id}
                       />
                     </td>
                   </tr>

@@ -36,6 +36,17 @@ de memoria/manual, documentos preenchidos repetidamente.
 | RF-19 | Arquivos/fotos | P1 |
 | RF-20 | Auditoria | P1 |
 
+### Padronização oficial de RF-10/RF-11
+
+- Novas emissões usam atestado odontológico, declaração de comparecimento ou
+  declaração de acompanhamento; `declaracao` genérica permanece só no legado.
+- Atestado exige dentista autor vinculado ao atendimento e CRO preenchido.
+- CID é ausente por padrão, opcional apenas no atestado e condicionado à
+  autorização estruturada do paciente/responsável.
+- PDFs são privados, imutáveis, versionados por layout e rastreados por SHA-256.
+- Orçamentos possuem versões de PDF emitidas explicitamente, sem sobrescrever
+  nem regenerar versões anteriores.
+
 ## Recorte implementado na Sprint 2
 
 - **RF-04**: cadastro, edicao administrativa, ficha e inativacao logica

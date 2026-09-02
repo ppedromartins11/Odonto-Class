@@ -123,6 +123,17 @@ Antes de liberar as rotas de Validade/Esterilizacao no ambiente remoto:
 Nao manipular `schema_migrations` manualmente nem improvisar autenticacao se o
 token do CLI nao estiver disponivel.
 
+## Gate da migration 0019
+
+1. Confirmar `.env.local` e `.env.test.local` no mesmo projeto fictício sem
+   imprimir URL, project-ref ou credenciais.
+2. `migration list --linked`: `0001`–`0018` alinhadas.
+3. `db push --linked --dry-run`: somente `0019_documentos_oficiais.sql`.
+4. Aplicar exclusivamente a `0019`; repetir listagem e dry-run até “Remote
+   database is up to date”.
+5. Executar `QA_DOC_`, confirmar cleanup de tabelas e bucket, e só então abrir
+   a homologação visual dos quatro PDFs.
+
 ## Backup e recuperacao (RNF-07)
 
 A definir formalmente quando o banco definitivo existir (Sprint 1 em

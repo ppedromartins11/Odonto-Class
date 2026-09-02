@@ -4,3 +4,8 @@ export type UpdateUsuarioAccessState = {
   error: string | null;
   success: boolean;
 };
+
+export type UpdateUsuarioProfileState = {
+  error: string | null;
+  success: boolean;
+};

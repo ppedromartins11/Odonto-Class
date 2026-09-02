@@ -28,6 +28,16 @@ export type Budget = {
 
 export type BudgetDetail = Budget & { items: BudgetItem[] };
 
+export type BudgetPdfVersion = {
+  id: string;
+  orcamento_id: string;
+  versao: number;
+  pdf_sha256: string;
+  layout_version: number;
+  tamanho_bytes: number;
+  emitido_em: string;
+};
+
 export type BudgetActionState = {
   success: boolean;
   error: string | null;

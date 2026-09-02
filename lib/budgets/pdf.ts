@@ -1,22 +1,46 @@
 import "server-only";
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import { formatCents } from "./validation";
+import { DocumentPdfLayout } from "../documents/pdf-layout";
+import { formatDocumentCurrency, formatDocumentDate } from "../documents/format";
+import { loadDocumentLogo } from "../documents/logo";
 import type { BudgetDetail } from "./types";
 
-export async function renderBudgetPdf(input: BudgetDetail & { clinicName: string }): Promise<Buffer> {
-  const pdf = await PDFDocument.create();
-  const page = pdf.addPage([595, 842]);
-  const font = await pdf.embedFont(StandardFonts.Helvetica);
-  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-  const text = (value: string, x: number, y: number, size = 10, strong = false) => page.drawText(value, { x, y, size, font: strong ? bold : font, color: rgb(0.1, 0.14, 0.2), maxWidth: 485 });
-  text(input.clinicName, 54, 790, 15, true); text("ORÇAMENTO", 54, 756, 18, true);
-  text(`Orçamento nº ${input.numero}`, 54, 730, 10); text(`Data: ${input.data_orcamento}`, 360, 730, 10);
-  text(`Paciente: ${input.paciente_nome}`, 54, 704, 11, true); text(`Profissional: ${input.profissional_nome}`, 54, 682, 10);
-  text(`Validade: ${input.validade_em ?? "Não informada"}`, 54, 660, 10);
-  let y = 620; text("Descrição", 54, y, 10, true); text("Qtd.", 350, y, 10, true); text("Unitário", 405, y, 10, true); text("Total", 495, y, 10, true); y -= 18;
-  for (const item of input.items) { text(item.descricao, 54, y); text(String(item.quantidade), 350, y); text(formatCents(item.valor_unitario_centavos), 405, y); text(formatCents(item.total_centavos), 495, y); y -= 22; }
-  page.drawLine({ start: { x: 54, y: y - 2 }, end: { x: 540, y: y - 2 }, thickness: 1, color: rgb(0.75, 0.78, 0.82) });
-  text(`Total: ${formatCents(input.total_centavos)}`, 385, y - 28, 13, true);
-  if (input.observacao_administrativa) text(`Observação: ${input.observacao_administrativa}`, 54, y - 64, 9);
-  return Buffer.from(await pdf.save());
+export async function renderBudgetPdf(input: BudgetDetail & { clinicName: string; clinicTagline: string }): Promise<Buffer> {
+  const layout = await DocumentPdfLayout.create({
+    clinicName: input.clinicName,
+    clinicTagline: input.clinicTagline,
+    logoBytes: await loadDocumentLogo(),
+  });
+  layout.title("ORÇAMENTO ODONTOLÓGICO");
+  layout.labelValue("Número", String(input.numero));
+  layout.labelValue("Paciente", input.paciente_nome);
+  layout.labelValue("Profissional responsável", input.profissional_nome);
+  layout.labelValue("Data", formatDocumentDate(input.data_orcamento));
+  layout.labelValue("Validade", input.validade_em ? formatDocumentDate(input.validade_em) : "Não informada");
+  layout.gap(15);
+  const tableColumns = [
+    { text: "DESCRIÇÃO", x: 52 },
+    { text: "QTD.", x: 341 },
+    { text: "UNITÁRIO", x: 386 },
+    { text: "TOTAL", x: 482 },
+  ];
+  const repeatTableHeader = () => layout.tableHeader(tableColumns);
+  repeatTableHeader();
+  for (const item of input.items) {
+    layout.tableRow([
+      { text: item.descricao, x: 52, width: 275 },
+      { text: String(item.quantidade), x: 341, width: 30, align: "right" },
+      { text: formatDocumentCurrency(item.valor_unitario_centavos), x: 386, width: 72, align: "right" },
+      { text: formatDocumentCurrency(item.total_centavos), x: 468, width: 75, align: "right" },
+    ], 30, repeatTableHeader);
+  }
+  layout.gap(8);
+  layout.paragraph(`Total: ${formatDocumentCurrency(input.total_centavos)}`, { strong: true });
+  if (input.observacao_administrativa) {
+    layout.gap(10);
+    layout.paragraph("Observações", { strong: true });
+    layout.paragraph(input.observacao_administrativa, { size: 9.5 });
+  }
+  layout.gap(25);
+  layout.paragraph("Este documento registra os itens e valores existentes no momento da emissão. Versões posteriores não substituem esta versão.", { size: 8.5 });
+  return layout.save();
 }

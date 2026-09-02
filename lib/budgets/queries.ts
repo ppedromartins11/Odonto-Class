@@ -1,6 +1,6 @@
 import "server-only";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { Budget, BudgetDetail, BudgetItem, BudgetStatus } from "./types";
+import type { Budget, BudgetDetail, BudgetItem, BudgetPdfVersion, BudgetStatus } from "./types";
 
 const BUDGET_FIELDS = "id,numero,paciente_id,profissional_id,data_orcamento,validade_em,observacao_administrativa,status,total_centavos,created_at,pacientes!inner(nome),profissionais!inner(usuarios!inner(nome))";
 
@@ -49,4 +49,15 @@ export async function getBudget(id: string): Promise<BudgetDetail | null> {
   const { data: itemData, error: itemError } = await supabase.from("orcamento_itens").select("id,orcamento_id,descricao,quantidade,valor_unitario_centavos,total_centavos,ativo").eq("orcamento_id", id).eq("ativo", true).order("created_at");
   if (itemError) fail("BUDGET_ITEMS_LOAD_FAILED", itemError.code);
   return { ...mapBudget(data as Record<string, unknown>), items: (itemData ?? []) as BudgetItem[] };
+}
+
+export async function listBudgetPdfVersions(budgetId: string) {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("orcamento_pdf_versoes")
+    .select("id,orcamento_id,versao,pdf_sha256,layout_version,tamanho_bytes,emitido_em")
+    .eq("orcamento_id", budgetId)
+    .order("versao", { ascending: false });
+  if (error) fail("BUDGET_PDF_VERSIONS_LOAD_FAILED", error.code);
+  return (data ?? []) as BudgetPdfVersion[];
 }
