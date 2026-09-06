@@ -156,6 +156,12 @@ describe("limpeza de fixtures QA da homologacao", () => {
     expect(paymentRows.error).toBeNull();
     const paymentIds = (paymentRows.data ?? []).map((row) => row.id);
 
+    const receivableRows = patientIds.length
+      ? await service.from("financeiro_recebiveis").select("id").in("paciente_id", patientIds)
+      : { data: [], error: null };
+    expect(receivableRows.error).toBeNull();
+    const receivableIds = (receivableRows.data ?? []).map((row) => row.id);
+
     const fileRows = userIds.length
       ? await service.from("arquivos_paciente").select("storage_path").or(`uploaded_by.in.(${idFilter}),updated_by.in.(${idFilter})`)
       : { data: [], error: null };
@@ -173,6 +179,7 @@ describe("limpeza de fixtures QA da homologacao", () => {
     if (procedureIds.length) await deleteWhereIds(service, "procedimento_materiais_consumo", "procedimento_id", procedureIds);
     if (userIds.length) await deleteWhereIds(service, "auditoria", "usuario_id", userIds);
     if (paymentIds.length) await deleteWhereIds(service, "pagamentos", "id", paymentIds);
+    if (receivableIds.length) await deleteWhereIds(service, "financeiro_recebiveis", "id", receivableIds);
     if (documentIds.length) await deleteWhereIds(service, "documento_cid", "documento_id", documentIds);
     if (documentIds.length) await deleteWhereIds(service, "documentos", "id", documentIds);
     if (budgetVersionIds.length) await deleteWhereIds(service, "orcamento_pdf_versoes", "id", budgetVersionIds);

@@ -1,0 +1,16 @@
+warning: in the working copy of 'CLAUDE.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/(app)/financeiro/actions.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/(app)/financeiro/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/(app)/pacientes/[id]/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'lib/financial/queries.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'lib/financial/types.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'next-env.d.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/integration/qa-cleanup.test.ts', LF will be replaced by CRLF the next time Git touches it
+ CLAUDE.md                            | 10 [32m++++++[m
+ app/(app)/financeiro/actions.ts      | 66 [32m+++++++++++++++++++++++++++++++++++[m[31m-[m
+ app/(app)/financeiro/page.tsx        | 19 [32m++++++++[m[31m---[m
+ app/(app)/pacientes/[id]/page.tsx    |  7 [32m++[m[31m--[m
+ lib/financial/queries.ts             | 24 [32m+++++++++++[m[31m--[m
+ lib/financial/types.ts               |  7 [32m+++[m[31m-[m
+ tests/integration/qa-cleanup.test.ts |  7 [32m++++[m
+ 7 files changed, 129 insertions(+), 11 deletions(-)

@@ -32,7 +32,7 @@ import { isValidUuid } from "@/lib/patients/validation";
 import { listDocuments, listPatientFiles, listReturns } from "@/lib/operational/queries";
 import { listBudgets } from "@/lib/budgets/queries";
 import { formatCents } from "@/lib/budgets/validation";
-import { listPayments } from "@/lib/financial/queries";
+import { listFinancialReceivables, listPayments } from "@/lib/financial/queries";
 import { formatCents as formatPaymentCents } from "@/lib/financial/validation";
 import { DirectAttendanceButton } from "../../atendimentos/DirectAttendanceButton";
 import { PatientClinicalAlertsForm } from "../PatientClinicalAlertsForm";
@@ -110,7 +110,7 @@ export default async function PatientPage({ params, searchParams }: { params: Pr
     : requestedTab;
   const loadsRecentHistory = activeTab === "visao-geral" || activeTab === "historico";
   const loadsClinicalTimeline = isDentist && (loadsRecentHistory || activeTab === "atendimentos");
-  const [clinicalAlerts, appointments, attendances, returns, documents, files, attendanceCount, activeAttendance, procedureEntries, budgetResult, paymentResult] = await Promise.all([
+  const [clinicalAlerts, appointments, attendances, returns, documents, files, attendanceCount, activeAttendance, procedureEntries, budgetResult, paymentResult, receivableResult] = await Promise.all([
     isDentist ? getPatientClinicalAlerts(id) : Promise.resolve(null),
     activeTab === "consultas" ? listPatientAppointments(id, 50) : loadsRecentHistory ? listPatientAppointments(id, 10) : Promise.resolve([]),
     activeTab === "atendimentos" && isDentist ? listPatientAttendances(id, 50) : loadsClinicalTimeline ? listPatientAttendances(id, 8) : Promise.resolve([]),
@@ -122,6 +122,7 @@ export default async function PatientPage({ params, searchParams }: { params: Pr
     isDentist && (activeTab === "procedimentos" || activeTab === "atendimentos") ? listPatientProcedures(id, 50) : loadsClinicalTimeline ? listPatientProcedures(id, 8) : Promise.resolve([]),
     activeTab === "orcamentos" ? listBudgets({ patientId: id, page: 1, pageSize: 50 }) : Promise.resolve({ budgets: [], total: 0, pageSize: 50 }),
     activeTab === "pagamentos" ? listPayments({ patientId: id, page: 1, pageSize: 50 }) : Promise.resolve({ payments: [], total: 0, pageSize: 50 }),
+    activeTab === "pagamentos" && !isDentist ? listFinancialReceivables({ patientId: id, page: 1, pageSize: 50 }) : Promise.resolve({ receivables: [], total: 0, pageSize: 50 }),
   ]);
   const attendanceLinks = isDentist && activeTab === "consultas"
     ? await listAttendanceIdsByAppointment(appointments.map((appointment) => appointment.id))
@@ -323,6 +324,8 @@ export default async function PatientPage({ params, searchParams }: { params: Pr
         {activeTab === "orcamentos" && <section className="rounded-lg border border-border bg-card p-5"><SectionTitle title="Orçamentos" detail="Propostas comerciais visíveis conforme seu perfil." action={patient.ativo ? <Link href={`/orcamentos/novo?paciente=${patient.id}`} className="text-sm font-medium text-primary hover:underline">Novo orçamento</Link> : undefined} />{budgetResult.budgets.length === 0 ? <div className="mt-4"><Empty>Nenhum orçamento visível.</Empty></div> : <div className="mt-4 divide-y divide-border rounded-lg border border-border">{budgetResult.budgets.map((budget) => <Link key={budget.id} href={`/orcamentos/${budget.id}`} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 hover:bg-secondary"><span className="text-sm font-medium">#{budget.numero} · {budget.effective_status}</span><span className="text-sm font-medium">{formatCents(budget.total_centavos)}</span></Link>)}</div>}</section>}
 
         {activeTab === "pagamentos" && <section className="rounded-lg border border-border bg-card p-5"><SectionTitle title="Pagamentos" detail="Histórico financeiro visível conforme seu perfil." action={(user.perfil === "administrador" || user.perfil === "recepcao") && patient.ativo ? <Link href={`/financeiro/novo?paciente=${patient.id}`} className="text-sm font-medium text-primary hover:underline">Registrar pagamento</Link> : undefined} />{paymentResult.payments.length === 0 ? <div className="mt-4"><Empty>Nenhum pagamento visível.</Empty></div> : <div className="mt-4 divide-y divide-border rounded-lg border border-border">{paymentResult.payments.map((payment) => <article key={payment.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"><div><p className="text-sm font-medium">{payment.referencia}</p><p className="mt-1 text-xs text-muted-foreground">{payment.data_pagamento} · {payment.forma}</p></div><div className="text-right"><p className="text-sm font-medium">{formatPaymentCents(payment.valor_centavos)}</p><p className="mt-1 text-xs text-muted-foreground">{payment.status}</p></div></article>)}</div>}</section>}
+
+        {activeTab === "pagamentos" && !isDentist && <section className="rounded-lg border border-border bg-card p-5"><SectionTitle title="Contas a receber" detail="Obrigações financeiras deste paciente." action={patient.ativo ? <Link href={`/financeiro/recebiveis/novo?paciente=${patient.id}`} className="text-sm font-medium text-primary hover:underline">Novo recebível</Link> : undefined} />{receivableResult.receivables.length === 0 ? <div className="mt-4"><Empty>Nenhum recebível visível.</Empty></div> : <div className="mt-4 divide-y divide-border rounded-lg border border-border">{receivableResult.receivables.map((receivable) => <Link key={receivable.id} href={`/financeiro/recebiveis/${receivable.id}`} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 hover:bg-secondary"><div><p className="text-sm font-medium">{receivable.referencia}</p><p className="mt-1 text-xs text-muted-foreground">Vencimento: {receivable.proximo_vencimento ?? "—"} · {receivable.status.replaceAll("_", " ")}</p></div><div className="text-right"><p className="text-sm font-medium">{formatPaymentCents(Number(receivable.valor_aberto_centavos))}</p><p className="mt-1 text-xs text-muted-foreground">em aberto</p></div></Link>)}</div>}</section>}
 
         {activeTab === "retornos" && (
           <section className="rounded-lg border border-border bg-card p-5">

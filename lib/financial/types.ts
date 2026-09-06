@@ -1,7 +1,12 @@
 export type PaymentMethod = "pix" | "dinheiro" | "cartao_credito" | "cartao_debito" | "transferencia" | "outro";
 export type PaymentStatus = "pago" | "estornado" | "cancelado";
+export type { ReceivableStatus, InstallmentStatus } from "./receivables";
 export type Payment = { id: string; paciente_id: string; paciente_nome: string; atendimento_id: string | null; orcamento_id: string | null; referencia: string; valor_centavos: number; forma: PaymentMethod; status: PaymentStatus; data_pagamento: string; responsavel_nome: string; total_count: number };
-export type PaymentSummary = { recebido_hoje_centavos: number; recebido_periodo_centavos: number; quantidade_pagamentos: number };
+export type PaymentSummary = { recebido_hoje_centavos: number; recebido_periodo_centavos: number; quantidade_pagamentos: number; a_receber_centavos: number; vencido_centavos: number };
 export type PaymentReference = { tipo: "atendimento" | "orcamento"; id: string; descricao: string };
+export type FinancialReceivable = { id: string; paciente_id: string; paciente_nome: string; atendimento_id: string | null; orcamento_id: string | null; referencia: string; valor_total_centavos: number; valor_pago_centavos: number; valor_aberto_centavos: number; proximo_vencimento: string | null; status: import("./receivables").ReceivableStatus; total_count: number };
+export type FinancialInstallment = { id: string; numero_parcela: number; total_parcelas: number; valor_centavos: number; vencimento: string; status: import("./receivables").InstallmentStatus; pagamento_id: string | null; pagamento_status: PaymentStatus | null };
 export type PaymentActionState = { success: boolean; error: string | null; fieldErrors?: Record<string, string> };
 export const initialPaymentActionState: PaymentActionState = { success: false, error: null };
+export type ReceivableActionState = { success: boolean; error: string | null; fieldErrors?: Record<string, string> };
+export const initialReceivableActionState: ReceivableActionState = { success: false, error: null };
