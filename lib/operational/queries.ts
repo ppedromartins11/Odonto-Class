@@ -13,7 +13,7 @@ import type {
 const RETURN_FIELDS =
   "id,paciente_id,atendimento_origem_id,profissional_id,data_prevista,status,observacao_administrativa,agendamento_id,created_at,pacientes!inner(nome),profissionais(usuarios(nome))";
 const TASK_FIELDS =
-  "id,titulo,descricao,status,prioridade,prazo,responsavel_id,paciente_id,agendamento_id,created_by,created_at,pacientes(nome),responsavel:usuarios!tarefas_responsavel_id_fkey(nome)";
+  "id,titulo,descricao,status,prioridade,prazo,responsavel_id,paciente_id,agendamento_id,created_by,created_at,ordem_kanban,pacientes(nome),responsavel:usuarios!tarefas_responsavel_id_fkey(nome)";
 const DOCUMENT_FIELDS =
   "id,paciente_id,profissional_id,tipo,emitido_em,periodo_inicio,periodo_fim,texto_adicional,nome_arquivo,tamanho_bytes,created_at,atendimento_id,finalidade,comparecimento_inicio,comparecimento_fim,afastamento_quantidade,afastamento_unidade,acompanhante_nome,layout_version,pdf_sha256,created_by";
 const FILE_FIELDS =
@@ -146,7 +146,7 @@ export async function listTasks(patientId?: string) {
 }
 
 type TaskListOptions = {
-  status?: "pendente" | "em_andamento" | "concluida";
+  status?: "pendente" | "em_andamento" | "aguardando" | "concluida";
   overdue?: boolean;
   assigneeId?: string;
   page: number;
@@ -189,20 +189,103 @@ export async function listTasksPage({
   return { tasks: mapTasks(data ?? []), total: count ?? 0, pageSize };
 }
 
+export type TaskKanbanFilters = {
+  query?: string;
+  assigneeId?: string;
+  priority?: "alta" | "media" | "baixa" | "urgente";
+  due?: "atrasadas" | "hoje" | "sem_prazo";
+  patientId?: string;
+  mine?: boolean;
+  currentUserId: string;
+  today: string;
+  includeCancelled?: boolean;
+};
+
+function escapedIlike(value: string) {
+  return value.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_").replaceAll(",", " ").trim();
+}
+
+/**
+ * Carrega um numero limitado de cards por coluna diretamente no servidor.
+ * As quatro consultas sao constantes (nao N+1), incluem os joins necessarios
+ * e continuam submetidas a RLS do usuario autenticado.
+ */
+export async function listTasksKanban(filters: TaskKanbanFilters) {
+  const supabase = await createSupabaseServerClient();
+  const statuses = filters.includeCancelled
+    ? (["pendente", "em_andamento", "aguardando", "concluida", "cancelada"] as const)
+    : (["pendente", "em_andamento", "aguardando", "concluida"] as const);
+
+  const requests = statuses.map((status) => {
+    let query = supabase
+      .from("tarefas")
+      .select(TASK_FIELDS, { count: "exact" })
+      .is("removida_em", null)
+      .eq("status", status)
+      .order("ordem_kanban", { ascending: true })
+      .order("created_at", { ascending: true })
+      .limit(status === "concluida" ? 50 : 75);
+
+    if (filters.query) {
+      const search = escapedIlike(filters.query);
+      if (search) query = query.or(`titulo.ilike.%${search}%,descricao.ilike.%${search}%`);
+    }
+    if (filters.assigneeId) query = query.eq("responsavel_id", filters.assigneeId);
+    if (filters.priority) query = query.eq("prioridade", filters.priority);
+    if (filters.patientId) query = query.eq("paciente_id", filters.patientId);
+    if (filters.mine) query = query.eq("responsavel_id", filters.currentUserId);
+    if (filters.due === "atrasadas") {
+      query = query.in("status", ["pendente", "em_andamento", "aguardando"]).lt("prazo", filters.today);
+    } else if (filters.due === "hoje") {
+      query = query.eq("prazo", filters.today);
+    } else if (filters.due === "sem_prazo") {
+      query = query.is("prazo", null);
+    }
+    return query;
+  });
+
+  const results = await Promise.all(requests);
+  const error = results.map((result) => result.error).find(Boolean);
+  if (error) fail("TASKS_KANBAN_LOAD_FAILED", error.code);
+
+  return {
+    columns: Object.fromEntries(
+      statuses.map((status, index) => [status, mapTasks(results[index].data ?? [])]),
+    ) as Record<(typeof statuses)[number], OperationalTask[]>,
+    counts: Object.fromEntries(
+      statuses.map((status, index) => [status, results[index].count ?? 0]),
+    ) as Record<(typeof statuses)[number], number>,
+  };
+}
+
+export async function getTaskFilterPatient(patientId?: string) {
+  if (!patientId) return null;
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("pacientes")
+    .select("id,nome,telefone_contato")
+    .eq("id", patientId)
+    .maybeSingle();
+  if (error) fail("TASK_FILTER_PATIENT_LOAD_FAILED", error.code);
+  return data;
+}
+
 export async function getTaskSummary(today: string) {
   const supabase = await createSupabaseServerClient();
-  const [pending, inProgress, completed, overdue] = await Promise.all([
+  const [pending, inProgress, awaiting, completed, overdue] = await Promise.all([
     supabase.from("tarefas").select("id", { count: "exact", head: true }).is("removida_em", null).eq("status", "pendente"),
     supabase.from("tarefas").select("id", { count: "exact", head: true }).is("removida_em", null).eq("status", "em_andamento"),
+    supabase.from("tarefas").select("id", { count: "exact", head: true }).is("removida_em", null).eq("status", "aguardando"),
     supabase.from("tarefas").select("id", { count: "exact", head: true }).is("removida_em", null).eq("status", "concluida"),
-    supabase.from("tarefas").select("id", { count: "exact", head: true }).is("removida_em", null).in("status", ["pendente", "em_andamento"]).lt("prazo", today),
+    supabase.from("tarefas").select("id", { count: "exact", head: true }).is("removida_em", null).in("status", ["pendente", "em_andamento", "aguardando"]).lt("prazo", today),
   ]);
-  const firstError = [pending, inProgress, completed, overdue].map((result) => result.error).find(Boolean);
+  const firstError = [pending, inProgress, awaiting, completed, overdue].map((result) => result.error).find(Boolean);
   if (firstError) fail("TASKS_SUMMARY_LOAD_FAILED", firstError.code);
 
   return {
     pending: pending.count ?? 0,
     inProgress: inProgress.count ?? 0,
+    awaiting: awaiting.count ?? 0,
     completed: completed.count ?? 0,
     overdue: overdue.count ?? 0,
   };

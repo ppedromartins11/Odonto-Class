@@ -7,22 +7,28 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { initialProcedureActionState } from "@/lib/clinical/action-state";
 import type { Procedure } from "@/lib/clinical/types";
+import type { AvailableTreatmentPlanItem } from "@/lib/treatments/types";
 import { createProcedure, updateProcedure } from "./actions";
+import { ProcedurePlanLinkRetryForm } from "./ProcedurePlanLinkRetryForm";
 import { ProcedureTeethRetryForm } from "./ProcedureTeethRetryForm";
 
 function FieldError({ message }: { message?: string }) {
   return message ? <p className="mt-1 text-xs text-destructive">{message}</p> : null;
 }
 
-export function ProcedureForm({ attendanceId, procedure }: { attendanceId: string; procedure?: Procedure }) {
+export function ProcedureForm({ attendanceId, procedure, planItems = [] }: { attendanceId: string; procedure?: Procedure; planItems?: AvailableTreatmentPlanItem[] }) {
   const [state, action, pending] = useActionState(procedure ? updateProcedure : createProcedure, initialProcedureActionState);
+  if (state.planLinkPending && state.procedureId && state.pendingPlanItemId) {
+    return <ProcedurePlanLinkRetryForm attendanceId={attendanceId} procedureId={state.procedureId} planItemId={state.pendingPlanItemId} message={state.error} />;
+  }
   if (state.procedureSaved && state.procedureId && !state.success) {
-    return <ProcedureTeethRetryForm attendanceId={attendanceId} procedureId={state.procedureId} initialTeeth={state.attemptedTeeth ?? procedure?.teeth ?? []} message={state.error} />;
+    return <ProcedureTeethRetryForm attendanceId={attendanceId} procedureId={state.procedureId} initialTeeth={state.attemptedTeeth ?? procedure?.teeth ?? []} planItemId={state.pendingPlanItemId} message={state.error} />;
   }
   return (
     <form action={action} className="space-y-4">
       <input type="hidden" name="attendanceId" value={attendanceId} />
       {procedure && <input type="hidden" name="procedureId" value={procedure.id} />}
+      {!procedure && planItems.length > 0 && <label className="block text-sm font-medium">Item do plano de tratamento <span className="font-normal text-muted-foreground">(opcional)</span><select name="planItemId" className="mt-1 h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm"><option value="">Procedimento avulso</option>{planItems.map((item) => <option key={item.id} value={item.id}>{item.descricao_snapshot} · restante {item.quantidade_restante}</option>)}</select></label>}
       <div><label htmlFor="descricao" className="mb-1.5 block">Descrição do procedimento</label><Input id="descricao" name="descricao" required minLength={2} maxLength={500} defaultValue={procedure?.descricao ?? ""} error={Boolean(state.fieldErrors?.descricao)} /><FieldError message={state.fieldErrors?.descricao} /></div>
       <div className="grid gap-4 sm:grid-cols-2">
         <div><label htmlFor="dente" className="mb-1.5 block">Dente ou região</label><Input id="dente" name="dente" maxLength={80} defaultValue={procedure?.dente ?? ""} placeholder="Ex.: 11 (FDI) ou região anterior" error={Boolean(state.fieldErrors?.dente)} /><FieldError message={state.fieldErrors?.dente} /></div>

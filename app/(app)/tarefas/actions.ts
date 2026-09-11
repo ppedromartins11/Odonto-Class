@@ -28,9 +28,13 @@ export async function createTask(
   await requireUser();
   const priority = readPriority(form);
   if (!priority) return result("Selecione uma prioridade válida.");
+  const initialStatus = String(form.get("initialStatus") ?? "pendente") as TaskStatus;
+  if (initialStatus !== "pendente" && initialStatus !== "em_andamento" && initialStatus !== "aguardando" && initialStatus !== "concluida") {
+    return result("Status inicial inválido.");
+  }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc("create_task", {
+  const { data: created, error } = await supabase.rpc("create_task", {
     p_titulo: String(form.get("title") ?? ""),
     p_descricao: String(form.get("description") ?? "") || null,
     p_prazo: String(form.get("dueDate") ?? "") || null,
@@ -41,6 +45,19 @@ export async function createTask(
   });
 
   if (error) return result("Não foi possível criar a tarefa.");
+  if (initialStatus !== "pendente") {
+    const { error: moveError } = await supabase.rpc("move_task_kanban", {
+      p_tarefa_id: (created as { id?: string } | null)?.id ?? "",
+      p_status: initialStatus,
+      p_before_id: null,
+      p_after_id: null,
+    });
+    if (moveError) {
+      revalidatePath("/tarefas");
+      revalidatePath("/dashboard");
+      return result("A tarefa foi criada, mas não pôde ser movida para a coluna selecionada.");
+    }
+  }
   revalidatePath("/tarefas");
   revalidatePath("/dashboard");
   return result(null);
@@ -54,6 +71,7 @@ export async function setTaskStatus(
   const status = String(form.get("status") ?? "") as TaskStatus;
   if (
     status !== "em_andamento" &&
+    status !== "aguardando" &&
     status !== "concluida" &&
     status !== "cancelada"
   ) {
@@ -68,6 +86,37 @@ export async function setTaskStatus(
 
   if (error) return result("Não foi possível atualizar a tarefa.");
   revalidatePath("/tarefas");
+  revalidatePath("/dashboard");
+  return result(null);
+}
+
+/**
+ * Mutation enxuta do Kanban: o cliente informa somente a tarefa, a coluna de
+ * destino e seus vizinhos. A RPC calcula a posicao, valida a transicao e aplica
+ * RBAC/RLS no banco antes de registrar auditoria.
+ */
+export async function moveTaskKanban({
+  taskId,
+  status,
+  beforeId,
+  afterId,
+}: {
+  taskId: string;
+  status: Extract<TaskStatus, "pendente" | "em_andamento" | "aguardando" | "concluida">;
+  beforeId?: string | null;
+  afterId?: string | null;
+}): Promise<DomainActionState> {
+  await requireUser();
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("move_task_kanban", {
+    p_tarefa_id: taskId,
+    p_status: status,
+    p_before_id: beforeId ?? null,
+    p_after_id: afterId ?? null,
+  });
+
+  if (error) return result("Não foi possível mover a tarefa. Tente novamente.");
+  // Mantem o Dashboard consistente sem forcar uma nova arvore RSC em cada drop.
   revalidatePath("/dashboard");
   return result(null);
 }

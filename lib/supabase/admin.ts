@@ -4,9 +4,10 @@ import { createClient } from "@supabase/supabase-js";
 /**
  * Cliente Supabase com a service role key - ignora RLS por completo.
  *
- * Uso restrito: SOMENTE dentro de server actions que ja verificaram,
- * antes de chamar esta funcao, que o usuario autenticado tem perfil
- * "administrador" (ver lib/auth/session.ts -> requireAdmin()).
+ * Uso restrito: apenas em cÃ³digo server-side que jÃ¡ autorizou a sessÃ£o
+ * atual e retorna o mÃ­nimo de dados necessÃ¡rio. AlÃ©m de aÃ§Ãµes administrativas,
+ * isso cobre resumos administrativos sem conteÃºdo clÃ­nico quando a RLS foi
+ * desenhada deliberadamente para ocultar as linhas de detalhe.
  *
  * O import "server-only" garante que este arquivo nunca seja incluido
  * em um bundle de cliente, mesmo por engano.

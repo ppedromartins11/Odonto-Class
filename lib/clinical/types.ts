@@ -24,6 +24,7 @@ export type Procedure = {
   cor_resina: string | null;
   detalhes: string | null;
   servico_id?: string | null;
+  plano_tratamento_item_id?: string | null;
   quantidade?: number;
   valor_aplicado_centavos?: number | null;
   teeth: FdiTooth[];
@@ -37,6 +38,8 @@ export type ProcedureActionState = DomainActionState & {
   procedureId?: string;
   procedureSaved?: boolean;
   attemptedTeeth?: FdiTooth[];
+  planLinkPending?: boolean;
+  pendingPlanItemId?: string;
 };
 
 export type ProcedureFormValues = {

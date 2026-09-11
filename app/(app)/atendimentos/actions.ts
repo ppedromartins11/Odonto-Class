@@ -27,6 +27,12 @@ function parseTeethFromForm(formData: FormData): { teeth: FdiTooth[]; error: str
   }
 }
 
+function parseTreatmentPlanItem(formData: FormData): { id: string | null; error: string | null } {
+  const value = String(formData.get("planItemId") ?? "").trim();
+  if (!value) return { id: null, error: null };
+  return isValidUuid(value) ? { id: value, error: null } : { id: null, error: "Item do plano de tratamento inválido." };
+}
+
 async function persistProcedureTeeth(procedureId: string, teeth: readonly FdiTooth[]) {
   const supabase = await createSupabaseServerClient();
   return supabase.rpc("set_procedure_teeth", {
@@ -35,14 +41,34 @@ async function persistProcedureTeeth(procedureId: string, teeth: readonly FdiToo
   });
 }
 
-function teethPartialFailure(procedureId: string, attemptedTeeth: FdiTooth[]): ProcedureActionState {
+function teethPartialFailure(procedureId: string, attemptedTeeth: FdiTooth[], planItemId?: string | null): ProcedureActionState {
   return {
     success: false,
     error: "Procedimento salvo, mas não foi possível vincular os dentes. Tente novamente.",
     procedureId,
     procedureSaved: true,
     attemptedTeeth,
+    pendingPlanItemId: planItemId ?? undefined,
   };
+}
+
+function planLinkPartialFailure(procedureId: string, planItemId: string): ProcedureActionState {
+  return {
+    success: false,
+    error: "Procedimento salvo, mas não foi possível vinculá-lo ao item do plano. Tente novamente.",
+    procedureId,
+    procedureSaved: true,
+    planLinkPending: true,
+    pendingPlanItemId: planItemId,
+  };
+}
+
+async function persistProcedurePlanLink(procedureId: string, planItemId: string) {
+  const supabase = await createSupabaseServerClient();
+  return supabase.rpc("link_procedure_to_treatment_plan_item", {
+    p_procedimento_id: procedureId,
+    p_plano_tratamento_item_id: planItemId,
+  });
 }
 
 export async function previewAttendanceFinalization(attendanceId: string): Promise<{ error: string | null; items: FinalizationPreviewItem[] }> {
@@ -156,6 +182,8 @@ export async function createProcedure(
   }
   const parsedTeeth = parseTeethFromForm(formData);
   if (parsedTeeth.error) return { success: false, error: parsedTeeth.error };
+  const parsedPlanItem = parseTreatmentPlanItem(formData);
+  if (parsedPlanItem.error) return { success: false, error: parsedPlanItem.error };
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.rpc("create_procedure", {
     p_atendimento_id: attendanceId,
@@ -176,7 +204,15 @@ export async function createProcedure(
     if (teethError) {
       console.error("Falha na RPC set_procedure_teeth após criar procedimento", { code: teethError.code });
       revalidatePath(`/atendimentos/${attendanceId}`);
-      return teethPartialFailure(procedureId, parsedTeeth.teeth);
+      return teethPartialFailure(procedureId, parsedTeeth.teeth, parsedPlanItem.id);
+    }
+  }
+  if (parsedPlanItem.id) {
+    const { error: planError } = await persistProcedurePlanLink(procedureId, parsedPlanItem.id);
+    if (planError) {
+      console.error("Falha na RPC link_procedure_to_treatment_plan_item", { code: planError.code });
+      revalidatePath(`/atendimentos/${attendanceId}`);
+      return planLinkPartialFailure(procedureId, parsedPlanItem.id);
     }
   }
   revalidatePath(`/atendimentos/${attendanceId}`);
@@ -197,6 +233,8 @@ export async function createServiceProcedure(
   if (details.length > 2000) return { success: false, error: "Use no máximo 2.000 caracteres nos detalhes." };
   const parsedTeeth = parseTeethFromForm(formData);
   if (parsedTeeth.error) return { success: false, error: parsedTeeth.error };
+  const parsedPlanItem = parseTreatmentPlanItem(formData);
+  if (parsedPlanItem.error) return { success: false, error: parsedPlanItem.error };
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.rpc("create_service_procedure", { p_atendimento_id: attendanceId, p_servico_id: serviceId, p_quantidade: quantity, p_valor_aplicado_centavos: cents, p_detalhes: details || null });
   if (error) return { success: false, error: clinicalError(error.code) };
@@ -207,7 +245,15 @@ export async function createServiceProcedure(
     if (teethError) {
       console.error("Falha na RPC set_procedure_teeth após criar serviço", { code: teethError.code });
       revalidatePath(`/atendimentos/${attendanceId}`);
-      return teethPartialFailure(procedureId, parsedTeeth.teeth);
+      return teethPartialFailure(procedureId, parsedTeeth.teeth, parsedPlanItem.id);
+    }
+  }
+  if (parsedPlanItem.id) {
+    const { error: planError } = await persistProcedurePlanLink(procedureId, parsedPlanItem.id);
+    if (planError) {
+      console.error("Falha na RPC link_procedure_to_treatment_plan_item", { code: planError.code });
+      revalidatePath(`/atendimentos/${attendanceId}`);
+      return planLinkPartialFailure(procedureId, parsedPlanItem.id);
     }
   }
   revalidatePath(`/atendimentos/${attendanceId}`); revalidatePath(`/pacientes`);
@@ -297,12 +343,42 @@ export async function saveProcedureTeeth(
   if (!isValidUuid(procedureId) || !isValidUuid(attendanceId)) return { success: false, error: "Procedimento inválido." };
   const parsedTeeth = parseTeethFromForm(formData);
   if (parsedTeeth.error) return { success: false, error: parsedTeeth.error };
+  const parsedPlanItem = parseTreatmentPlanItem(formData);
+  if (parsedPlanItem.error) return { success: false, error: parsedPlanItem.error };
   const { error } = await persistProcedureTeeth(procedureId, parsedTeeth.teeth);
   if (error) {
     console.error("Falha na RPC set_procedure_teeth", { code: error.code });
     return { success: false, error: clinicalError(error.code), procedureId, procedureSaved: true };
   }
+  if (parsedPlanItem.id) {
+    const { error: planError } = await persistProcedurePlanLink(procedureId, parsedPlanItem.id);
+    if (planError) {
+      console.error("Falha na RPC link_procedure_to_treatment_plan_item após vincular dentes", { code: planError.code });
+      revalidatePath(`/atendimentos/${attendanceId}`);
+      return planLinkPartialFailure(procedureId, parsedPlanItem.id);
+    }
+  }
   revalidatePath(`/atendimentos/${attendanceId}`);
   revalidatePath("/pacientes");
+  return { success: true, error: null, procedureId, procedureSaved: true };
+}
+
+export async function saveProcedurePlanLink(
+  _previousState: ProcedureActionState,
+  formData: FormData
+): Promise<ProcedureActionState> {
+  if (!(await requireDentist())) return { success: false, error: "Acesso clínico restrito a dentista." };
+  const procedureId = String(formData.get("procedureId") ?? "");
+  const attendanceId = String(formData.get("attendanceId") ?? "");
+  const parsedPlanItem = parseTreatmentPlanItem(formData);
+  if (!isValidUuid(procedureId) || !isValidUuid(attendanceId) || !parsedPlanItem.id || parsedPlanItem.error) {
+    return { success: false, error: "Item do plano ou procedimento inválido." };
+  }
+  const { error } = await persistProcedurePlanLink(procedureId, parsedPlanItem.id);
+  if (error) {
+    console.error("Falha na RPC link_procedure_to_treatment_plan_item", { code: error.code });
+    return { success: false, error: clinicalError(error.code), procedureId, procedureSaved: true, planLinkPending: true, pendingPlanItemId: parsedPlanItem.id };
+  }
+  revalidatePath(`/atendimentos/${attendanceId}`);
   return { success: true, error: null, procedureId, procedureSaved: true };
 }

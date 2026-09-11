@@ -69,7 +69,7 @@ export async function saveBudget(_: BudgetActionState, form: FormData): Promise<
 
 export async function changeBudgetStatus(_: BudgetActionState, form: FormData): Promise<BudgetActionState> {
   await requireUser(); const id = String(form.get("budgetId") ?? ""); const status = String(form.get("status") ?? "");
-  if (!isValidUuid(id) || !isBudgetStatus(status) || !["enviado", "aprovado", "rejeitado", "convertido"].includes(status)) return result("Alteração de status inválida.");
+  if (!isValidUuid(id) || !isBudgetStatus(status) || !["enviado", "aprovado", "rejeitado"].includes(status)) return result("Alteração de status inválida.");
   const supabase = await createSupabaseServerClient(); const { error } = await supabase.rpc("set_budget_status", { p_orcamento_id: id, p_status: status });
   if (error) return result("Não foi possível alterar o status do orçamento.");
   revalidatePath("/orcamentos"); revalidatePath(`/orcamentos/${id}`); return result(null);

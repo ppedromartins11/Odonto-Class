@@ -6,6 +6,11 @@ import { createQaAdmin } from "./helpers";
 const ACK = "I_ACKNOWLEDGE_FAKE_DATA_ONLY";
 type Role = "administrador" | "recepcao" | "dentista";
 type Identity = { id: string; email: string; password: string; role: Role };
+type PaymentSummary = {
+  recebido_hoje_centavos: number;
+  recebido_periodo_centavos: number;
+  quantidade_pagamentos: number;
+};
 const users: Identity[] = [];
 const paymentIds: string[] = [];
 const budgetIds: string[] = [];
@@ -33,18 +38,24 @@ async function createPatient(name: string) {
   patientIds.push(id);
   return id;
 }
-async function createPayment(client: SupabaseClient, values: { patientId?: string; attendanceId?: string | null; budgetId?: string | null; cents?: number; observation?: string | null } = {}) {
+async function createPayment(client: SupabaseClient, values: { patientId?: string; attendanceId?: string | null; budgetId?: string | null; cents?: number; observation?: string | null; paymentDate?: string } = {}) {
   const result = await client.rpc("create_payment", {
     p_paciente_id: values.patientId ?? patientA,
     p_atendimento_id: values.attendanceId ?? null,
     p_orcamento_id: values.budgetId ?? null,
     p_valor_centavos: values.cents ?? 12345,
     p_forma: "pix",
-    p_data_pagamento: new Date().toISOString().slice(0, 10),
+    p_data_pagamento: values.paymentDate ?? new Date().toISOString().slice(0, 10),
     p_observacao_administrativa: values.observation ?? null,
   });
   if (!result.error && result.data) paymentIds.push((result.data as { id: string }).id);
   return result;
+}
+
+async function paymentSummary(date: string): Promise<PaymentSummary> {
+  const result = await admin.rpc("get_payment_summary", { p_data_inicio: date, p_data_fim: date });
+  expect(result.error).toBeNull();
+  return (result.data as PaymentSummary[])[0];
 }
 
 describe("financeiro: pagamentos, RLS, RPCs e auditoria", () => {
@@ -99,16 +110,18 @@ describe("financeiro: pagamentos, RLS, RPCs e auditoria", () => {
   });
 
   it("registra pagamentos apenas por RPC e mantém valores em centavos", async () => {
+    const period = new Date().toISOString().slice(0, 10);
+    const before = await paymentSummary(period);
     const patientOnly = await createPayment(reception, { cents: 12345, observation: "QA_FIN_observação_sensível" });
     expect(patientOnly.error).toBeNull();
     const attendancePayment = await createPayment(admin, { attendanceId: attendanceA, cents: 22222 });
     expect(attendancePayment.error).toBeNull();
     const budgetPayment = await createPayment(reception, { budgetId: approvedBudgetId, cents: 34567 });
     expect(budgetPayment.error).toBeNull();
-    const period = new Date().toISOString().slice(0, 10);
-    const summary = await admin.rpc("get_payment_summary", { p_data_inicio: period, p_data_fim: period });
-    expect(summary.error).toBeNull();
-    expect((summary.data as Array<{ recebido_hoje_centavos: number; recebido_periodo_centavos: number; quantidade_pagamentos: number }>)[0]).toMatchObject({ recebido_hoje_centavos: 69134, recebido_periodo_centavos: 69134, quantidade_pagamentos: 3 });
+    const after = await paymentSummary(period);
+    expect(after.recebido_hoje_centavos - before.recebido_hoje_centavos).toBe(69134);
+    expect(after.recebido_periodo_centavos - before.recebido_periodo_centavos).toBe(69134);
+    expect(after.quantidade_pagamentos - before.quantidade_pagamentos).toBe(3);
     const paymentId = (patientOnly.data as { id: string }).id;
     const { data } = await service.from("pagamentos").select("valor_centavos,status").eq("id", paymentId).single();
     expect(data).toMatchObject({ valor_centavos: 12345, status: "pago" });
@@ -160,10 +173,12 @@ describe("financeiro: pagamentos, RLS, RPCs e auditoria", () => {
     }
   });
 
-  it("retorna resumo zerado para administrador quando não há pagamentos no período", async () => {
+  it("calcula o delta do resumo de outro período sem depender de tabela vazia", async () => {
     const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
-    const summary = await admin.rpc("get_payment_summary", { p_data_inicio: tomorrow, p_data_fim: tomorrow });
-    expect(summary.error).toBeNull();
-    expect((summary.data as Array<{ recebido_hoje_centavos: number; recebido_periodo_centavos: number; quantidade_pagamentos: number }>)[0]).toMatchObject({ recebido_periodo_centavos: 0, quantidade_pagamentos: 0 });
+    const before = await paymentSummary(tomorrow);
+    expect((await createPayment(reception, { cents: 5000, paymentDate: tomorrow })).error).toBeNull();
+    const after = await paymentSummary(tomorrow);
+    expect(after.recebido_periodo_centavos - before.recebido_periodo_centavos).toBe(5000);
+    expect(after.quantidade_pagamentos - before.quantidade_pagamentos).toBe(1);
   });
 });

@@ -109,8 +109,16 @@ describe("bloco operacional: RLS, Storage, documentos, retornos e tarefas", () =
     expect((await reception.rpc("update_task", { p_tarefa_id: taskId, p_titulo: "QA_RC_Tarefa_invalida", p_descricao: null, p_prazo: null, p_responsavel_id: receptionIdentity.id, p_prioridade: "invalida", p_paciente_id: null, p_agendamento_id: null })).error).not.toBeNull();
     expect((await dentistB.rpc("update_task", { p_tarefa_id: taskId, p_titulo: "QA_RC_negado", p_descricao: null, p_prazo: null, p_responsavel_id: dentistBIdentity.id, p_prioridade: "media", p_paciente_id: null, p_agendamento_id: null })).error).not.toBeNull();
     expect((await admin.rpc("update_task", { p_tarefa_id: taskId, p_titulo: "QA_RC_invalida", p_descricao: null, p_prazo: null, p_responsavel_id: inactiveIdentity.id, p_prioridade: "media", p_paciente_id: null, p_agendamento_id: null })).error).not.toBeNull();
-    expect((await reception.rpc("set_task_status", { p_tarefa_id: taskId, p_status: "em_andamento" })).error).toBeNull();
-    expect((await reception.rpc("set_task_status", { p_tarefa_id: taskId, p_status: "concluida" })).error).toBeNull();
+    // A ordenacao do Kanban e calculada no banco a partir de vizinhos, sem DML direto.
+    expect((await reception.rpc("move_task_kanban", { p_tarefa_id: taskId, p_status: "pendente", p_before_id: null, p_after_id: legacyTaskId })).error).toBeNull();
+    const reordered = await service.from("tarefas").select("status,ordem_kanban").eq("id", taskId).single();
+    const legacyOrder = await service.from("tarefas").select("ordem_kanban").eq("id", legacyTaskId).single();
+    expect(reordered.data?.status).toBe("pendente");
+    expect(Number(reordered.data?.ordem_kanban)).toBeLessThan(Number(legacyOrder.data?.ordem_kanban));
+    expect((await dentistB.rpc("move_task_kanban", { p_tarefa_id: taskId, p_status: "em_andamento", p_before_id: null, p_after_id: null })).error).not.toBeNull();
+    expect((await reception.rpc("move_task_kanban", { p_tarefa_id: taskId, p_status: "em_andamento", p_before_id: null, p_after_id: null })).error).toBeNull();
+    expect((await reception.rpc("move_task_kanban", { p_tarefa_id: taskId, p_status: "aguardando", p_before_id: null, p_after_id: null })).error).toBeNull();
+    expect((await reception.rpc("move_task_kanban", { p_tarefa_id: taskId, p_status: "concluida", p_before_id: null, p_after_id: null })).error).toBeNull();
     expect((await admin.rpc("update_task", { p_tarefa_id: taskId, p_titulo: "QA_RC_tardia", p_descricao: null, p_prazo: null, p_responsavel_id: receptionIdentity.id, p_prioridade: "media", p_paciente_id: null, p_agendamento_id: null })).error).not.toBeNull();
     expect((await reception.from("tarefas").update({ titulo: "direto" }).eq("id", taskId)).error).not.toBeNull(); expect((await reception.from("tarefas").delete().eq("id", taskId)).error).not.toBeNull();
     expect((await dentistB.rpc("soft_delete_task", { p_tarefa_id: taskId })).error).not.toBeNull();
@@ -121,7 +129,7 @@ describe("bloco operacional: RLS, Storage, documentos, retornos e tarefas", () =
     expect((await reception.rpc("update_task", { p_tarefa_id: taskId, p_titulo: "QA_RC_removida", p_descricao: null, p_prazo: null, p_responsavel_id: receptionIdentity.id, p_prioridade: "media", p_paciente_id: null, p_agendamento_id: null })).error).not.toBeNull();
     expect((await reception.rpc("set_task_status", { p_tarefa_id: taskId, p_status: "concluida" })).error).not.toBeNull();
     expect((await reception.rpc("soft_delete_task", { p_tarefa_id: taskId })).error).not.toBeNull();
-    for (const target of [inactiveIdentity, orphanIdentity]) { const blocked = await signed(target); expect((await blocked.from("arquivos_paciente").select("id")).data).toEqual([]); expect((await blocked.rpc("create_task", { p_titulo: "QA_RC_negada", p_descricao: null, p_prazo: null, p_responsavel_id: receptionIdentity.id, p_prioridade: "media", p_paciente_id: null, p_agendamento_id: null })).error).not.toBeNull(); }
-    const { data: audit } = await admin.from("auditoria").select("dados").eq("entidade_id", taskId); expect(JSON.stringify(audit)).not.toContain("QA_RC_conteudo_sensivel"); expect(JSON.stringify(audit)).not.toContain("QA_RC_conteudo_alterado");
+    for (const target of [inactiveIdentity, orphanIdentity]) { const blocked = await signed(target); expect((await blocked.from("arquivos_paciente").select("id")).data).toEqual([]); expect((await blocked.rpc("create_task", { p_titulo: "QA_RC_negada", p_descricao: null, p_prazo: null, p_responsavel_id: receptionIdentity.id, p_prioridade: "media", p_paciente_id: null, p_agendamento_id: null })).error).not.toBeNull(); expect((await blocked.rpc("move_task_kanban", { p_tarefa_id: legacyTaskId, p_status: "em_andamento", p_before_id: null, p_after_id: null })).error).not.toBeNull(); }
+    const { data: audit } = await admin.from("auditoria").select("dados").eq("entidade_id", taskId); expect(JSON.stringify(audit)).not.toContain("QA_RC_conteudo_sensivel"); expect(JSON.stringify(audit)).not.toContain("QA_RC_conteudo_alterado"); expect(JSON.stringify(audit)).toContain("ordem_kanban");
   });
 });

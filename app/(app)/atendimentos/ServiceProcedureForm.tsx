@@ -6,21 +6,27 @@ import { initialProcedureActionState } from "@/lib/clinical/action-state";
 import { formatCents } from "@/lib/services/validation";
 import { createServiceProcedure } from "./actions";
 import { ProcedureTeethRetryForm } from "./ProcedureTeethRetryForm";
+import { ProcedurePlanLinkRetryForm } from "./ProcedurePlanLinkRetryForm";
+import type { AvailableTreatmentPlanItem } from "@/lib/treatments/types";
 
 type Service = { id: string; nome: string; valor_padrao_centavos: number };
 
-export function ServiceProcedureForm({ attendanceId, services }: { attendanceId: string; services: Service[] }) {
+export function ServiceProcedureForm({ attendanceId, services, planItems = [] }: { attendanceId: string; services: Service[]; planItems?: AvailableTreatmentPlanItem[] }) {
   const [selected, setSelected] = useState(services[0]?.id ?? "");
   const current = services.find((service) => service.id === selected);
   const [state, action, pending] = useActionState(createServiceProcedure, initialProcedureActionState);
 
+  if (state.planLinkPending && state.procedureId && state.pendingPlanItemId) {
+    return <ProcedurePlanLinkRetryForm attendanceId={attendanceId} procedureId={state.procedureId} planItemId={state.pendingPlanItemId} message={state.error} />;
+  }
   if (state.procedureSaved && state.procedureId && !state.success) {
-    return <ProcedureTeethRetryForm attendanceId={attendanceId} procedureId={state.procedureId} initialTeeth={state.attemptedTeeth ?? []} message={state.error} />;
+    return <ProcedureTeethRetryForm attendanceId={attendanceId} procedureId={state.procedureId} initialTeeth={state.attemptedTeeth ?? []} planItemId={state.pendingPlanItemId} message={state.error} />;
   }
 
   return (
     <form action={action} className="space-y-4 rounded-lg border border-border p-4">
       <input type="hidden" name="attendanceId" value={attendanceId} />
+      {planItems.length > 0 && <label className="block text-sm font-medium">Item do plano de tratamento <span className="font-normal text-muted-foreground">(opcional)</span><select name="planItemId" className="mt-1 h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm"><option value="">Serviço avulso</option>{planItems.map((item) => <option key={item.id} value={item.id}>{item.descricao_snapshot} · restante {item.quantidade_restante}</option>)}</select></label>}
       <div className="grid gap-3 md:grid-cols-[1fr_7rem_9rem]">
         <label className="text-sm font-medium">Serviço
           <select name="serviceId" value={selected} onChange={(event) => setSelected(event.target.value)} required className="mt-1 h-10 w-full rounded-md border border-border bg-input-background px-3 text-sm">

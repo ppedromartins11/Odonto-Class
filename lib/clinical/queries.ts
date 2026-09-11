@@ -5,7 +5,7 @@ import type { Attendance, Procedure } from "./types";
 const ATTENDANCE_FIELDS =
   "id, agendamento_id, paciente_id, profissional_id, iniciado_em, finalizado_em, status, evolucao, created_at, updated_at, created_by, updated_by";
 const PROCEDURE_FIELDS =
-  "id, atendimento_id, descricao, dente, material_utilizado, cor_resina, detalhes, servico_id, quantidade, valor_aplicado_centavos, created_at, updated_at, created_by, updated_by, procedimento_dentes(dente_fdi)";
+  "id, atendimento_id, descricao, dente, material_utilizado, cor_resina, detalhes, servico_id, plano_tratamento_item_id, quantidade, valor_aplicado_centavos, created_at, updated_at, created_by, updated_by, procedimento_dentes(dente_fdi)";
 
 function normalizeProcedure(row: Record<string, unknown>): Procedure {
   const relation = Array.isArray(row.procedimento_dentes)

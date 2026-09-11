@@ -1,66 +1,68 @@
 import { todayInClinic } from "@/lib/agenda/dates";
 import { requireUser } from "@/lib/auth/session";
-import { getTaskSummary, listTaskAssignees, listTasksPage } from "@/lib/operational/queries";
-import { redirect } from "next/navigation";
+import {
+  getTaskFilterPatient,
+  getTaskSummary,
+  listTaskAssignees,
+  listTasksKanban,
+  type TaskKanbanFilters,
+} from "@/lib/operational/queries";
+import type { TaskPriority } from "@/lib/operational/types";
 import { TaskPanel } from "./TaskPanel";
 
-type SearchParams = Promise<{ filtro?: string | string[]; page?: string | string[] }>;
-export type TaskFilter = "todas" | "pendente" | "em_andamento" | "concluida" | "atrasadas" | "minhas";
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function isFilter(value: string | undefined): value is TaskFilter {
-  return value === "todas" || value === "pendente" || value === "em_andamento" || value === "concluida" || value === "atrasadas" || value === "minhas";
+function optionalId(value: string | undefined) {
+  return value && /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(value) ? value : undefined;
 }
 
-function pageNumber(value: string | undefined) {
-  const page = Number(value);
-  return Number.isSafeInteger(page) && page > 0 ? page : 1;
+function priority(value: string | undefined): TaskPriority | undefined {
+  return value === "alta" || value === "media" || value === "baixa" || value === "urgente" ? value : undefined;
 }
 
-function tasksHref(filter: TaskFilter, page = 1) {
-  const params = new URLSearchParams();
-  if (filter !== "todas") params.set("filtro", filter);
-  if (page > 1) params.set("page", String(page));
-  const search = params.toString();
-  return search ? `/tarefas?${search}` : "/tarefas";
+function due(value: string | undefined): TaskKanbanFilters["due"] {
+  return value === "atrasadas" || value === "hoje" || value === "sem_prazo" ? value : undefined;
 }
 
 export default async function TasksPage({ searchParams }: { searchParams: SearchParams }) {
   const user = await requireUser();
   const params = await searchParams;
-  const candidateFilter = first(params.filtro);
-  const filter = isFilter(candidateFilter) ? candidateFilter : "todas";
-  const requestedPage = pageNumber(first(params.page));
   const today = todayInClinic();
-  const [result, summary, assignees] = await Promise.all([
-    listTasksPage({
-      status: filter === "pendente" || filter === "em_andamento" || filter === "concluida" ? filter : undefined,
-      overdue: filter === "atrasadas",
-      assigneeId: filter === "minhas" ? user.id : undefined,
-      page: requestedPage,
-      today,
-    }),
+  const filters: TaskKanbanFilters = {
+    query: first(params.q)?.slice(0, 100),
+    assigneeId: optionalId(first(params.responsavel)),
+    priority: priority(first(params.prioridade)),
+    due: due(first(params.prazo)),
+    patientId: optionalId(first(params.paciente)),
+    mine: first(params.minhas) === "1",
+    includeCancelled: first(params.canceladas) === "1",
+    currentUserId: user.id,
+    today,
+  };
+
+  const [kanban, summary, assignees, selectedPatient] = await Promise.all([
+    listTasksKanban(filters),
     getTaskSummary(today),
     listTaskAssignees(),
+    getTaskFilterPatient(filters.patientId),
   ]);
-  const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
-  if (requestedPage > totalPages) redirect(tasksHref(filter, totalPages));
 
   return (
-    <div className="mx-auto max-w-7xl">
+    <div className="mx-auto max-w-[100rem]">
       <TaskPanel
-        tasks={result.tasks}
-        total={result.total}
-        page={requestedPage}
-        pageSize={result.pageSize}
-        filter={filter}
+        key={Object.values(kanban.columns).flat().map((task) => `${task.id}:${task.status}:${task.ordem_kanban}`).join("|")}
+        columns={kanban.columns}
+        counts={kanban.counts}
         summary={summary}
         assignees={assignees}
         currentUserId={user.id}
         profile={user.perfil}
+        filters={filters}
+        selectedPatient={selectedPatient}
       />
     </div>
   );

@@ -11,6 +11,8 @@ import type { BudgetStatus } from "@/lib/budgets/types";
 import { BudgetEditor } from "../BudgetEditor";
 import { BudgetStatusActions } from "../BudgetStatusActions";
 import { BudgetPdfVersions } from "../BudgetPdfVersions";
+import { getTreatmentPlanByBudget } from "@/lib/treatments/queries";
+import { BudgetTreatmentAction } from "../../tratamentos/TreatmentPlanActions";
 
 const labels: Record<BudgetStatus, string> = {
   rascunho: "Rascunho",
@@ -29,10 +31,11 @@ export default async function BudgetDetailPage({ params }: { params: Promise<{ i
   const budget = await getBudget(id);
   if (!budget) notFound();
 
-  const [patient, professionals, pdfVersions] = await Promise.all([
+  const [patient, professionals, pdfVersions, treatmentPlan] = await Promise.all([
     getPatient(budget.paciente_id),
     listActiveProfessionals(),
     listBudgetPdfVersions(budget.id),
+    getTreatmentPlanByBudget(budget.id, user),
   ]);
   const canRegisterPayment = budget.effective_status === "aprovado"
     && (user.perfil === "administrador" || user.perfil === "recepcao");
@@ -74,7 +77,11 @@ export default async function BudgetDetailPage({ params }: { params: Promise<{ i
               <div className="flex justify-end pt-4 text-base font-semibold">Total: {formatCents(budget.total_centavos)}</div>
             </div>
           </section>
-          <BudgetStatusActions budgetId={budget.id} status={budget.effective_status} />
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <BudgetTreatmentAction budgetId={budget.id} planId={treatmentPlan?.id ?? null} canConvert={budget.effective_status === "aprovado" && (user.perfil === "administrador" || user.perfil === "dentista")} />
+            <BudgetStatusActions budgetId={budget.id} status={budget.effective_status} />
+          </div>
+          {budget.effective_status === "convertido" && !treatmentPlan && <p className="text-sm text-muted-foreground">Conversão comercial legada sem plano clínico associado.</p>}
         </>
       )}
       <BudgetPdfVersions budgetId={budget.id} versions={pdfVersions} />
