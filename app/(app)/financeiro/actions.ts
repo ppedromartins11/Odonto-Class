@@ -1,7 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/auth/session";
+import { requireAdminAal2, requireUser } from "@/lib/auth/session";
 import { isValidUuid } from "@/lib/patients/validation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isPaymentMethod, isPaymentStatus, parsePaymentCents } from "@/lib/financial/validation";
@@ -9,7 +9,7 @@ import type { PaymentActionState, ReceivableActionState } from "@/lib/financial/
 const result = (error: string | null): PaymentActionState => ({ success: !error, error });
 const receivableResult = (error: string | null): ReceivableActionState => ({ success: !error, error });
 export async function registerPayment(_: PaymentActionState, form: FormData): Promise<PaymentActionState> { await requireUser(); const patientId=String(form.get("patientId") ?? form.get("pacienteId") ?? ""); const type=String(form.get("referenceType") ?? "none"); const referenceId=String(form.get("referenceId") ?? ""); const cents=parsePaymentCents(form.get("valueCents")); const method=String(form.get("method") ?? ""); const date=String(form.get("date") ?? ""); if(!isValidUuid(patientId)||!cents||!isPaymentMethod(method)||!/^\d{4}-\d{2}-\d{2}$/.test(date)||(type!=="none"&&type!=="atendimento"&&type!=="orcamento")||(type!=="none"&&!isValidUuid(referenceId))) return result("Revise os dados do pagamento."); const supabase=await createSupabaseServerClient(); const {error}=await supabase.rpc("create_payment",{p_paciente_id:patientId,p_atendimento_id:type==="atendimento"?referenceId:null,p_orcamento_id:type==="orcamento"?referenceId:null,p_valor_centavos:cents,p_forma:method,p_data_pagamento:date,p_observacao_administrativa:String(form.get("observation")??"")||null}); if(error)return result("Não foi possível registrar o pagamento."); revalidatePath("/financeiro");revalidatePath(`/pacientes/${patientId}`);redirect("/financeiro"); }
-export async function changePaymentStatus(_: PaymentActionState, form: FormData): Promise<PaymentActionState> { const user=await requireUser(); if(user.perfil!=="administrador") return result("Ação não autorizada."); const id=String(form.get("paymentId")??"");const patientId=String(form.get("patientId")??"");const status=String(form.get("status")??""); if(!isValidUuid(id)||!isPaymentStatus(status)||status==="pago")return result("Status inválido.");const supabase=await createSupabaseServerClient();const {error}=await supabase.rpc("set_payment_status",{p_pagamento_id:id,p_status:status});if(error)return result("Não foi possível alterar o pagamento.");revalidatePath("/financeiro");if(isValidUuid(patientId))revalidatePath(`/pacientes/${patientId}`);return result(null); }
+export async function changePaymentStatus(_: PaymentActionState, form: FormData): Promise<PaymentActionState> { const user=await requireUser(); if(user.perfil!=="administrador") return result("Ação não autorizada."); await requireAdminAal2("/financeiro"); const id=String(form.get("paymentId")??"");const patientId=String(form.get("patientId")??"");const status=String(form.get("status")??""); if(!isValidUuid(id)||!isPaymentStatus(status)||status==="pago")return result("Status inválido.");const supabase=await createSupabaseServerClient();const {error}=await supabase.rpc("set_payment_status",{p_pagamento_id:id,p_status:status});if(error)return result("Não foi possível alterar o pagamento.");revalidatePath("/financeiro");if(isValidUuid(patientId))revalidatePath(`/pacientes/${patientId}`);return result(null); }
 
 export async function createFinancialReceivable(_: ReceivableActionState, form: FormData): Promise<ReceivableActionState> {
   const user = await requireUser();
@@ -62,6 +62,7 @@ export async function registerInstallmentPayment(_: ReceivableActionState, form:
 export async function cancelFinancialReceivable(_: ReceivableActionState, form: FormData): Promise<ReceivableActionState> {
   const user = await requireUser();
   if (user.perfil !== "administrador") return receivableResult("Ação não autorizada.");
+  await requireAdminAal2("/financeiro");
   const receivableId = String(form.get("receivableId") ?? "");
   const patientId = String(form.get("patientId") ?? "");
   if (!isValidUuid(receivableId)) return receivableResult("Recebível inválido.");

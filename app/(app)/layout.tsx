@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/auth/session";
+import { requireAdminAal2, requireUser } from "@/lib/auth/session";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 
@@ -14,6 +14,7 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const usuario = await requireUser();
+  if (usuario.perfil === "administrador") await requireAdminAal2("/dashboard");
 
   return (
     <>

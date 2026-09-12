@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/auth/session";
+import { requireAdminAal2, requireUser } from "@/lib/auth/session";
 import { isValidUuid } from "@/lib/patients/validation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isStockMovementType, isStockUnit, isValidIsoDate, parseStockQuantity } from "@/lib/stock/validation";
@@ -28,6 +28,7 @@ function readMaterial(form: FormData, requireInitial: boolean) {
 
 export async function createStockMaterial(_: StockActionState, form: FormData): Promise<StockActionState> {
   const user = await requireUser(); if (user.perfil !== "administrador") return result("Ação não autorizada.");
+  await requireAdminAal2("/estoque");
   const data = readMaterial(form, true); if (Object.keys(data.errors).length) return result("Revise os dados do material.", data.errors);
   const supabase = await createSupabaseServerClient();
   const { data: material, error } = await supabase.rpc("create_stock_material", { p_nome: data.nome, p_categoria: data.categoria, p_unidade: data.unidade, p_quantidade_inicial: data.initial, p_estoque_minimo: data.minimo, p_validade: data.validade, p_fornecedor: data.fornecedor, p_ativo: form.get("ativo") === "true" });
@@ -38,6 +39,7 @@ export async function createStockMaterial(_: StockActionState, form: FormData): 
 
 export async function updateStockMaterial(_: StockActionState, form: FormData): Promise<StockActionState> {
   const user = await requireUser(); if (user.perfil !== "administrador") return result("Ação não autorizada.");
+  await requireAdminAal2("/estoque");
   const id = clean(form.get("materialId")); if (!isValidUuid(id)) return result("Material inválido.");
   const data = readMaterial(form, false); if (Object.keys(data.errors).length) return result("Revise os dados do material.", data.errors);
   const supabase = await createSupabaseServerClient();
@@ -51,6 +53,7 @@ export async function registerStockMovement(_: StockActionState, form: FormData)
   if (!isValidUuid(materialId) || !isStockMovementType(type) || quantity === null) return result("Revise os dados da movimentação.");
   if (type === "entrada" && user.perfil === "dentista") return result("Entrada não autorizada.");
   if (type === "ajuste" && user.perfil !== "administrador") return result("Ajuste não autorizado.");
+  if (type === "ajuste") await requireAdminAal2("/estoque");
   if ((type === "ajuste" || (type === "saida" && user.perfil === "dentista")) && motive.length < 2) return result("Informe o motivo da movimentação.", { motivo: "Motivo obrigatório." });
   if (motive.length > 500 || clean(form.get("referencia")).length > 120) return result("Revise os textos informados.");
   const supabase = await createSupabaseServerClient();
@@ -61,6 +64,7 @@ export async function registerStockMovement(_: StockActionState, form: FormData)
 
 export async function setStockMaterialActive(_: StockActionState, form: FormData): Promise<StockActionState> {
   const user = await requireUser(); if (user.perfil !== "administrador") return result("Ação não autorizada.");
+  await requireAdminAal2("/estoque");
   const id = clean(form.get("materialId")); const active = clean(form.get("ativo")); if (!isValidUuid(id) || (active !== "true" && active !== "false")) return result("Material inválido.");
   const supabase = await createSupabaseServerClient(); const { error } = await supabase.rpc("set_stock_material_active", { p_material_id: id, p_ativo: active === "true" });
   if (error) return result("Não foi possível alterar o status do material.");

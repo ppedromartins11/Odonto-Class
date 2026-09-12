@@ -190,6 +190,17 @@ limpando somente o que for criado no roteiro.
   viewport móvel; tabelas não podem transbordar fora do contêiner, drawers
   fecham e formulários permanecem utilizáveis.
 
+## Sprint 22.1: MFA/AAL2 administrativo
+
+- `auth-mfa.domain.test.ts` cobre a decisao entre setup, challenge e acesso
+  AAL2, alem de rejeitar retornos externos.
+- A homologacao manual deve usar somente a conta administrativa ficticia:
+  cadastrar TOTP, validar AAL2, repetir o login, confirmar o challenge e
+  testar uma mutacao administrativa em AAL1 (negada) e AAL2 (permitida).
+- As suites remotas que exercitam RPCs administrativas precisam autenticar a
+  fixture administrativa em AAL2; o codigo TOTP, segredo, JWT e tokens nunca
+  podem ser impressos nos logs de teste.
+
 ## Sprint 15: Validade, lotes e esterilizacao
 
 - Unitarios cobrem hoje, +30 dias, vencido, valido, esgotado, data invalida,

@@ -96,7 +96,27 @@ Implementado:
   de "e admin?" acontece no server action ANTES de chamar a API
   privilegiada - nunca dependemos so da tela estar escondida do menu.
 
-Ainda nao implementado: MFA (PAV-20, gate de go-live). O modulo de arquivos
+## MFA/AAL2 administrativo (Sprint 22.1)
+
+Administradores ativos precisam atingir AAL2 com TOTP oficial do Supabase
+antes de acessar a area autenticada ou executar mutacoes administrativas
+sensíveis. O fluxo usa `/auth/mfa/setup` para cadastrar um fator e
+`/auth/mfa/challenge` para confirmar um fator ja verificado. Dentista e
+recepcao mantem o fluxo de autenticacao atual.
+
+O segredo TOTP e o QR Code existem somente em memoria no navegador durante o
+cadastro; nao sao registrados no banco da aplicacao, auditoria ou logs. As
+RPCs que ja exigiam exclusivamente administrador validam o claim JWT `aal` no
+banco e retornam apenas `MFA_REQUIRED` para sessao AAL1. Operacoes
+compartilhadas com dentista ou recepcao preservam o RBAC anterior.
+
+Nao ha recuperacao publica de MFA. Em perda total do autenticador, a clinica
+deve validar a identidade por procedimento externo e um operador autorizado
+deve remover o fator pela Admin API ou Console do Supabase; a nova sessao
+volta ao setup. A service role jamais vai ao navegador. Recomenda-se cadastrar
+um segundo autenticador TOTP de backup.
+
+O modulo de arquivos
 ja limita PDF/JPEG/PNG a 10 MiB, valida MIME, extensao e magic bytes e usa
 bucket privado com URL assinada temporaria.
 

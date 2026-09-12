@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/auth/session";
+import { requireAdminAal2, requireUser } from "@/lib/auth/session";
 import { isValidUuid } from "@/lib/patients/validation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { DomainActionState } from "@/lib/validity/types";
@@ -11,6 +11,7 @@ const state = (error: string | null): DomainActionState => ({ success: !error, e
 
 export async function createEquipment(_: DomainActionState, form: FormData): Promise<DomainActionState> {
   const user = await requireUser(); if (user.perfil !== "administrador") return state("Ação não autorizada.");
+  await requireAdminAal2("/esterilizacao");
   const name = clean(form.get("nome")); const identification = clean(form.get("identificacao")); if (name.length < 2 || identification.length < 2) return state("Informe nome e identificação do equipamento.");
   const supabase = await createSupabaseServerClient(); const { error } = await supabase.rpc("create_sterilization_equipment", { p_nome: name, p_identificacao: identification, p_modelo: clean(form.get("modelo")) || null, p_fabricante: clean(form.get("fabricante")) || null, p_numero_serie: clean(form.get("numeroSerie")) || null });
   if (error) return state("Não foi possível cadastrar o equipamento. Confira a identificação."); revalidatePath("/esterilizacao"); return state(null);
@@ -18,12 +19,14 @@ export async function createEquipment(_: DomainActionState, form: FormData): Pro
 
 export async function setEquipmentActive(_: DomainActionState, form: FormData): Promise<DomainActionState> {
   const user = await requireUser(); if (user.perfil !== "administrador") return state("Ação não autorizada."); const id = clean(form.get("equipmentId")); if (!isValidUuid(id)) return state("Equipamento inválido.");
+  await requireAdminAal2("/esterilizacao");
   const supabase = await createSupabaseServerClient(); const { error } = await supabase.rpc("set_sterilization_equipment_active", { p_equipamento_id: id, p_ativo: clean(form.get("active")) === "true" });
   if (error) return state("Não foi possível alterar o equipamento. Verifique ciclos em andamento."); revalidatePath("/esterilizacao"); return state(null);
 }
 
 export async function updateEquipment(_: DomainActionState, form: FormData): Promise<DomainActionState> {
   const user = await requireUser(); if (user.perfil !== "administrador") return state("Ação não autorizada.");
+  await requireAdminAal2("/esterilizacao");
   const id = clean(form.get("equipmentId")); const name = clean(form.get("nome")); const identification = clean(form.get("identificacao"));
   const model = clean(form.get("modelo")); const manufacturer = clean(form.get("fabricante")); const serialNumber = clean(form.get("numeroSerie"));
   if (!isValidUuid(id) || name.length < 2 || name.length > 150 || identification.length < 2 || identification.length > 100 || model.length > 120 || manufacturer.length > 120 || serialNumber.length > 120) return state("Revise os dados do equipamento.");

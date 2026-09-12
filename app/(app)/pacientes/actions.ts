@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireAdmin, requireUser } from "@/lib/auth/session";
+import { requireAdminAal2, requireUser } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   isValidUuid,
@@ -132,8 +132,8 @@ export async function updatePatientClinicalAlerts(
 export async function setPatientActive(
   formData: FormData
 ): Promise<PatientActionState> {
-  await requireAdmin();
   const patientId = String(formData.get("patientId") ?? "");
+  await requireAdminAal2(`/pacientes/${patientId}`);
   const active = String(formData.get("active") ?? "") === "true";
   if (!isValidUuid(patientId)) {
     return { success: false, error: "Paciente inválido." };

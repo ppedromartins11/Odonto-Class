@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/auth/session";
+import { requireAdminAal2, requireUser } from "@/lib/auth/session";
 import { isValidUuid } from "@/lib/patients/validation";
 import { parseCents, parsePositiveInteger } from "@/lib/services/validation";
 import type { ServiceActionState } from "@/lib/services/types";
@@ -27,6 +27,7 @@ function readService(formData: FormData) {
 export async function createService(_: ServiceActionState, formData: FormData): Promise<ServiceActionState> {
   const user = await requireUser();
   if (user.perfil !== "administrador") return result("Ação não autorizada.");
+  await requireAdminAal2("/servicos");
   const input = readService(formData);
   if (Object.keys(input.fieldErrors).length || input.cents === null) return result("Revise os dados do serviço.", input.fieldErrors);
   const supabase = await createSupabaseServerClient();
@@ -39,6 +40,7 @@ export async function updateService(_: ServiceActionState, formData: FormData): 
   const user = await requireUser();
   const serviceId = clean(formData.get("serviceId"));
   if (user.perfil !== "administrador" || !isValidUuid(serviceId)) return result("Ação não autorizada.");
+  await requireAdminAal2(`/servicos/${serviceId}`);
   const input = readService(formData);
   if (Object.keys(input.fieldErrors).length || input.cents === null) return result("Revise os dados do serviço.", input.fieldErrors);
   const supabase = await createSupabaseServerClient();
@@ -51,6 +53,7 @@ export async function updateService(_: ServiceActionState, formData: FormData): 
 export async function setServiceActive(_: ServiceActionState, formData: FormData): Promise<ServiceActionState> {
   const user = await requireUser(); const serviceId = clean(formData.get("serviceId")); const active = clean(formData.get("ativo"));
   if (user.perfil !== "administrador" || !isValidUuid(serviceId) || !["true", "false"].includes(active)) return result("Ação não autorizada.");
+  await requireAdminAal2(`/servicos/${serviceId}`);
   const supabase = await createSupabaseServerClient(); const { error } = await supabase.rpc("set_service_active", { p_servico_id: serviceId, p_ativo: active === "true" });
   if (error) return result("Não foi possível alterar o status do serviço.");
   revalidatePath("/servicos"); revalidatePath(`/servicos/${serviceId}`); return result(null);
@@ -59,6 +62,7 @@ export async function setServiceActive(_: ServiceActionState, formData: FormData
 export async function configureServiceMaterial(_: ServiceActionState, formData: FormData): Promise<ServiceActionState> {
   const user = await requireUser(); const serviceId = clean(formData.get("serviceId")); const materialId = clean(formData.get("materialId")); const quantity = parsePositiveInteger(formData.get("quantidade"));
   if (user.perfil !== "administrador" || !isValidUuid(serviceId) || !isValidUuid(materialId) || quantity === null) return result("Revise os dados do material.");
+  await requireAdminAal2(`/servicos/${serviceId}`);
   const supabase = await createSupabaseServerClient(); const { error } = await supabase.rpc("configure_service_material", { p_servico_id: serviceId, p_material_id: materialId, p_quantidade_padrao: quantity, p_ativo: true });
   if (error) return result("Não foi possível salvar a composição. Verifique se o material está ativo.");
   revalidatePath(`/servicos/${serviceId}`); return result(null);
@@ -67,6 +71,7 @@ export async function configureServiceMaterial(_: ServiceActionState, formData: 
 export async function setServiceMaterialActive(_: ServiceActionState, formData: FormData): Promise<ServiceActionState> {
   const user = await requireUser(); const serviceId = clean(formData.get("serviceId")); const id = clean(formData.get("serviceMaterialId")); const active = clean(formData.get("ativo"));
   if (user.perfil !== "administrador" || !isValidUuid(serviceId) || !isValidUuid(id) || !["true", "false"].includes(active)) return result("Ação não autorizada.");
+  await requireAdminAal2(`/servicos/${serviceId}`);
   const supabase = await createSupabaseServerClient(); const { error } = await supabase.rpc("set_service_material_active", { p_servico_material_id: id, p_ativo: active === "true" });
   if (error) return result("Não foi possível alterar a composição.");
   revalidatePath(`/servicos/${serviceId}`); return result(null);

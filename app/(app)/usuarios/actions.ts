@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdmin } from "@/lib/auth/session";
+import { requireAdminAal2 } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getSiteUrl } from "@/lib/config/site";
@@ -27,7 +27,7 @@ export async function createUsuario(
   _prevState: CreateUsuarioState,
   formData: FormData
 ): Promise<CreateUsuarioState> {
-  const actor = await requireAdmin();
+  const actor = await requireAdminAal2("/usuarios");
 
   const nome = String(formData.get("nome") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim();
@@ -84,7 +84,7 @@ function isPerfilUsuario(value: string): value is PerfilUsuario {
 export async function updateUsuarioAccess(
   formData: FormData
 ): Promise<UpdateUsuarioAccessState> {
-  const actor = await requireAdmin();
+  const actor = await requireAdminAal2("/usuarios");
 
   const usuarioId = String(formData.get("usuarioId") ?? "").trim();
   const perfilRaw = String(formData.get("perfil") ?? "").trim();
@@ -196,7 +196,7 @@ export async function updateUsuarioAccess(
 export async function updateUsuarioProfile(
   formData: FormData
 ): Promise<UpdateUsuarioProfileState> {
-  await requireAdmin();
+  await requireAdminAal2("/usuarios");
   const usuarioId = String(formData.get("usuarioId") ?? "").trim();
   if (!usuarioId) return { error: "Usuário inválido.", success: false };
 

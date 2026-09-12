@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getCurrentUserState } from "@/lib/auth/session";
+import { getAdminMfaState, getCurrentUserState } from "@/lib/auth/session";
 import type { LoginState } from "./types";
 
 export async function signInWithPassword(
@@ -36,5 +36,11 @@ export async function signInWithPassword(
     };
   }
 
+  if (state.user.perfil === "administrador") {
+    const mfa = await getAdminMfaState();
+    if (mfa === "unavailable") redirect("/auth/mfa/setup?next=%2Fdashboard&error=assurance_unavailable");
+    if (mfa === "setup") redirect("/auth/mfa/setup?next=%2Fdashboard");
+    if (mfa === "challenge") redirect("/auth/mfa/challenge?next=%2Fdashboard");
+  }
   redirect("/dashboard");
 }

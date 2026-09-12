@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/auth/session";
+import { requireAdminAal2, requireUser } from "@/lib/auth/session";
 import { isValidUuid } from "@/lib/patients/validation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { DomainActionState } from "@/lib/validity/types";
@@ -14,6 +14,7 @@ const nonNegativeQuantity = (value: FormDataEntryValue | null) => { const parsed
 
 export async function setLotControl(_: DomainActionState, form: FormData): Promise<DomainActionState> {
   const user = await requireUser(); if (user.perfil !== "administrador") return state("Ação não autorizada.");
+  await requireAdminAal2("/validade");
   const materialId = clean(form.get("materialId")); const enabled = clean(form.get("enabled")) === "true";
   const code = clean(form.get("codigoLote")); const validity = clean(form.get("validade")); const manufacture = clean(form.get("fabricacao")); const supplier = clean(form.get("fornecedor"));
   if (!isValidUuid(materialId)) return state("Material inválido.");
@@ -45,6 +46,7 @@ export async function registerLotExit(_: DomainActionState, form: FormData): Pro
 
 export async function setLotActive(_: DomainActionState, form: FormData): Promise<DomainActionState> {
   const user = await requireUser(); if (user.perfil !== "administrador") return state("Ação não autorizada.");
+  await requireAdminAal2("/validade");
   const lotId = clean(form.get("lotId")); const active = clean(form.get("active")) === "true"; if (!isValidUuid(lotId)) return state("Lote inválido.");
   const supabase = await createSupabaseServerClient(); const { error } = await supabase.rpc("set_stock_lot_active", { p_lote_id: lotId, p_ativo: active });
   if (error) return state("Não foi possível alterar o lote. Lotes com saldo não podem ser inativados.");
@@ -53,6 +55,7 @@ export async function setLotActive(_: DomainActionState, form: FormData): Promis
 
 export async function updateLotMetadata(_: DomainActionState, form: FormData): Promise<DomainActionState> {
   const user = await requireUser(); if (user.perfil !== "administrador") return state("Ação não autorizada.");
+  await requireAdminAal2("/validade");
   const lotId = clean(form.get("lotId")); const code = clean(form.get("codigoLote")); const validity = clean(form.get("validade")); const manufacture = clean(form.get("fabricacao"));
   if (!isValidUuid(lotId) || !code || !isoDate(validity) || (manufacture && !isoDate(manufacture))) return state("Revise os metadados do lote.");
   const supabase = await createSupabaseServerClient(); const { error } = await supabase.rpc("update_stock_lot_metadata", { p_lote_id: lotId, p_codigo_lote: code, p_data_validade: validity, p_data_fabricacao: manufacture || null, p_fornecedor: clean(form.get("fornecedor")) || null });
@@ -62,6 +65,7 @@ export async function updateLotMetadata(_: DomainActionState, form: FormData): P
 
 export async function adjustLotStock(_: DomainActionState, form: FormData): Promise<DomainActionState> {
   const user = await requireUser(); if (user.perfil !== "administrador") return state("Ação não autorizada.");
+  await requireAdminAal2("/validade");
   const lotId = clean(form.get("lotId")); const materialId = clean(form.get("materialId")); const amount = nonNegativeQuantity(form.get("quantidade")); const motive = clean(form.get("motivo"));
   if (!isValidUuid(lotId) || !isValidUuid(materialId) || amount === null || motive.length < 2) return state("Informe a nova contagem e o motivo do ajuste.");
   const supabase = await createSupabaseServerClient(); const { error } = await supabase.rpc("adjust_stock_lot", { p_material_id: materialId, p_lote_id: lotId, p_nova_quantidade: amount, p_motivo: motive, p_referencia: clean(form.get("referencia")) || null });

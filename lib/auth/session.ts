@@ -2,6 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getAdminMfaRequirement, safeMfaReturnPath } from "./mfa";
 
 export type PerfilUsuario = "administrador" | "dentista" | "recepcao";
 
@@ -12,6 +13,8 @@ export type UsuarioAtual = {
   perfil: PerfilUsuario;
   status: "ativo" | "inativo";
 };
+
+export type AdminMfaState = "setup" | "challenge" | "ready" | "unavailable";
 
 export type CurrentUserState =
   | { kind: "authenticated"; user: UsuarioAtual }
@@ -118,4 +121,29 @@ export async function requireAdmin(): Promise<UsuarioAtual> {
   }
 
   return usuario;
+}
+
+/**
+ * Consulta a garantia da sessao, e nao a simples existencia de um fator.
+ * Esta funcao e server-side para que layouts e Server Actions compartilhem
+ * exatamente a mesma decisao de redirecionamento.
+ */
+export async function getAdminMfaState(): Promise<AdminMfaState> {
+  await requireAdmin();
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  // Falhar fechado: sem conseguir confirmar o AAL, um administrador nao pode
+  // prosseguir para uma area protegida.
+  if (error) return "unavailable";
+  return getAdminMfaRequirement(data?.currentLevel, data?.nextLevel);
+}
+
+export async function requireAdminAal2(nextPath = "/dashboard"): Promise<UsuarioAtual> {
+  const usuario = await requireAdmin();
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (!error && data?.currentLevel === "aal2") return usuario;
+  const next = encodeURIComponent(safeMfaReturnPath(nextPath));
+  if (error) redirect(`/auth/mfa/setup?next=${next}&error=assurance_unavailable`);
+  redirect(data?.nextLevel === "aal2" ? `/auth/mfa/challenge?next=${next}` : `/auth/mfa/setup?next=${next}`);
 }
