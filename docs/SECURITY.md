@@ -62,7 +62,7 @@ serem tratados como definitivos.
 | Logs | Nunca registrar dado clinico sensivel em logs de aplicacao/erro. |
 | Auditoria | Tabela `auditoria` append-only criada na migration `0002`. Eventos de identidade/acesso da Sprint 1.5 estao fechados em PAV-18; eventos clinicos entram antes do modulo correspondente. |
 | Uploads | Bucket privado `arquivos-paciente`; PDF/JPEG/PNG ate 10 MiB, URL assinada temporaria de cinco minutos e autorizacao server-side. |
-| Backups | Backups automaticos do Postgres gerenciado; teste de restauracao obrigatorio antes de producao (RNF-07). |
+| Backups | Backups automaticos do Postgres gerenciado; teste de restauracao obrigatorio antes de producao (RNF-07). Ver `docs/BACKUP_RESTORE.md`. |
 | Retencao | Prontuario odontologico normalmente tem prazo minimo de retencao legal - **prazo exato requer validacao profissional**. |
 | Exclusao | Exclusao logica por padrao; exclusao fisica de prontuario esta desabilitada por decisao (PAV-17) e **requer validacao profissional** antes de qualquer mudanca. |
 | Exposicao de dados sensiveis | Minimizacao de campos coletados (PAV-09); segregacao entre dado administrativo e clinico onde possivel. |

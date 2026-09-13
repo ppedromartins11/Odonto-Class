@@ -27,6 +27,9 @@
 supabase/.branches
 supabase/.temp
 
+# disaster-recovery artifacts generated locally; never version dumps or backups
+/.dr/
+
 # misc
 .DS_Store
 *.pem

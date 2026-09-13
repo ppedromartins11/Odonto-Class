@@ -136,10 +136,11 @@ token do CLI nao estiver disponivel.
 
 ## Backup e recuperacao (RNF-07)
 
-A definir formalmente quando o banco definitivo existir (Sprint 1 em
-diante): a politica de backup do plano Supabase escolhido deve ser
-revisada e um teste de restauracao deve ser feito antes de qualquer uso
-com dados reais.
+O procedimento, escopo e evidencia da prova de restore isolada estao em
+`docs/BACKUP_RESTORE.md`. Antes de dados reais ou producao, configurar a
+rotina aprovada de backup logico e Storage fisico, armazenamento criptografado
+fora da maquina de origem, retencao, reconstrucao de configuracoes externas e
+DR Drill trimestral.
 
 ## Estado na Sprint 0
 
