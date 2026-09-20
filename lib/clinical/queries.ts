@@ -1,6 +1,15 @@
 import "server-only";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { Attendance, Procedure } from "./types";
+import type {
+  Attendance,
+  AttendanceClinicalMaterials,
+  ClinicalLotOption,
+  ClinicalMaterialConsumption,
+  ClinicalMaterialOption,
+  ClinicalMaterialSuggestion,
+  Procedure,
+} from "./types";
+import { sortClinicalLotsByExpiry } from "./material-consumption";
 
 const ATTENDANCE_FIELDS =
   "id, agendamento_id, paciente_id, profissional_id, iniciado_em, finalizado_em, status, evolucao, created_at, updated_at, created_by, updated_by";
@@ -152,4 +161,113 @@ export async function getProcedure(id: string): Promise<Procedure | null> {
     .maybeSingle();
   if (error) clinicalFailure("PROCEDURE_LOAD_FAILED", error.code);
   return data ? normalizeProcedure(data as Record<string, unknown>) : null;
+}
+
+function relationOne<T>(value: unknown): T | null {
+  if (Array.isArray(value)) return (value[0] as T | undefined) ?? null;
+  return (value as T | null) ?? null;
+}
+
+export async function getAttendanceClinicalMaterials(
+  attendanceId: string
+): Promise<AttendanceClinicalMaterials> {
+  const supabase = await createSupabaseServerClient();
+  const [consumptionsResult, suggestionsResult, materialsResult] = await Promise.all([
+    supabase
+      .from("consumos_clinicos_materiais")
+      .select(
+        "id,procedimento_id,procedimento_material_consumo_id,material_id,lote_id,quantidade,created_at,estornado_em,movimentacao_estoque_id,movimentacao_lote_id,movimentacao_estorno_id,procedimentos!inner(atendimento_id),materiais_estoque!inner(nome,unidade),lote:materiais_lotes!consumos_clinicos_materiais_lote_id_fkey(codigo_lote,data_validade)"
+      )
+      .eq("procedimentos.atendimento_id", attendanceId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("procedimento_materiais_consumo")
+      .select(
+        "id,procedimento_id,material_id,quantidade_total,procedimentos!inner(atendimento_id),materiais_estoque!inner(nome,unidade,controla_lote_validade)"
+      )
+      .eq("procedimentos.atendimento_id", attendanceId)
+      .order("created_at"),
+    supabase
+      .from("materiais_estoque")
+      .select("id,nome,unidade,quantidade_atual,controla_lote_validade")
+      .eq("ativo", true)
+      .order("nome"),
+  ]);
+
+  const queryError =
+    consumptionsResult.error ?? suggestionsResult.error ?? materialsResult.error;
+  if (queryError) clinicalFailure("CLINICAL_MATERIALS_LOAD_FAILED", queryError.code);
+
+  const consumptions = (consumptionsResult.data ?? []).map((item) => {
+    const material = relationOne<{ nome: string; unidade: string }>(item.materiais_estoque);
+    const lot = relationOne<{ codigo_lote: string; data_validade: string }>(item.lote);
+    return {
+      id: item.id,
+      procedimento_id: item.procedimento_id,
+      procedimento_material_consumo_id: item.procedimento_material_consumo_id,
+      material_id: item.material_id,
+      material_nome: material?.nome ?? "Material indisponível",
+      unidade: material?.unidade ?? "unidade",
+      lote_id: item.lote_id,
+      lote_codigo: lot?.codigo_lote ?? null,
+      lote_validade: lot?.data_validade ?? null,
+      quantidade: item.quantidade,
+      created_at: item.created_at,
+      estornado_em: item.estornado_em,
+      movimentacao_estoque_id: item.movimentacao_estoque_id,
+      movimentacao_lote_id: item.movimentacao_lote_id,
+      movimentacao_estorno_id: item.movimentacao_estorno_id,
+    } satisfies ClinicalMaterialConsumption;
+  });
+
+  const activeSnapshotIds = new Set(
+    consumptions
+      .filter((item) => item.estornado_em === null)
+      .map((item) => item.procedimento_material_consumo_id)
+      .filter((id): id is string => id !== null)
+  );
+  const suggestions = (suggestionsResult.data ?? []).map((item) => {
+    const material = relationOne<{
+      nome: string;
+      unidade: string;
+      controla_lote_validade: boolean;
+    }>(item.materiais_estoque);
+    return {
+      id: item.id,
+      procedimento_id: item.procedimento_id,
+      material_id: item.material_id,
+      material_nome: material?.nome ?? "Material indisponível",
+      unidade: material?.unidade ?? "unidade",
+      quantidade_prevista: item.quantidade_total,
+      controla_lote_validade: material?.controla_lote_validade ?? false,
+      consumo_ativo_registrado: activeSnapshotIds.has(item.id),
+    } satisfies ClinicalMaterialSuggestion;
+  });
+
+  return {
+    consumptions,
+    suggestions,
+    materials: (materialsResult.data ?? []) as ClinicalMaterialOption[],
+  };
+}
+
+export async function listAvailableClinicalLots(
+  materialId: string
+): Promise<ClinicalLotOption[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data: today, error: todayError } = await supabase.rpc("clinic_today");
+  if (todayError || typeof today !== "string") {
+    clinicalFailure("CLINICAL_LOTS_DATE_FAILED", todayError?.code);
+  }
+  const { data, error } = await supabase
+    .from("materiais_lotes")
+    .select("id,material_id,codigo_lote,data_validade,quantidade_atual")
+    .eq("material_id", materialId)
+    .eq("ativo", true)
+    .gt("quantidade_atual", 0)
+    .gte("data_validade", today)
+    .order("data_validade")
+    .order("codigo_lote");
+  if (error) clinicalFailure("CLINICAL_LOTS_LOAD_FAILED", error.code);
+  return sortClinicalLotsByExpiry((data ?? []) as ClinicalLotOption[]);
 }

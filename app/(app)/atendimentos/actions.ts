@@ -6,7 +6,16 @@ import { requireUser } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { DomainActionState } from "@/lib/agenda/types";
 import { validateEvolution, validateProcedureFormData } from "@/lib/clinical/validation";
-import type { ProcedureActionState } from "@/lib/clinical/types";
+import { listAvailableClinicalLots } from "@/lib/clinical/queries";
+import {
+  mapClinicalMaterialError,
+  parseClinicalQuantity,
+} from "@/lib/clinical/material-consumption";
+import type {
+  ClinicalLotOption,
+  ClinicalMaterialActionState,
+  ProcedureActionState,
+} from "@/lib/clinical/types";
 import { parseFdiTeeth, type FdiTooth } from "@/lib/odontogram/fdi";
 import { isValidUuid } from "@/lib/patients/validation";
 import { parseCents, parsePositiveInteger } from "@/lib/services/validation";
@@ -84,6 +93,114 @@ async function requireDentist() {
   return user.perfil === "dentista" ? user : null;
 }
 
+function optionalUuid(value: FormDataEntryValue | null) {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) return { value: null, valid: true } as const;
+  return isValidUuid(normalized)
+    ? ({ value: normalized, valid: true } as const)
+    : ({ value: null, valid: false } as const);
+}
+
+export async function loadAvailableClinicalLots(
+  materialId: string
+): Promise<{ lots: ClinicalLotOption[]; error: string | null }> {
+  if (!(await requireDentist()) || !isValidUuid(materialId)) {
+    return { lots: [], error: "Não foi possível carregar os lotes deste material." };
+  }
+  try {
+    return { lots: await listAvailableClinicalLots(materialId), error: null };
+  } catch {
+    return { lots: [], error: "Não foi possível carregar os lotes disponíveis." };
+  }
+}
+
+export async function recordClinicalMaterialConsumption(
+  _previousState: ClinicalMaterialActionState,
+  formData: FormData
+): Promise<ClinicalMaterialActionState> {
+  if (!(await requireDentist())) {
+    return { success: false, error: "Acesso clínico restrito a dentista." };
+  }
+  const attendanceId = String(formData.get("attendanceId") ?? "");
+  const procedureId = String(formData.get("procedureId") ?? "");
+  const materialId = String(formData.get("materialId") ?? "");
+  const lot = optionalUuid(formData.get("lotId"));
+  const snapshot = optionalUuid(formData.get("snapshotId"));
+  const quantity = parseClinicalQuantity(formData.get("quantity"));
+  const fieldErrors: Record<string, string> = {};
+  if (!isValidUuid(attendanceId) || !isValidUuid(procedureId)) {
+    return { success: false, error: "Atendimento ou procedimento inválido." };
+  }
+  if (!isValidUuid(materialId)) fieldErrors.materialId = "Selecione um material.";
+  if (!lot.valid) fieldErrors.lotId = "Selecione um lote válido.";
+  if (!snapshot.valid) fieldErrors.materialId = "A previsão selecionada é inválida.";
+  if (quantity === null) fieldErrors.quantity = "Informe uma quantidade inteira a partir de 1.";
+  if (Object.keys(fieldErrors).length > 0) {
+    return { success: false, error: "Revise os campos destacados.", fieldErrors };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("record_clinical_material_consumption", {
+    p_procedimento_id: procedureId,
+    p_material_id: materialId,
+    p_lote_id: lot.value,
+    p_quantidade: quantity,
+    p_procedimento_material_consumo_id: snapshot.value,
+  });
+  if (error) {
+    console.error("Falha na RPC record_clinical_material_consumption", {
+      code: error.code,
+    });
+    return {
+      success: false,
+      error: mapClinicalMaterialError(error.code, error.message),
+    };
+  }
+  revalidatePath(`/atendimentos/${attendanceId}`);
+  revalidatePath("/estoque");
+  revalidatePath("/validade");
+  return {
+    success: true,
+    error: null,
+    notice: "Material registrado e saldo atualizado.",
+  };
+}
+
+export async function reverseClinicalMaterialConsumption(
+  _previousState: ClinicalMaterialActionState,
+  formData: FormData
+): Promise<ClinicalMaterialActionState> {
+  if (!(await requireDentist())) {
+    return { success: false, error: "Acesso clínico restrito a dentista." };
+  }
+  const attendanceId = String(formData.get("attendanceId") ?? "");
+  const consumptionId = String(formData.get("consumptionId") ?? "");
+  if (!isValidUuid(attendanceId) || !isValidUuid(consumptionId)) {
+    return { success: false, error: "Consumo ou atendimento inválido." };
+  }
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("reverse_clinical_material_consumption", {
+    p_consumo_id: consumptionId,
+  });
+  if (error) {
+    console.error("Falha na RPC reverse_clinical_material_consumption", {
+      code: error.code,
+    });
+    return {
+      success: false,
+      error: mapClinicalMaterialError(error.code, error.message),
+    };
+  }
+  revalidatePath(`/atendimentos/${attendanceId}`);
+  revalidatePath("/estoque");
+  revalidatePath("/validade");
+  return {
+    success: true,
+    error: null,
+    notice: "Consumo estornado e estoque devolvido.",
+  };
+}
+
 export async function startAttendance(
   _previousState: DomainActionState,
   formData: FormData
@@ -158,7 +275,7 @@ export async function finalizeAttendance(
   });
   if (error || !data) {
     console.error("Falha na RPC finalize_attendance", { code: error?.code });
-    if (error?.message?.includes("LOT_CONTROLLED_CLINICAL_CONSUMPTION_PENDING")) return { success: false, error: "Este atendimento usa material controlado por lote. A baixa clínica automática por lote ficará disponível em uma etapa futura; registre o consumo operacional antes de finalizar." };
+    if (error?.message?.includes("LOT_CONTROLLED_CLINICAL_CONSUMPTION_PENDING")) return { success: false, error: "Há material controlado por lote sem consumo efetivo. Registre-o em Materiais utilizados antes de finalizar." };
     if (error?.code === "P0001") return { success: false, error: "Não é possível finalizar porque há material inativo ou estoque insuficiente. Revise o resumo de consumo." };
     return { success: false, error: clinicalError(error?.code) };
   }

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-const QA_EMAIL_PREFIXES = ["qa_rc_", "qa_svc_", "qa_odo_", "qa_est_", "qa_orc_", "qa_fin_", "qa_vld_", "qa_ster_", "qa_doc_"];
-const QA_TEXT_PREFIXES = ["QA_RC_", "QA_SVC_", "QA_ODO_", "QA_EST_", "QA_ORC_", "QA_FIN_", "QA_VLD_", "QA_STER_", "QA_DOC_"];
+const QA_EMAIL_PREFIXES = ["qa_rc_", "qa_svc_", "qa_odo_", "qa_est_", "qa_orc_", "qa_fin_", "qa_vld_", "qa_ster_", "qa_doc_", "qa_0029_"];
+const QA_TEXT_PREFIXES = ["QA_RC_", "QA_SVC_", "QA_ODO_", "QA_EST_", "QA_ORC_", "QA_FIN_", "QA_VLD_", "QA_STER_", "QA_DOC_", "QA_0029_"];
 
 function required(name: string) {
   const value = process.env[name];
@@ -104,6 +104,17 @@ describe("limpeza de fixtures QA da homologacao", () => {
     expect(procedureMovementRows.error).toBeNull();
     const movementIds = [...new Set([...(movementRows.data ?? []), ...(procedureMovementRows.data ?? [])].map((row) => row.id))];
 
+    const clinicalConsumptionFilters = [
+      procedureIds.length ? `procedimento_id.in.(${procedureIds.join(",")})` : "",
+      movementIds.length ? `movimentacao_estoque_id.in.(${movementIds.join(",")})` : "",
+      movementIds.length ? `movimentacao_estorno_id.in.(${movementIds.join(",")})` : "",
+    ].filter(Boolean).join(",");
+    const clinicalConsumptionRows = clinicalConsumptionFilters
+      ? await service.from("consumos_clinicos_materiais").select("id").or(clinicalConsumptionFilters)
+      : { data: [], error: null };
+    expect(clinicalConsumptionRows.error).toBeNull();
+    const clinicalConsumptionIds = (clinicalConsumptionRows.data ?? []).map((row) => row.id);
+
     const lotRows = materialIds.length
       ? await service.from("materiais_lotes").select("id").in("material_id", materialIds)
       : { data: [], error: null };
@@ -172,6 +183,7 @@ describe("limpeza de fixtures QA da homologacao", () => {
     if (cycleIds.length) await deleteWhereIds(service, "pacotes_esterilizacao", "ciclo_id", cycleIds);
     if (cycleIds.length) await deleteWhereIds(service, "ciclos_esterilizacao", "id", cycleIds);
     if (equipmentIds.length) await deleteWhereIds(service, "equipamentos_esterilizacao", "id", equipmentIds);
+    if (clinicalConsumptionIds.length) await deleteWhereIds(service, "consumos_clinicos_materiais", "id", clinicalConsumptionIds);
     if (movementIds.length) await deleteWhereIds(service, "movimentacoes_lotes", "movimentacao_id", movementIds);
     if (movementIds.length) await deleteWhereIds(service, "movimentacoes_estoque", "id", movementIds);
     if (lotIds.length) await deleteWhereIds(service, "materiais_lotes", "id", lotIds);
@@ -222,5 +234,5 @@ describe("limpeza de fixtures QA da homologacao", () => {
         expect(count, `residuos ${prefix} em ${table}`).toBe(0);
       }
     }
-  }, 60_000);
+  }, 120_000);
 });

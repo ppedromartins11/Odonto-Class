@@ -165,6 +165,7 @@ describe("Sprint 13: servicos, consumo de estoque e finalizacao atomica", () => 
   afterAll(async () => {
     if (!service) return;
     const userIds = users.map((item) => item.id);
+    if (procedureIds.length) await service.from("consumos_clinicos_materiais").delete().in("procedimento_id", procedureIds);
     if (materialIds.length) {
       const { data: lots } = await service.from("materiais_lotes").select("id").in("material_id", materialIds);
       const lotIds = (lots ?? []).map((item) => item.id);
