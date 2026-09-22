@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useState } from "react";
 import { PatientPicker } from "@/app/(app)/agenda/PatientPicker";
 import { initialPaymentActionState, type PaymentReference } from "@/lib/financial/types";
+import { todayInClinic } from "@/lib/agenda/dates";
 import { registerPayment } from "./actions";
 
 type PatientOption = { id: string; nome: string; telefone_contato: string | null };
@@ -75,7 +76,7 @@ export function PaymentForm({ patient, initialReference }: { patient?: PatientOp
             <input type="hidden" name="referenceId" value={selectedPatient ? referenceId : ""} />
           </label>
           <label className="text-sm">Data
-            <input name="date" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} className="mt-1 block h-10 w-full rounded border bg-background px-3" />
+            <input name="date" type="date" required defaultValue={todayInClinic()} className="mt-1 block h-10 w-full rounded border bg-background px-3" />
           </label>
           <label className="text-sm">Valor (R$)
             <input type="number" min="0.01" step="0.01" required onChange={(event) => setCents(Math.round(Number(event.target.value) * 100))} className="mt-1 block h-10 w-full rounded border bg-background px-3" />

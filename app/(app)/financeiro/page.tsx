@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { DollarSign, Plus } from "lucide-react";
 import { requireUser } from "@/lib/auth/session";
+import { todayInClinic } from "@/lib/agenda/dates";
 import { formatCents, isPaymentMethod, isPaymentStatus } from "@/lib/financial/validation";
 import { getPaymentSummary, listFinancialReceivables, listPayments } from "@/lib/financial/queries";
 import type { PaymentMethod, PaymentStatus } from "@/lib/financial/types";
@@ -23,7 +24,7 @@ export default async function FinancialPage({ searchParams }: { searchParams: Se
   const status: PaymentStatus | undefined = isPaymentStatus(p.status ?? "") ? p.status as PaymentStatus : undefined;
   const receivableStatus: ReceivableStatus | undefined = ["pendente", "parcialmente_pago", "pago", "cancelado"].includes(p.recebivel ?? "") ? p.recebivel as ReceivableStatus : undefined;
   const receivablePage = Math.max(1, Number(p.recebivelPage ?? "1") || 1);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayInClinic();
   const firstDay = `${today.slice(0, 7)}-01`;
   const [result, summary, receivables] = await Promise.all([
     listPayments({ query: p.q ?? "", patientId: p.paciente, startDate: p.inicio, endDate: p.fim, method, status, page }),

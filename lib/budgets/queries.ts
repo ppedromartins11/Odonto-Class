@@ -1,5 +1,6 @@
 import "server-only";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { todayInClinic } from "@/lib/agenda/dates";
 import type { Budget, BudgetDetail, BudgetItem, BudgetPdfVersion, BudgetStatus } from "./types";
 
 const BUDGET_FIELDS = "id,numero,paciente_id,profissional_id,data_orcamento,validade_em,observacao_administrativa,status,total_centavos,created_at,pacientes!inner(nome),profissionais!inner(usuarios!inner(nome))";
@@ -10,7 +11,7 @@ function fail(scope: string, code?: string): never {
 }
 
 function effectiveStatus(status: BudgetStatus, validity: string | null): BudgetStatus {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayInClinic();
   return status === "enviado" && validity !== null && validity < today ? "expirado" : status;
 }
 
@@ -34,7 +35,7 @@ export async function listBudgets({ status, patientId, page, pageSize = 20 }: { 
   let query = supabase.from("orcamentos").select(BUDGET_FIELDS, { count: "exact" }).order("data_orcamento", { ascending: false }).order("numero", { ascending: false });
   if (status && status !== "expirado") query = query.eq("status", status);
   if (patientId) query = query.eq("paciente_id", patientId);
-  if (status === "expirado") query = query.eq("status", "enviado").lt("validade_em", new Date().toISOString().slice(0, 10));
+  if (status === "expirado") query = query.eq("status", "enviado").lt("validade_em", todayInClinic());
   const from = (page - 1) * pageSize;
   const { data, error, count } = await query.range(from, from + pageSize - 1);
   if (error) fail("BUDGET_LIST_FAILED", error.code);

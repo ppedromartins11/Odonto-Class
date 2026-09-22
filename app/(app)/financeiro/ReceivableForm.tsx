@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useState } from "react";
 import { PatientPicker } from "@/app/(app)/agenda/PatientPicker";
 import { initialReceivableActionState, type PaymentReference } from "@/lib/financial/types";
+import { todayInClinic } from "@/lib/agenda/dates";
 import { createFinancialReceivable } from "./actions";
 
 type PatientOption = { id: string; nome: string; telefone_contato: string | null };
@@ -27,7 +28,7 @@ export function ReceivableForm() {
 
   const referenceType = reference === "none" ? "none" : reference.split(":")[0];
   const referenceId = reference === "none" ? "" : reference.split(":")[1];
-  const firstDueDate = new Date().toISOString().slice(0, 10);
+  const firstDueDate = todayInClinic();
   const handlePatient = (nextPatient: PatientOption | null) => {
     setPatient(nextPatient);
     setReferences([]);
