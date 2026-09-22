@@ -14,7 +14,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:integration": "vitest run --config vitest.integration.config.mts"
+    "test:integration": "vitest run --config vitest.integration.config.mts",
+    "seed:homologacao": "node --env-file=.env.local --env-file=.env.test.local scripts/seed-homologacao.mjs",
+    "cleanup:homologacao": "node --env-file=.env.local --env-file=.env.test.local scripts/cleanup-homologacao.mjs",
+    "repair:homologacao-kanban": "node --env-file=.env.local --env-file=.env.test.local scripts/repair-seed-kanban-order.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",
