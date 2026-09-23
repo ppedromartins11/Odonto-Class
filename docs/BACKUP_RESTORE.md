@@ -162,3 +162,25 @@ isso nao representa falha do restore isolado.
 Veredito: **DISASTER RECOVERY VALIDADO** para a estrategia manual documentada
 e o escopo comprovado em homologacao ficticia. Nao e autorizacao automatica
 para producao nem substitui DR Drill periodico.
+
+## Evidencia complementar da migration 0029 — 2026-09-20
+
+O laboratorio local isolado foi reconstruido pelas migrations `0001` a
+`0029`. Um consumo clinico estritamente ficticio foi registrado pela RPC e um
+backup logico foi restaurado em uma segunda base descartavel dentro do mesmo
+ambiente Docker, sem conexao de escrita com a homologacao remota.
+
+No destino restaurado foram confirmados: migration `0029`, tabela
+`consumos_clinicos_materiais`, as RPCs
+`record_clinical_material_consumption` e
+`reverse_clinical_material_consumption`, RLS ativa, policy de leitura do
+dentista responsavel e grants de execucao somente para `authenticated` e
+`service_role` (sem `anon`/`PUBLIC`). A cadeia procedimento -> snapshot
+previsto -> material -> lote -> movimentacao de estoque -> movimentacao de
+lote permaneceu integra, sem FKs orfas.
+
+O restore precisa preservar ACLs: uma tentativa diagnostica com
+`--no-privileges` recriou o schema, mas deliberadamente nao serviu como prova
+de grants. A prova valida restaurou pre-data, data e post-data com ownership
+removido, mas manteve privilegios. A fixture complementar foi removida ao
+reconstruir o laboratorio no baseline; nenhum dado ou dump foi versionado.
