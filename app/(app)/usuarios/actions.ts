@@ -109,88 +109,134 @@ export async function updateUsuarioAccess(
     return { error: "Nenhuma alteração foi informada.", success: false };
   }
 
-  const supabase = await createSupabaseServerClient();
-  const admin = createSupabaseAdminClient();
-
-  if (status === "ativo") {
-    const { error: unbanError } = await admin.auth.admin.updateUserById(usuarioId, {
-      ban_duration: "none",
-    });
-
-    if (unbanError) {
-      console.error("Falha ao reativar conta Auth", {
-        status: unbanError.status,
-        code: unbanError.code,
-      });
-      return {
-        error: "Não foi possível reativar a conta de acesso.",
-        success: false,
-      };
-    }
-  }
-
-  const { error: accessError } = await supabase.rpc("update_user_access", {
-    p_usuario_id: usuarioId,
-    p_perfil: perfil,
-    p_status: status,
-  });
-
-  if (accessError) {
-    if (status === "ativo") {
-      const { error: compensationError } =
-        await admin.auth.admin.updateUserById(usuarioId, {
-          ban_duration: "876000h",
-        });
-      if (compensationError) {
-        console.error("Falha na compensacao da reativacao Auth", {
-          status: compensationError.status,
-          code: compensationError.code,
-        });
-      }
-    }
-
-    console.error("Falha na RPC update_user_access", {
-      code: accessError.code,
-    });
-    if (accessError.code === "23514" || accessError.code === "42501") {
-      await recordAuditEvent({
-        usuarioId: actor.id,
-        evento: "acao_administrativa_negada",
-        entidade: "usuarios",
-        entidadeId: usuarioId,
-        dados: { motivo_codigo: accessError.code },
-      });
-    }
+  if (
+    usuarioId === actor.id &&
+    (status === "inativo" || (perfil !== null && perfil !== "administrador"))
+  ) {
     return {
-      error:
-        accessError.code === "23514" || accessError.code === "42501"
-          ? "A alteração foi recusada pelas regras de segurança administrativa."
-          : "Não foi possível alterar o acesso do usuário.",
+      error: "Sua própria conta administrativa não pode ser desativada ou rebaixada.",
       success: false,
     };
   }
 
-  if (status === "inativo") {
-    const { error: banError } = await admin.auth.admin.updateUserById(usuarioId, {
-      ban_duration: "876000h",
+  let stage = "inicializacao";
+  let accessUpdated = false;
+  try {
+    const supabase = await createSupabaseServerClient();
+    const admin = createSupabaseAdminClient();
+
+    if (status === "ativo") {
+      stage = "reativacao_auth";
+      const { error: unbanError } = await admin.auth.admin.updateUserById(usuarioId, {
+        ban_duration: "none",
+      });
+
+      if (unbanError) {
+        console.error("Falha ao reativar conta Auth", {
+          status: unbanError.status,
+          code: unbanError.code,
+        });
+        return {
+          error: "Não foi possível reativar a conta de acesso.",
+          success: false,
+        };
+      }
+    }
+
+    stage = "rpc_update_user_access";
+    const { error: accessError } = await supabase.rpc("update_user_access", {
+      p_usuario_id: usuarioId,
+      p_perfil: perfil,
+      p_status: status,
     });
 
-    if (banError) {
-      console.error("Falha ao suspender conta Auth", {
-        status: banError.status,
-        code: banError.code,
+    if (accessError) {
+      if (status === "ativo") {
+        stage = "compensacao_auth";
+        const { error: compensationError } =
+          await admin.auth.admin.updateUserById(usuarioId, {
+            ban_duration: "876000h",
+          });
+        if (compensationError) {
+          console.error("Falha na compensacao da reativacao Auth", {
+            status: compensationError.status,
+            code: compensationError.code,
+          });
+        }
+      }
+
+      console.error("Falha na RPC update_user_access", {
+        code: accessError.code,
       });
-      revalidatePath("/usuarios");
+      if (accessError.code === "23514" || accessError.code === "42501") {
+        await recordAuditEvent({
+          usuarioId: actor.id,
+          evento: "acao_administrativa_negada",
+          entidade: "usuarios",
+          entidadeId: usuarioId,
+          dados: { motivo_codigo: accessError.code },
+        });
+      }
+      return {
+        error:
+          accessError.code === "23514" || accessError.code === "42501"
+            ? "A alteração foi recusada pelas regras de segurança administrativa."
+            : accessError.code === "P0002"
+              ? "Usuário não encontrado. Atualize a lista e tente novamente."
+              : "Não foi possível alterar o acesso do usuário.",
+        success: false,
+      };
+    }
+    accessUpdated = true;
+
+    if (status === "inativo") {
+      stage = "suspensao_auth";
+      const { error: banError } = await admin.auth.admin.updateUserById(usuarioId, {
+        ban_duration: "876000h",
+      });
+
+      if (banError) {
+        console.error("Falha ao suspender conta Auth", {
+          status: banError.status,
+          code: banError.code,
+        });
+        revalidatePath("/usuarios");
+        return {
+          error:
+            "O acesso aos dados foi bloqueado, mas a suspensão da conta precisa ser tentada novamente.",
+          success: false,
+        };
+      }
+    }
+
+    stage = "revalidacao";
+    revalidatePath("/usuarios");
+    return { error: null, success: true };
+  } catch (error) {
+    console.error("Falha inesperada ao alterar acesso de usuario", {
+      stage,
+      name: error instanceof Error ? error.name : "UnknownError",
+    });
+    if (stage === "revalidacao") {
+      return { error: null, success: true };
+    }
+    if (accessUpdated && status === "inativo") {
+      try {
+        revalidatePath("/usuarios");
+      } catch {
+        // O acesso no banco ja esta bloqueado; a tela atualiza no proximo refresh.
+      }
       return {
         error:
           "O acesso aos dados foi bloqueado, mas a suspensão da conta precisa ser tentada novamente.",
         success: false,
       };
     }
+    return {
+      error: "Não foi possível alterar o acesso agora. Tente novamente.",
+      success: false,
+    };
   }
-
-  revalidatePath("/usuarios");
-  return { error: null, success: true };
 }
 
 export async function updateUsuarioProfile(
