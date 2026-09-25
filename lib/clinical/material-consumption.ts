@@ -25,6 +25,10 @@ export function isClinicalConsumptionReversed(
 export function mapClinicalMaterialError(code?: string, message?: string) {
   const normalized = (message ?? "").toUpperCase();
 
+  if (normalized === "LOT_CONTROL_LEGACY_REVERSAL_DENIED") {
+    return "Este consumo foi registrado sem lote e não pode ser estornado após a ativação do controle por lote. Solicite a revisão do estoque ao administrador.";
+  }
+
   if (normalized.includes("MATERIAL CONTROLADO EXIGE LOTE")) {
     return "Selecione um lote válido para este material.";
   }

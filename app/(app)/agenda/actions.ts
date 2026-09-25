@@ -83,7 +83,9 @@ export async function updateAppointment(
   });
   if (error) {
     console.error("Falha na RPC update_appointment", { code: error.code });
-    return { success: false, error: agendaError(error.code) };
+    return { success: false, error: error.message === "ATTENDANCE_ALREADY_STARTED"
+      ? "O atendimento já foi iniciado. Não é possível trocar seu paciente ou profissional."
+      : agendaError(error.code) };
   }
   revalidatePath("/agenda");
   revalidatePath(`/agenda/${appointmentId}/editar`);

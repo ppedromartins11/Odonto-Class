@@ -375,3 +375,15 @@ As RPCs novas são `list_document_author_attendances`,
 `create_official_document` e `register_budget_pdf_version`. DML direto é
 revogado. `create_document_metadata` permanece para compatibilidade do schema,
 mas sem `EXECUTE` para `authenticated`.
+
+## Sprint 22.7 — delta aditivo pendente de homologação remota
+
+`0030_release_authorization_hardening.sql` adiciona `convites_provisionamento`
+(RLS sem DML de cliente; token hash, email único normalizado, perfil, autor,
+expiração e consumo), RPCs `prepare_user_invitation`, `revoke_user_invitation`
+e `get_document_download_path`; endurece trigger Auth, agenda, ajuste, cancelamento
+e auditoria; revoga todos overloads de `update_budget_status`.
+
+`0031_lot_transition_consistency.sql` atualiza a implementação interna da
+ativação de lotes e o estorno clínico, preservando wrapper AAL2 e invariantes.
+Nenhuma alteração nas migrations 0001–0029. [Detalhes](SPRINT_22_7.md).

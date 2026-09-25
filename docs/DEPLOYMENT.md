@@ -1,5 +1,15 @@
 # Deploy
 
+## Gate da Sprint 22.7 — obrigatório antes do próximo deploy
+
+**DESABILITAR SIGNUP PÚBLICO no Supabase Auth, manualmente, e verificar
+`disable_signup=true`.** A configuração remota não foi alterada nesta Sprint.
+Convites passam por autorização SQL de administrador AAL2. As migrations
+0030/0031 foram testadas localmente e ainda aguardam revisão/aplicação remota.
+O RC anterior não deve ser considerado seguro para release.
+
+Plano exato de homologação, compatibilidade e cleanup: [Sprint 22.7](SPRINT_22_7.md).
+
 ## Release candidate atual
 
 O release candidate inclui Auth, Usuarios, Dashboard, Pacientes, Agenda,

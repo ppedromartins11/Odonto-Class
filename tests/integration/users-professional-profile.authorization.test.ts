@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { createQaAdmin } from "./helpers";
+import { createQaUser, createQaAdmin } from "./helpers";
 
 const ACK = "I_ACKNOWLEDGE_FAKE_DATA_ONLY";
 type Role = "administrador" | "recepcao" | "dentista";
@@ -16,7 +16,7 @@ async function login(url: string, anon: string, identity: Pick<Identity, "email"
 async function createIdentity(role: Role) {
   const suffix = randomUUID();
   const email = `qa_usr_${role}_${suffix}@example.com`; const password = `Tmp-${randomUUID()}-A9!`;
-  const { data, error } = await service.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { nome: `QA_USR_${role}_${suffix}`, perfil: role, created_by: adminId } });
+  const { data, error } = await createQaUser(service, { email, password, email_confirm: true, user_metadata: { nome: `QA_USR_${role}_${suffix}`, perfil: role, created_by: adminId } });
   if (error || !data.user) throw error ?? new Error("QA_USR usuario ausente.");
   const identity = { id: data.user.id, email, password, role }; users.push(identity); return identity;
 }

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { MAX_UPLOAD_BYTES, safeUpload } from "../../lib/operational/validation";
-import { createQaAdmin } from "./helpers";
+import { createQaUser, createQaAdmin } from "./helpers";
 
 type Role = "administrador" | "dentista" | "recepcao";
 type Identity = { id: string; email: string; password: string; role: Role };
@@ -15,7 +15,7 @@ let returnId: string, appointmentId: string, taskId: string, clinicalFileId: str
 function required(name: string) { const value = process.env[name]; if (!value) throw new Error(`${name} nao configurada em .env.test.local.`); return value; }
 function client() { return createClient(url, anon, { auth: { autoRefreshToken: false, persistSession: false } }); }
 async function signed(identity: Pick<Identity, "email" | "password">) { const result = client(); expect((await result.auth.signInWithPassword(identity)).error).toBeNull(); return result; }
-async function identity(role: Role) { const suffix = randomUUID(); const candidate = { email: `qa_rc_operacional-${role}-${suffix}@example.com`, password: `Tmp-${randomUUID()}-A9!`, role }; const { data, error } = await service.auth.admin.createUser({ email: candidate.email, password: candidate.password, email_confirm: true, user_metadata: { nome: `QA_RC_Usuario_operacional_${suffix}`, perfil: role, created_by: adminId } }); if (error || !data.user) throw error ?? new Error("Usuario ficticio ausente."); const result = { ...candidate, id: data.user.id }; users.push(result); return result; }
+async function identity(role: Role) { const suffix = randomUUID(); const candidate = { email: `qa_rc_operacional-${role}-${suffix}@example.com`, password: `Tmp-${randomUUID()}-A9!`, role }; const { data, error } = await createQaUser(service, { email: candidate.email, password: candidate.password, email_confirm: true, user_metadata: { nome: `QA_RC_Usuario_operacional_${suffix}`, perfil: role, created_by: adminId } }); if (error || !data.user) throw error ?? new Error("Usuario ficticio ausente."); const result = { ...candidate, id: data.user.id }; users.push(result); return result; }
 function slot(hours: number) { const start = new Date(Date.now() + hours * 60 * 60 * 1000); const value = (date: Date) => date.toISOString().slice(0, 16); return { start: value(start), end: value(new Date(start.getTime() + 60 * 60 * 1000)) }; }
 function pathFor(patient: string, document = false) { const path = document ? `${patient}/documentos/${randomUUID()}.pdf` : `${patient}/${randomUUID()}.pdf`; paths.push(path); return path; }
 

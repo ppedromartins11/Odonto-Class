@@ -27,10 +27,10 @@ export async function createUsuario(
   _prevState: CreateUsuarioState,
   formData: FormData
 ): Promise<CreateUsuarioState> {
-  const actor = await requireAdminAal2("/usuarios");
+  await requireAdminAal2("/usuarios");
 
   const nome = String(formData.get("nome") ?? "").trim();
-  const email = String(formData.get("email") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const perfil = String(formData.get("perfil") ?? "") as PerfilUsuario;
 
   if (!nome || !email) {
@@ -41,23 +41,30 @@ export async function createUsuario(
     return { error: "Selecione um perfil válido.", success: false };
   }
 
-  const admin = createSupabaseAdminClient();
-
-  const { data: invited, error: inviteError } =
-    await admin.auth.admin.inviteUserByEmail(email, {
-      data: {
-        nome,
-        perfil,
-        created_by: actor.id,
-      },
+  const supabase = await createSupabaseServerClient();
+  let invitationId: string | undefined;
+  try {
+    const { data: authorization, error } = await supabase.rpc("prepare_user_invitation", {
+      p_email: email, p_nome: nome, p_perfil: perfil,
+    });
+    if (error || !authorization?.id || !authorization?.token) throw new Error("InvitationUnavailable");
+    invitationId = authorization.id;
+    const admin = createSupabaseAdminClient();
+    const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
+      data: { provisioning_token: authorization.token },
       redirectTo: `${getSiteUrl()}/auth/confirm`,
     });
-
-  if (inviteError || !invited.user) {
-    console.error("Falha ao convidar usuario", {
-      status: inviteError?.status,
-      code: inviteError?.code,
-    });
+    if (inviteError || !invited.user) throw new Error("InvitationUnavailable");
+  } catch {
+    // Revoga somente nossa autorizacao ainda nao consumida; se o Auth concluiu,
+    // uma falha de transporte nao desfaz nem reabre o provisionamento.
+    if (invitationId) {
+      try {
+        await supabase.rpc("revoke_user_invitation", { p_convite_id: invitationId });
+      } catch {
+        // A autorizacao tambem expira em 30 minutos, sem privilegios por metadata.
+      }
+    }
     return {
       error: "Não foi possível enviar o convite. Verifique o e-mail e tente novamente.",
       success: false,

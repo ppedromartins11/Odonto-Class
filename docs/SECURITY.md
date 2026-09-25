@@ -1,5 +1,23 @@
 # Seguranca e LGPD
 
+## Hardening da Sprint 22.7 — implantação remota pendente
+
+0030 separa autorização de metadata e binário documental: atestados/legado
+genérico só para dentista autor; declarações factuais sem CID preservam acesso
+administrativo. RPC legada de status de orçamento perde EXECUTE. Agenda não
+troca paciente/profissional após atendimento iniciado; retorno de atendimento
+confere novamente autoria/paciente. Ajuste de estoque, cancelamento de plano e
+leitura de auditoria exigem AAL2 no banco.
+
+Provisionamento usa autorização de convite criada por admin AAL2, token de uso
+único, hash persistido, expiração e e-mail normalizado. Nenhum privilégio deriva
+de user_metadata. Desabilitar signup público manualmente é gate obrigatório
+antes do próximo deploy, além da proteção estrutural. Não foi alterado remotamente.
+
+0031 bloqueia ativação de lotes com consumo sem lote ainda reversível e impede
+estorno legado incompatível, sem reconstruir rastreabilidade histórica.
+Detalhes e evidências de teste: [Sprint 22.7](SPRINT_22_7.md).
+
 ## Matriz do modulo Estoque (Sprint 12)
 
 | Acao | Administrador ativo | Recepcao ativa | Dentista ativo | Inativo/sem perfil |

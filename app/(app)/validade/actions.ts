@@ -21,7 +21,9 @@ export async function setLotControl(_: DomainActionState, form: FormData): Promi
   if (enabled && validity && !isoDate(validity)) return state("Informe uma validade válida.", { validade: "Data inválida." });
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("set_stock_lot_control", { p_material_id: materialId, p_controla: enabled, p_codigo_lote_inicial: code || null, p_data_validade: validity || null, p_data_fabricacao: manufacture || null, p_fornecedor: supplier || null });
-  if (error) return state(error.message.includes("lote inicial") ? "Informe o lote inicial para representar o saldo físico atual." : "Não foi possível alterar o controle por lote. Confira o saldo e os lotes existentes.");
+  if (error) return state(error.message === "LOT_CONTROL_PENDING_REVERSIBLE_CONSUMPTION"
+    ? "Estorne os consumos sem lote dos atendimentos em andamento antes de ativar o controle por lote."
+    : error.message.includes("lote inicial") ? "Informe o lote inicial para representar o saldo físico atual." : "Não foi possível alterar o controle por lote. Confira o saldo e os lotes existentes.");
   revalidatePath("/estoque"); revalidatePath(`/estoque/${materialId}`); revalidatePath("/validade"); return state(null);
 }
 

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { createQaAdmin } from "./helpers";
+import { createQaUser, createQaAdmin } from "./helpers";
 
 const ACK = "I_ACKNOWLEDGE_FAKE_DATA_ONLY";
 const PREFIX = "QA_TRAT_";
@@ -19,7 +19,7 @@ async function login(identity: Pick<Identity, "email" | "password">) { const cli
 async function createIdentity(role: Role) {
   const suffix = randomUUID();
   const identity = { email: `qa_trat_${role}_${suffix}@example.com`, password: `Tmp-${randomUUID()}-A9!`, role };
-  const { data, error } = await service.auth.admin.createUser({ email: identity.email, password: identity.password, email_confirm: true, user_metadata: { nome: `${PREFIX}${role}_${suffix}`, perfil: role, created_by: adminId } });
+  const { data, error } = await createQaUser(service, { email: identity.email, password: identity.password, email_confirm: true, user_metadata: { nome: `${PREFIX}${role}_${suffix}`, perfil: role, created_by: adminId } });
   if (error || !data.user) throw error ?? new Error("Usuario QA_TRAT nao criado.");
   const result = { ...identity, id: data.user.id }; users.push(result); return result;
 }

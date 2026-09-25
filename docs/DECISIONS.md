@@ -1,5 +1,19 @@
 # Registro de Decisoes (ADR resumido)
 
+## Sprint 22.7 — autorização de binários e provisionamento confiável
+
+- Downloads de atestado/legado genérico ficam restritos ao dentista autor;
+  metadata administrativa é preservada. Sem segunda versão de PDF nesta Sprint.
+- `inviteUserByEmail` instalado só aceita user_metadata: adotado registro de
+  convite autorizado por admin AAL2, e-mail normalizado e token aleatório de uso
+  único com hash/expiração. Perfil e autor vêm do registro SQL, não do payload.
+- O Auth preenche `invited_at` depois do INSERT; a prova no trigger é o token
+  secreto da autorização, e não esse campo ou o e-mail isolado.
+- Ativação de lotes deve esperar a resolução de consumos sem lote reversíveis.
+  Histórico finalizado não bloqueia; estorno incompatível falha sem mudar saldo.
+- 0001–0029 imutáveis; correções aditivas 0030/0031. Aplicação remota e desligamento
+  manual de signup ainda pendentes. [Plano de homologação](SPRINT_22_7.md).
+
 ## PAV-25 - Odontograma FDI da Sprint 14
 
 - A primeira versão relaciona 0..N dentes permanentes FDI ao procedimento; não

@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
+import { authorizeQaProvisioner, createQaUser, elevateQaAdminToAal2 } from "../tests/integration/helpers.ts";
 import { assertHomologationEnvironment } from "./homologation-safety.mjs";
 
+const qaFactors = [];
 const PREFIX = "HOMOLOG_SEED_";
 const ACK = "I_ACKNOWLEDGE_FAKE_DATA_ONLY";
 const phaseArgument = process.argv.find((argument) => argument.startsWith("--phase="));
@@ -42,7 +44,7 @@ async function ensureIdentity(service, admin, creatorId, { key, name, role, cro 
   let user = listed.data.users.find((candidate) => candidate.email === email);
   const password = `Tmp-${randomUUID()}-A9!`;
   if (!user) {
-    const created = await service.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { nome: name, perfil: role, created_by: creatorId, seed_homologacao: PREFIX } });
+    const created = await createQaUser(service, { email, password, email_confirm: true, user_metadata: { nome: name, perfil: role, created_by: creatorId, seed_homologacao: PREFIX } });
     if (created.error || !created.data.user) fail("auth.createUser", created.error);
     user = created.data.user;
   } else {
@@ -72,12 +74,11 @@ async function main() {
   const url = assertEnvironment();
   const service = createClient(url, required("SUPABASE_TEST_SERVICE_ROLE_KEY"), { auth: { autoRefreshToken: false, persistSession: false } });
   await assertKanbanSchema(service);
-  const { data: existingAdmins, error: adminError } = await service.from("usuarios").select("id").eq("perfil", "administrador").eq("status", "ativo").limit(1);
-  if (adminError || !existingAdmins?.[0]) throw new Error("Homologação sem administrador ativo para provisionamento seguro.");
-  const bootstrapId = existingAdmins[0].id;
-  const bootstrap = await ensureIdentity(service, null, bootstrapId, { key: `${PREFIX}ADMIN`, name: "Admin Homologação", role: "administrador" });
-  // update_user_profile requer sessão autenticada de administrador; a identidade seed passa a ser o ator de todas as RPCs de domínio.
+  const provisioner = await authorizeQaProvisioner(service, required("SUPABASE_TEST_URL"), required("SUPABASE_TEST_ANON_KEY"));
+  qaFactors.push({ session: provisioner.session, factorId: provisioner.factorId });
+  const bootstrap = await ensureIdentity(service, null, provisioner.id, { key: `${PREFIX}ADMIN`, name: "HOMOLOG_SEED_Admin", role: "administrador" });
   const admin = bootstrap.session;
+  qaFactors.push({ session: admin, factorId: await elevateQaAdminToAal2(admin) });
   const fullSeed = phase === "full";
   const dentistA = fullSeed ? await ensureIdentity(service, admin, bootstrap.id, { key: `${PREFIX}DENTISTA_MARIANA`, name: "Dra. Mariana Souza", role: "dentista", cro: "HOMOLOG-CRO-1001" }) : null;
   const dentistB = fullSeed ? await ensureIdentity(service, admin, bootstrap.id, { key: `${PREFIX}DENTISTA_RAFAEL`, name: "Dr. Rafael Mendes", role: "dentista", cro: "HOMOLOG-CRO-1002" }) : null;
@@ -207,4 +208,22 @@ async function main() {
   console.log(JSON.stringify({ fase: phase, pacientes: patients.length, agendamentos: appointments.length, tarefas: tasksForPhase.length + (fullSeed ? 1 : 0), servicos: servicesForPhase.length, materiais: materialIds.length, retornos: fullSeed ? 1 : 0, orcamentos: fullSeed ? 1 : 0, recebiveis: fullSeed ? 1 : 0, equipamentos_esterilizacao: fullSeed ? 1 : 0, ciclos_esterilizacao: fullSeed ? 1 : 0, usuarios_seed: fullSeed ? 4 : 1 }, null, 2));
 }
 
-main().catch((error) => { console.error(`SEED_HOMOLOGACAO_FALHOU: ${error.message}`); process.exitCode = 1; });
+// O helper assume o fator durante a elevacao; esta lista assume somente os
+// fatores devolvidos com sucesso. Cleanup tenta todos sem substituir a causa.
+let seedError;
+try {
+  await main();
+} catch (error) {
+  seedError = error;
+} finally {
+  for (const { session, factorId } of qaFactors.reverse()) {
+    try {
+      const removed = await session.auth.mfa.unenroll({ factorId });
+      if (removed.error) throw new Error("Falha ao remover fator temporario QA.");
+    } catch {
+      console.error("QA_MFA_CLEANUP_FAILED: falha ao remover fator desta execucao.");
+      seedError ??= new Error("Falha ao remover fator temporario QA.");
+    }
+  }
+}
+if (seedError) { console.error(`SEED_HOMOLOGACAO_FALHOU: ${seedError.message}`); process.exitCode = 1; }

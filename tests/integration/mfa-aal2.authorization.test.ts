@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { createQaAdmin, type QaIdentity } from "./helpers";
+import { createQaUser, createQaAdmin, type QaIdentity } from "./helpers";
 
 const url = process.env.SUPABASE_TEST_URL;
 const anon = process.env.SUPABASE_TEST_ANON_KEY;
@@ -27,7 +27,7 @@ maybeDescribe("MFA AAL2 nas RPCs administrativas", () => {
       email: `qa_mfa_access-${targetSuffix}@example.com`,
       password: `Tmp-${randomUUID()}-A9!`,
     };
-    const { data: targetData, error: targetError } = await service.auth.admin.createUser({
+    const { data: targetData, error: targetError } = await createQaUser(service, {
       ...targetCredentials,
       email_confirm: true,
       user_metadata: {

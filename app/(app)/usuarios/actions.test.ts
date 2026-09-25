@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   updateUserById: vi.fn(),
   revalidatePath: vi.fn(),
   recordAuditEvent: vi.fn(),
+  inviteUserByEmail: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
@@ -16,17 +17,43 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 vi.mock("@/lib/supabase/admin", () => ({
   createSupabaseAdminClient: vi.fn(() => ({
-    auth: { admin: { updateUserById: mocks.updateUserById, inviteUserByEmail: vi.fn() } },
+    auth: { admin: { updateUserById: mocks.updateUserById, inviteUserByEmail: mocks.inviteUserByEmail } },
   })),
 }));
 vi.mock("@/lib/audit/server", () => ({ recordAuditEvent: mocks.recordAuditEvent }));
 vi.mock("@/lib/config/site", () => ({ getSiteUrl: vi.fn(() => "https://example.test") }));
 vi.mock("@/lib/users/profile", () => ({ normalizeUserProfileInput: vi.fn() }));
 
-import { updateUsuarioAccess } from "./actions";
+import { createUsuario, updateUsuarioAccess } from "./actions";
 
 const actorId = "10000000-0000-4000-8000-000000000001";
 const targetId = "20000000-0000-4000-8000-000000000002";
+
+describe("convite administrativo com autorizacao SQL", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mocks.requireAdminAal2.mockResolvedValue({ id: actorId, perfil: "administrador" });
+  });
+  function form() {
+    const value = new FormData(); value.set("nome", "QA"); value.set("email", " QA@EXAMPLE.TEST "); value.set("perfil", "dentista"); return value;
+  }
+  it("autoriza com a sessao e transporta apenas token opaco ao Auth", async () => {
+    mocks.rpc.mockResolvedValue({ data: { id: targetId, token: "opaque-fixture" }, error: null });
+    mocks.inviteUserByEmail.mockResolvedValue({ data: { user: { id: targetId } }, error: null });
+    expect(await createUsuario({ error: null, success: false }, form())).toEqual({ error: null, success: true });
+    expect(mocks.rpc).toHaveBeenCalledWith("prepare_user_invitation", { p_email: "qa@example.test", p_nome: "QA", p_perfil: "dentista" });
+    expect(mocks.inviteUserByEmail).toHaveBeenCalledWith("qa@example.test", { data: { provisioning_token: "opaque-fixture" }, redirectTo: "https://example.test/auth/confirm" });
+  });
+  it("negacao SQL impede chamada privilegiada e falha de envio revoga so o convite pendente", async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: "42501" } });
+    expect((await createUsuario({ error: null, success: false }, form())).success).toBe(false);
+    expect(mocks.inviteUserByEmail).not.toHaveBeenCalled();
+    mocks.rpc.mockResolvedValue({ data: { id: targetId, token: "opaque-fixture" }, error: null });
+    mocks.inviteUserByEmail.mockRejectedValue(new Error("transport"));
+    expect((await createUsuario({ error: null, success: false }, form())).success).toBe(false);
+    expect(mocks.rpc).toHaveBeenLastCalledWith("revoke_user_invitation", { p_convite_id: targetId });
+  });
+});
 
 function accessForm(status: "ativo" | "inativo", usuarioId = targetId) {
   const form = new FormData();

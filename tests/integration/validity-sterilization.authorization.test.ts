@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { createQaAdmin } from "./helpers";
+import { createQaUser, createQaAdmin } from "./helpers";
 
 const ACK = "I_ACKNOWLEDGE_FAKE_DATA_ONLY";
 type Role = "administrador" | "recepcao" | "dentista";
@@ -17,7 +17,7 @@ async function login(identity: Pick<Identity, "email" | "password">) { const ses
 function addDays(value: string, days: number) { return new Date(Date.parse(`${value}T12:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10); }
 async function createIdentity(role: Role) {
   const suffix = randomUUID(); const candidate = { email: `qa_vld_${role}_${suffix}@example.com`, password: `Tmp-${randomUUID()}-A9!`, role };
-  const { data, error } = await service.auth.admin.createUser({ email: candidate.email, password: candidate.password, email_confirm: true, user_metadata: { nome: `QA_VLD_${role}_${suffix}`, perfil: role, created_by: adminId } });
+  const { data, error } = await createQaUser(service, { email: candidate.email, password: candidate.password, email_confirm: true, user_metadata: { nome: `QA_VLD_${role}_${suffix}`, perfil: role, created_by: adminId } });
   if (error || !data.user) throw error ?? new Error("Usuario QA_VLD ausente."); const identity = { ...candidate, id: data.user.id }; users.push(identity); return identity;
 }
 async function createMaterial(name: string, quantity: number) {

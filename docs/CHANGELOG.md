@@ -1,5 +1,17 @@
 # Changelog
 
+## Sprint 22.7 — HIGHs da auditoria, aguardando revisão/homologação
+
+- 0030: autorização SQL para binário clínico, identidade de atendimento protegida,
+  RPC legada de orçamento revogada, AAL2 em ajuste/cancelamento/auditoria e
+  provisionamento por convite autorizado com token de uso único.
+- 0031: transição de lotes bloqueada por consumo reversível sem lote; estorno
+  incompatível rejeitado antes de alterar saldo.
+- Regressões de autorização/domínio, HTTP/PDF, MFA real e concorrência; fixtures
+  e seed migrados ao novo fluxo de convite. Gate manual de signup documentado.
+- 0001–0029 preservadas; nenhum deploy/migration remota, commit ou push nesta etapa.
+  [Relatório e plano de homologação](SPRINT_22_7.md).
+
 ## Documentos oficiais Odonto Class
 
 - Migration `0019_documentos_oficiais.sql`: tipos específicos de declaração,

@@ -30,6 +30,7 @@ describe("consumo clínico de materiais", () => {
   });
 
   it("mapeia erros de domínio sem expor detalhes internos", () => {
+    expect(mapClinicalMaterialError("23514", "LOT_CONTROL_LEGACY_REVERSAL_DENIED")).toContain("não pode ser estornado");
     expect(mapClinicalMaterialError("23514", "Material controlado exige lote.")).toContain("Selecione um lote");
     expect(mapClinicalMaterialError("23514", "Saldo insuficiente no lote.")).toContain("saldo disponível foi alterado");
     expect(mapClinicalMaterialError("23514", "Consumo clinico ja estornado.")).toBe("Este consumo já foi estornado.");

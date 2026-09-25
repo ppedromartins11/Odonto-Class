@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { createQaAdmin } from "./helpers";
+import { createQaUser, createQaAdmin } from "./helpers";
 
 const ACK = "I_ACKNOWLEDGE_FAKE_DATA_ONLY";
 type Role = "administrador" | "recepcao" | "dentista";
@@ -13,7 +13,7 @@ let adminId: string, patientId: string, professionalA: string, professionalB: st
 function required(name: string) { const value = process.env[name]; if (!value) throw new Error(`${name} não configurada em .env.test.local.`); return value; }
 function fresh() { return createClient(url, anon, { auth: { autoRefreshToken: false, persistSession: false } }); }
 async function login(identity: Pick<Identity, "email" | "password">) { const client = fresh(); expect((await client.auth.signInWithPassword(identity)).error).toBeNull(); return client; }
-async function createIdentity(role: Role) { const suffix = randomUUID(); const email = `qa_doc_${role}_${suffix}@example.com`; const password = `Tmp-${randomUUID()}-A9!`; const { data, error } = await service.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { nome: `QA_DOC_${role}_${suffix}`, perfil: role, created_by: adminId } }); if (error || !data.user) throw error ?? new Error("QA_DOC usuário ausente."); const identity = { id: data.user.id, email, password, role }; users.push(identity); return identity; }
+async function createIdentity(role: Role) { const suffix = randomUUID(); const email = `qa_doc_${role}_${suffix}@example.com`; const password = `Tmp-${randomUUID()}-A9!`; const { data, error } = await createQaUser(service, { email, password, email_confirm: true, user_metadata: { nome: `QA_DOC_${role}_${suffix}`, perfil: role, created_by: adminId } }); if (error || !data.user) throw error ?? new Error("QA_DOC usuário ausente."); const identity = { id: data.user.id, email, password, role }; users.push(identity); return identity; }
 async function upload(path: string, content = "%PDF-QA_DOC") { paths.push(path); expect((await service.storage.from("arquivos-paciente").upload(path, new TextEncoder().encode(content), { contentType: "application/pdf", upsert: false })).error).toBeNull(); }
 const sha = (digit: string) => digit.repeat(64);
 function officialArgs(overrides: Record<string, unknown> = {}) {

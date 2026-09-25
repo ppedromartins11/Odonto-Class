@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { createQaAdmin } from "./helpers";
+import { createQaUser, createQaAdmin } from "./helpers";
 
 const ACK = "I_ACKNOWLEDGE_FAKE_DATA_ONLY";
 type Role = "administrador" | "recepcao" | "dentista";
@@ -13,7 +13,7 @@ let adminId: string, dentistAId: string, dentistBId: string, professionalA: stri
 function required(name: string) { const value = process.env[name]; if (!value) throw new Error(`${name} não configurada em .env.test.local.`); return value; }
 function freshClient() { return createClient(url, anon, { auth: { autoRefreshToken: false, persistSession: false } }); }
 async function login(identity: Pick<Identity, "email" | "password">) { const client = freshClient(); expect((await client.auth.signInWithPassword(identity)).error).toBeNull(); return client; }
-async function createIdentity(role: Role) { const suffix = randomUUID(); const email = `QA_ORC_${role}_${suffix}@example.com`; const password = `Tmp-${randomUUID()}-A9!`; const { data, error } = await service.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { nome: `QA_ORC_${role}_${suffix}`, perfil: role, created_by: adminId } }); if (error || !data.user) throw error ?? new Error("Usuário QA_ORC não criado."); const identity = { id: data.user.id, email, password, role }; users.push(identity); return identity; }
+async function createIdentity(role: Role) { const suffix = randomUUID(); const email = `QA_ORC_${role}_${suffix}@example.com`; const password = `Tmp-${randomUUID()}-A9!`; const { data, error } = await createQaUser(service, { email, password, email_confirm: true, user_metadata: { nome: `QA_ORC_${role}_${suffix}`, perfil: role, created_by: adminId } }); if (error || !data.user) throw error ?? new Error("Usuário QA_ORC não criado."); const identity = { id: data.user.id, email, password, role }; users.push(identity); return identity; }
 
 describe("orçamentos: RLS, RPCs e auditoria", () => {
   beforeAll(async () => {

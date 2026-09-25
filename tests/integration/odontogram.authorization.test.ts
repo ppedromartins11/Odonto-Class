@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { createQaAdmin } from "./helpers";
+import { createQaUser, createQaAdmin } from "./helpers";
 
 const ACK = "I_ACKNOWLEDGE_FAKE_DATA_ONLY";
 const PREFIX = "QA_ODO_";
@@ -44,7 +44,7 @@ async function login(identity: Pick<Identity, "email" | "password">) {
 async function createIdentity(role: Role) {
   const suffix = randomUUID();
   const candidate = { email: `qa_odo_${role}_${suffix}@example.com`, password: `Tmp-${randomUUID()}-A9!`, role };
-  const { data, error } = await service.auth.admin.createUser({
+  const { data, error } = await createQaUser(service, {
     email: candidate.email,
     password: candidate.password,
     email_confirm: true,

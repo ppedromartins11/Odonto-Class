@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { createQaAdmin } from "./helpers";
+import { createQaUser, createQaAdmin } from "./helpers";
 
 const ACK = "I_ACKNOWLEDGE_FAKE_DATA_ONLY";
 type Role = "administrador" | "recepcao" | "dentista";
@@ -19,7 +19,7 @@ let inactive: Identity, orphan: Identity;
 function required(name: string) { const value = process.env[name]; if (!value) throw new Error(`${name} não configurada.`); return value; }
 function client() { return createClient(url, anon, { auth: { autoRefreshToken: false, persistSession: false } }); }
 async function login(identity: Pick<Identity, "email" | "password">) { const result = client(); expect((await result.auth.signInWithPassword(identity)).error).toBeNull(); return result; }
-async function createIdentity(role: Role) { const suffix = randomUUID(); const candidate = { email: `qa_fin20_${role}_${suffix}@example.com`, password: `Tmp-${randomUUID()}-A9!`, role }; const { data, error } = await service.auth.admin.createUser({ email: candidate.email, password: candidate.password, email_confirm: true, user_metadata: { nome: `QA_FIN20_${role}_${suffix}`, perfil: role, created_by: adminId } }); if (error || !data.user) throw error ?? new Error("Usuário QA_FIN20 ausente."); const identity = { ...candidate, id: data.user.id }; users.push(identity); return identity; }
+async function createIdentity(role: Role) { const suffix = randomUUID(); const candidate = { email: `qa_fin20_${role}_${suffix}@example.com`, password: `Tmp-${randomUUID()}-A9!`, role }; const { data, error } = await createQaUser(service, { email: candidate.email, password: candidate.password, email_confirm: true, user_metadata: { nome: `QA_FIN20_${role}_${suffix}`, perfil: role, created_by: adminId } }); if (error || !data.user) throw error ?? new Error("Usuário QA_FIN20 ausente."); const identity = { ...candidate, id: data.user.id }; users.push(identity); return identity; }
 async function createPatient(name: string) { const { data, error } = await reception.rpc("create_patient", { p_nome: name, p_data_nascimento: null, p_telefone_contato: null, p_documento_identificacao: null, p_alergias: null, p_intolerancias: null, p_medicamentos_em_uso: null }); if (error || !data) throw error ?? new Error("Paciente QA_FIN20 ausente."); const id = (data as { id: string }).id; patientIds.push(id); return id; }
 async function createReceivable(clientForRole: SupabaseClient, values: { patientId?: string; attendanceId?: string | null; cents?: number; installments?: number } = {}) {
   const result = await clientForRole.rpc("create_financial_receivable", { p_paciente_id: values.patientId ?? patientA, p_atendimento_id: values.attendanceId ?? null, p_orcamento_id: null, p_valor_total_centavos: values.cents ?? 10_000, p_primeiro_vencimento: "2026-09-05", p_numero_parcelas: values.installments ?? 3, p_intervalo_meses: 1, p_observacao_administrativa: "QA_FIN20_observacao" });
