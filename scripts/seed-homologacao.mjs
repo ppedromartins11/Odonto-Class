@@ -71,6 +71,7 @@ async function firstByMarker(service, table, field, value) {
 }
 
 async function main() {
+  throw new Error("LEGACY_QA_SEED_DISABLED: runId ownership manifest required");
   const url = assertEnvironment();
   const service = createClient(url, required("SUPABASE_TEST_SERVICE_ROLE_KEY"), { auth: { autoRefreshToken: false, persistSession: false } });
   await assertKanbanSchema(service);

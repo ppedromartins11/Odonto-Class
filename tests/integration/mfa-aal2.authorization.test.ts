@@ -55,19 +55,49 @@ maybeDescribe("MFA AAL2 nas RPCs administrativas", () => {
   });
 
   afterAll(async () => {
-    if (!service || !identity) return;
-    await service.from("movimentacoes_estoque").delete().eq("material_id", materialId);
-    await service.from("materiais_lotes").delete().eq("material_id", materialId);
-    await service.from("materiais_estoque").delete().eq("id", materialId);
-    if (accessTarget) {
-      await service.from("profissionais").delete().eq("usuario_id", accessTarget.id);
-      await service.from("auditoria").delete().eq("entidade_id", accessTarget.id);
-      await service.from("usuarios").delete().eq("id", accessTarget.id);
-      await service.auth.admin.deleteUser(accessTarget.id);
+    if (!service) return;
+    const userIds = [identity?.id, accessTarget?.id].filter((id): id is string => Boolean(id));
+    const entityIds = [...userIds, ...(materialId ? [materialId] : [])];
+    // Remove only this suite's audit before deleting actors: the FK otherwise
+    // sets usuario_id=NULL and makes stock events lose their cleanup owner.
+    if (entityIds.length) {
+      expect((await service.from("auditoria").delete().in("entidade_id", entityIds)).error, "cleanup auditoria por entidade").toBeNull();
     }
-    await service.from("profissionais").delete().eq("usuario_id", identity.id);
-    await service.from("usuarios").delete().eq("id", identity.id);
-    await service.auth.admin.deleteUser(identity.id);
+    if (userIds.length) {
+      expect((await service.from("auditoria").delete().in("usuario_id", userIds)).error, "cleanup auditoria por ator").toBeNull();
+    }
+    if (materialId) {
+      expect((await service.from("movimentacoes_estoque").delete().eq("material_id", materialId)).error, "cleanup movimentacoes").toBeNull();
+      expect((await service.from("materiais_lotes").delete().eq("material_id", materialId)).error, "cleanup lotes").toBeNull();
+      expect((await service.from("materiais_estoque").delete().eq("id", materialId)).error, "cleanup material").toBeNull();
+    }
+    if (userIds.length) {
+      expect((await service.from("profissionais").delete().in("usuario_id", userIds)).error, "cleanup profissionais").toBeNull();
+      expect((await service.from("usuarios").delete().in("id", userIds)).error, "cleanup perfis").toBeNull();
+      for (const id of userIds) {
+        expect((await service.auth.admin.deleteUser(id)).error, "cleanup identidade Auth").toBeNull();
+      }
+    }
+    // Read-only proof uses the original exact IDs, including audit whose actor
+    // would now be NULL. A cleanup error or residual blocks this suite.
+    const assertAbsent = async (table: string, column: string, ids: string[]) => {
+      if (!ids.length) return;
+      const result = await service.from(table).select("*", { count: "exact", head: true }).in(column, ids);
+      expect(result.error, `cleanup proof ${table}`).toBeNull();
+      expect(result.count, `cleanup proof ${table}`).toBe(0);
+    };
+    await assertAbsent("auditoria", "entidade_id", entityIds);
+    await assertAbsent("auditoria", "usuario_id", userIds);
+    await assertAbsent("materiais_estoque", "id", materialId ? [materialId] : []);
+    await assertAbsent("movimentacoes_estoque", "material_id", materialId ? [materialId] : []);
+    await assertAbsent("materiais_lotes", "material_id", materialId ? [materialId] : []);
+    await assertAbsent("usuarios", "id", userIds);
+    await assertAbsent("profissionais", "usuario_id", userIds);
+    for (const id of userIds) {
+      const result = await service.auth.admin.getUserById(id);
+      expect(Boolean(result.data.user), "cleanup proof Auth user absent").toBe(false);
+      expect(result.error?.status, "cleanup proof Auth user not found").toBe(404);
+    }
   });
 
   it("bloqueia admin AAL1 em usuario, financeiro e ajuste de estoque", async () => {

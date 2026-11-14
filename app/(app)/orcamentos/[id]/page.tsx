@@ -47,7 +47,7 @@ export default async function BudgetDetailPage({ params }: { params: Promise<{ i
           <Link href="/orcamentos" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary">
             <ArrowLeft className="h-3.5 w-3.5" />Voltar para orçamentos
           </Link>
-          <h2 className="mt-3 text-2xl font-medium">Orçamento #{budget.numero}</h2>
+          <h1 className="mt-3 text-2xl font-medium">Orçamento #{budget.numero}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {budget.paciente_nome} · {labels[budget.effective_status]} · {formatCents(budget.total_centavos)}
           </p>

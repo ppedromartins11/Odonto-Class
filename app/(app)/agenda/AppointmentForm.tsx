@@ -44,7 +44,7 @@ export function AppointmentForm({
       {returnId && <input type="hidden" name="returnId" value={returnId} />}
       <section className="rounded-lg border border-border bg-card p-5">
         <div className="mb-5">
-          <h3 className="text-base font-medium text-card-foreground">Dados do agendamento</h3>
+          <h2 className="text-base font-medium text-card-foreground">Dados do agendamento</h2>
           <p className="mt-1 text-xs text-muted-foreground">Horários são exibidos no fuso da clínica (Cuiabá).</p>
         </div>
         <div className="grid gap-4 md:grid-cols-2">

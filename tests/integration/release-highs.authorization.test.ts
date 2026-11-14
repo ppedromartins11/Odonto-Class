@@ -1,4 +1,4 @@
-import { randomUUID, createHash } from "node:crypto";
+import { randomUUID, randomBytes, createHash } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { Client } from "pg";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -14,10 +14,10 @@ const dbUrl = process.env.SUPABASE_TEST_DB_URL ?? "";
 const isLocal = (value: string) => { try { return ["localhost", "127.0.0.1", "[::1]"].includes(new URL(value).hostname); } catch { return false; } };
 const localOnly = isLocal(url) && isLocal(dbUrl);
 const prefix = "QA_HIGH_" + randomUUID();
-const users: string[] = [], storage: string[] = [], invitations: string[] = [];
+const users: string[] = [], storage: string[] = [], invitations: string[] = [], proofHashes: string[] = [];
 let sql: Client, service: SupabaseClient, admin: SupabaseClient, aal1: SupabaseClient;
 let dentist: SupabaseClient, otherDentist: SupabaseClient, reception: SupabaseClient, inactive: SupabaseClient;
-let adminId: string, professional: string, otherProfessional: string, patient: string, patient2: string;
+let adminId: string, dentistId: string, professional: string, otherProfessional: string, patient: string, patient2: string;
 const fresh = () => createClient(url, process.env.SUPABASE_TEST_ANON_KEY!, { auth: { persistSession: false, autoRefreshToken: false } });
 async function rpc(c: SupabaseClient, name: string, args = {}) {
   const result = await c.rpc(name, args); expect(result.error, name).toBeNull(); return result.data;
@@ -62,7 +62,7 @@ describe.skipIf(!localOnly).sequential("Sprint 22.7: HIGHs no Supabase local des
     const qa = await createQaAdmin(service, url, process.env.SUPABASE_TEST_ANON_KEY!);
     admin = qa.session; adminId = qa.identity.id; users.push(adminId);
     aal1 = fresh(); expect((await aal1.auth.signInWithPassword(qa.identity)).error).toBeNull();
-    const d = await identity("dentista"); dentist = d.client;
+    const d = await identity("dentista"); dentist = d.client; dentistId = d.id;
     const b = await identity("dentista"); otherDentist = b.client;
     reception = (await identity("recepcao")).client;
     const inactiveIdentity = await identity("administrador"); inactive = inactiveIdentity.client;
@@ -76,6 +76,7 @@ describe.skipIf(!localOnly).sequential("Sprint 22.7: HIGHs no Supabase local des
 
   afterAll(async () => {
     if (!sql) return;
+    for (const tokenHash of proofHashes) expect((await service.rpc("cancel_upload_attestation", { p_token_hash: tokenHash })).error).toBeNull();
     if (storage.length) expect((await service.storage.from("arquivos-paciente").remove(storage)).error).toBeNull();
     await sql.query("begin");
     try {
@@ -106,7 +107,16 @@ describe.skipIf(!localOnly).sequential("Sprint 22.7: HIGHs no Supabase local des
       const bytes = await renderPatientDocumentPdf({ clinicName: "QA", clinicTagline: "Ficticio", patientName: prefix, professionalName: prefix, professionalRegistration: "QA", type: clinical ? "atestado" : "declaracao_comparecimento", issuedAt: "2026-09-24", purpose: prefix, attendanceStart: "2026-09-24T12:00:00Z", attendanceEnd: "2026-09-24T13:00:00Z", cidCode: clinical ? "K04.7" : null });
       const path = patient + "/documentos/" + randomUUID() + ".pdf"; storage.push(path);
       expect((await service.storage.from("arquivos-paciente").upload(path, bytes, { contentType: "application/pdf" })).error).toBeNull();
-      const doc = await rpc(dentist, "create_official_document", { p_paciente_id: patient, p_atendimento_id: a.id, p_profissional_autor_id: professional, p_tipo: clinical ? "atestado" : "declaracao_comparecimento", p_emitido_em: "2026-09-24", p_finalidade: prefix, p_comparecimento_inicio: clinical ? null : "2026-09-24T12:00:00Z", p_comparecimento_fim: clinical ? null : "2026-09-24T13:00:00Z", p_afastamento_quantidade: null, p_afastamento_unidade: null, p_acompanhante_nome: null, p_acompanhante_identificacao: null, p_acompanhante_relacao: null, p_texto_adicional: null, p_cid_codigo: clinical ? "K04.7" : null, p_cid_autorizado: clinical, p_cid_autorizador_tipo: clinical ? "paciente" : null, p_storage_path: path, p_nome_arquivo: "QA_HIGH.pdf", p_tamanho_bytes: bytes.length, p_layout_version: 2, p_pdf_sha256: createHash("sha256").update(bytes).digest("hex") });
+      const fileHash = createHash("sha256").update(bytes).digest("hex");
+      const uploadToken = randomBytes(32).toString("hex");
+      const tokenHash = createHash("sha256").update(uploadToken).digest("hex"); proofHashes.push(tokenHash);
+      await rpc(service, "prepare_upload_attestation", {
+        p_actor_id: dentistId, p_paciente_id: patient,
+        p_purpose: clinical ? "document:atestado" : "document:declaracao_comparecimento",
+        p_bucket_id: "arquivos-paciente", p_storage_path: path, p_sha256: fileHash,
+        p_tamanho_bytes: bytes.length, p_mime_type: "application/pdf", p_token_hash: tokenHash,
+      });
+      const doc = await rpc(dentist, "create_official_document_verified", { p_paciente_id: patient, p_atendimento_id: a.id, p_profissional_autor_id: professional, p_tipo: clinical ? "atestado" : "declaracao_comparecimento", p_emitido_em: "2026-09-24", p_finalidade: prefix, p_comparecimento_inicio: clinical ? null : "2026-09-24T12:00:00Z", p_comparecimento_fim: clinical ? null : "2026-09-24T13:00:00Z", p_afastamento_quantidade: null, p_afastamento_unidade: null, p_acompanhante_nome: null, p_acompanhante_identificacao: null, p_acompanhante_relacao: null, p_texto_adicional: null, p_cid_codigo: clinical ? "K04.7" : null, p_cid_autorizado: clinical, p_cid_autorizador_tipo: clinical ? "paciente" : null, p_storage_path: path, p_nome_arquivo: "QA_HIGH.pdf", p_tamanho_bytes: bytes.length, p_layout_version: 2, p_pdf_sha256: fileHash, p_upload_token: uploadToken });
       for (const actor of [dentist, admin, reception, otherDentist]) {
         const allowed = actor === dentist || (!clinical && actor !== otherDentist);
         expect(await rpc(actor, "get_document_download_path", { p_documento_id: doc.id })).toBe(allowed ? path : null);

@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { ArrowRight } from "lucide-react";
+import styles from "./login.module.css";
 import { useActionState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -16,12 +18,13 @@ export function LoginForm({ initialError = null }: { initialError?: string | nul
   );
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} className={styles.form} aria-busy={isPending}>
       <div>
-        <label htmlFor="email" className="block mb-1.5 text-foreground">
+        <label htmlFor="email" className={styles.label}>
           E-mail
         </label>
         <Input
+          className={styles.input}
           id="email"
           name="email"
           type="email"
@@ -32,18 +35,19 @@ export function LoginForm({ initialError = null }: { initialError?: string | nul
       </div>
 
       <div>
-        <div className="flex items-center justify-between mb-1.5">
-          <label htmlFor="password" className="text-foreground">
+        <div className={styles.passwordLabel}>
+          <label htmlFor="password" className={styles.label}>
             Senha
           </label>
           <Link
             href="/esqueci-senha"
-            className="text-xs text-primary hover:underline"
+            className={styles.forgot}
           >
             Esqueci minha senha
           </Link>
         </div>
         <Input
+          className={styles.input}
           id="password"
           name="password"
           type="password"
@@ -54,13 +58,14 @@ export function LoginForm({ initialError = null }: { initialError?: string | nul
       </div>
 
       {(state.error || initialError) && (
-        <p role="alert" className="text-sm text-destructive">
+        <p role="alert" className={styles.error}>
           {state.error ?? initialError}
         </p>
       )}
 
-      <Button type="submit" disabled={isPending} className="w-full">
+      <Button type="submit" disabled={isPending} className={styles.submit}>
         {isPending ? "Entrando..." : "Entrar"}
+        {!isPending && <ArrowRight size={18} aria-hidden="true" />}
       </Button>
     </form>
   );

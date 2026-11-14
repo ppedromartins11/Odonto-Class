@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createQaUser, createQaAdmin } from "./helpers";
@@ -6,27 +6,54 @@ import { createQaUser, createQaAdmin } from "./helpers";
 const ACK = "I_ACKNOWLEDGE_FAKE_DATA_ONLY";
 type Role = "administrador" | "recepcao" | "dentista";
 type Identity = { id: string; email: string; password: string; role: Role };
-const users: Identity[] = [], paths: string[] = [], documentIds: string[] = [], budgetIds: string[] = [], versionIds: string[] = [];
+const users: Identity[] = [], paths: string[] = [], proofHashes: string[] = [], documentIds: string[] = [], budgetIds: string[] = [], versionIds: string[] = [];
 let url: string, anon: string, service: SupabaseClient, admin: SupabaseClient, reception: SupabaseClient, dentistA: SupabaseClient, dentistB: SupabaseClient;
 let adminId: string, patientId: string, professionalA: string, professionalB: string, attendanceA: string, inactive: Identity, orphan: Identity;
+let receptionIdentity: Identity, dentistAIdentity: Identity, dentistBIdentity: Identity;
 
 function required(name: string) { const value = process.env[name]; if (!value) throw new Error(`${name} não configurada em .env.test.local.`); return value; }
 function fresh() { return createClient(url, anon, { auth: { autoRefreshToken: false, persistSession: false } }); }
 async function login(identity: Pick<Identity, "email" | "password">) { const client = fresh(); expect((await client.auth.signInWithPassword(identity)).error).toBeNull(); return client; }
 async function createIdentity(role: Role) { const suffix = randomUUID(); const email = `qa_doc_${role}_${suffix}@example.com`; const password = `Tmp-${randomUUID()}-A9!`; const { data, error } = await createQaUser(service, { email, password, email_confirm: true, user_metadata: { nome: `QA_DOC_${role}_${suffix}`, perfil: role, created_by: adminId } }); if (error || !data.user) throw error ?? new Error("QA_DOC usuário ausente."); const identity = { id: data.user.id, email, password, role }; users.push(identity); return identity; }
-async function upload(path: string, content = "%PDF-QA_DOC") { paths.push(path); expect((await service.storage.from("arquivos-paciente").upload(path, new TextEncoder().encode(content), { contentType: "application/pdf", upsert: false })).error).toBeNull(); }
+const defaultPdf = "%PDF-QA_DOC";
+const bytesOf = (content: string) => new TextEncoder().encode(content);
+const digest = (content: string) => createHash("sha256").update(bytesOf(content)).digest("hex");
+async function upload(path: string, content = defaultPdf) { paths.push(path); expect((await service.storage.from("arquivos-paciente").upload(path, bytesOf(content), { contentType: "application/pdf", upsert: false })).error).toBeNull(); }
 const sha = (digit: string) => digit.repeat(64);
 function officialArgs(overrides: Record<string, unknown> = {}) {
   const path = `${patientId}/documentos/${randomUUID()}.pdf`;
-  return { path, args: {
+  const args = {
     p_paciente_id: patientId, p_atendimento_id: attendanceA, p_profissional_autor_id: professionalA,
     p_tipo: "atestado", p_emitido_em: "2026-09-01", p_finalidade: "QA_DOC_justificativa odontológica",
     p_comparecimento_inicio: null, p_comparecimento_fim: null, p_afastamento_quantidade: 1,
     p_afastamento_unidade: "dias", p_acompanhante_nome: null, p_acompanhante_identificacao: null,
     p_acompanhante_relacao: null, p_texto_adicional: null, p_cid_codigo: null, p_cid_autorizado: false,
     p_cid_autorizador_tipo: null, p_storage_path: path, p_nome_arquivo: "QA_DOC_atestado.pdf",
-    p_tamanho_bytes: 11, p_layout_version: 2, p_pdf_sha256: sha("a"), ...overrides,
-  } };
+    p_tamanho_bytes: bytesOf(defaultPdf).length, p_layout_version: 2, p_pdf_sha256: digest(defaultPdf), ...overrides,
+  };
+  return { path: String(args.p_storage_path), args };
+}
+async function attemptProof(actorId: string, args: Record<string, unknown>, content = defaultPdf, overrides: Record<string, unknown> = {}, caller = service) {
+  const token = randomBytes(32).toString("hex");
+  const tokenHash = createHash("sha256").update(token).digest("hex"); proofHashes.push(tokenHash);
+  const result = await caller.rpc("prepare_upload_attestation", {
+    p_actor_id: actorId, p_paciente_id: args.p_paciente_id, p_purpose: `document:${args.p_tipo}`,
+    p_bucket_id: "arquivos-paciente", p_storage_path: args.p_storage_path,
+    p_sha256: digest(content), p_tamanho_bytes: bytesOf(content).length, p_mime_type: "application/pdf",
+    p_token_hash: tokenHash,
+    ...overrides,
+  });
+  return { token, result };
+}
+async function prepareDocument(actorId: string, args: Record<string, unknown>, content = defaultPdf) {
+  const { token, result } = await attemptProof(actorId, args, content);
+  expect(result.error).toBeNull();
+  return token;
+}
+async function issueDocument(client: SupabaseClient, actorId: string, fixture: ReturnType<typeof officialArgs>, content = defaultPdf) {
+  await upload(fixture.path, content);
+  const token = await prepareDocument(actorId, fixture.args, content);
+  return client.rpc("create_official_document_verified", { ...fixture.args, p_upload_token: token });
 }
 
 describe("QA_DOC_: documentos oficiais e snapshots privados", () => {
@@ -34,7 +61,7 @@ describe("QA_DOC_: documentos oficiais e snapshots privados", () => {
     if (process.env.SUPABASE_TEST_HOMOLOGATION !== ACK) throw new Error("Homologação fictícia não confirmada.");
     url = required("SUPABASE_TEST_URL"); anon = required("SUPABASE_TEST_ANON_KEY"); service = createClient(url, required("SUPABASE_TEST_SERVICE_ROLE_KEY"), { auth: { autoRefreshToken: false, persistSession: false } });
     const qaAdmin = await createQaAdmin(service, url, anon); admin = qaAdmin.session; adminId = qaAdmin.identity.id; users.push(qaAdmin.identity);
-    const receptionIdentity = await createIdentity("recepcao"); const dentistAIdentity = await createIdentity("dentista"); const dentistBIdentity = await createIdentity("dentista"); inactive = await createIdentity("recepcao"); orphan = await createIdentity("recepcao");
+    receptionIdentity = await createIdentity("recepcao"); dentistAIdentity = await createIdentity("dentista"); dentistBIdentity = await createIdentity("dentista"); inactive = await createIdentity("recepcao"); orphan = await createIdentity("recepcao");
     reception = await login(receptionIdentity); dentistA = await login(dentistAIdentity); dentistB = await login(dentistBIdentity);
     expect((await admin.rpc("update_user_access", { p_usuario_id: inactive.id, p_perfil: null, p_status: "inativo" })).error).toBeNull();
     expect((await service.from("usuarios").delete().eq("id", orphan.id)).error).toBeNull();
@@ -48,6 +75,7 @@ describe("QA_DOC_: documentos oficiais e snapshots privados", () => {
 
   afterAll(async () => {
     if (!service) return;
+    for (const tokenHash of proofHashes) expect((await service.rpc("cancel_upload_attestation", { p_token_hash: tokenHash })).error).toBeNull();
     if (paths.length) {
       expect((await service.storage.from("arquivos-paciente").remove(paths)).error).toBeNull();
       const listedPaths = await Promise.all(paths.map(async (path) => {
@@ -73,9 +101,9 @@ describe("QA_DOC_: documentos oficiais e snapshots privados", () => {
   });
 
   it("permite ao dentista A emitir atestado e trata CID somente com autorização", async () => {
-    const first = officialArgs(); await upload(first.path); const created = await dentistA.rpc("create_official_document", first.args); expect(created.error).toBeNull(); documentIds.push((created.data as { id: string }).id);
-    const denied = officialArgs({ p_cid_codigo: "K04.7", p_cid_autorizado: false }); await upload(denied.path); expect((await dentistA.rpc("create_official_document", denied.args)).error).not.toBeNull();
-    const allowed = officialArgs({ p_cid_codigo: "K04.7", p_cid_autorizado: true, p_cid_autorizador_tipo: "paciente", p_storage_path: `${patientId}/documentos/${randomUUID()}.pdf`, p_pdf_sha256: sha("b") }); await upload(allowed.args.p_storage_path as string); const withCid = await dentistA.rpc("create_official_document", allowed.args); expect(withCid.error).toBeNull(); const cidDocumentId = (withCid.data as { id: string }).id; documentIds.push(cidDocumentId);
+    const first = officialArgs(); const created = await issueDocument(dentistA, dentistAIdentity.id, first); expect(created.error).toBeNull(); documentIds.push((created.data as { id: string }).id);
+    const denied = officialArgs({ p_cid_codigo: "K04.7", p_cid_autorizado: false }); expect((await issueDocument(dentistA, dentistAIdentity.id, denied)).error).not.toBeNull();
+    const allowed = officialArgs({ p_cid_codigo: "K04.7", p_cid_autorizado: true, p_cid_autorizador_tipo: "paciente" }); const withCid = await issueDocument(dentistA, dentistAIdentity.id, allowed); expect(withCid.error).toBeNull(); const cidDocumentId = (withCid.data as { id: string }).id; documentIds.push(cidDocumentId);
     expect((await dentistA.from("documento_cid").select("codigo").eq("documento_id", cidDocumentId)).data).toEqual([{ codigo: "K04.7" }]);
     expect((await reception.from("documento_cid").select("codigo").eq("documento_id", cidDocumentId)).data).toEqual([]);
     expect((await admin.from("documento_cid").select("codigo").eq("documento_id", cidDocumentId)).data).toEqual([]);
@@ -84,17 +112,18 @@ describe("QA_DOC_: documentos oficiais e snapshots privados", () => {
   });
 
   it("permite declarações factuais e bloqueia autoria clínica arbitrária", async () => {
-    const declaration = officialArgs({ p_tipo: "declaracao_comparecimento", p_comparecimento_inicio: "2026-09-01T13:00:00-04:00", p_comparecimento_fim: "2026-09-01T14:00:00-04:00", p_afastamento_quantidade: null, p_afastamento_unidade: null }); await upload(declaration.path); const prepared = await reception.rpc("create_official_document", declaration.args); expect(prepared.error).toBeNull(); documentIds.push((prepared.data as { id: string }).id);
-    const companion = officialArgs({ p_tipo: "declaracao_acompanhamento", p_comparecimento_inicio: "2026-09-01T13:00:00-04:00", p_comparecimento_fim: "2026-09-01T14:00:00-04:00", p_afastamento_quantidade: null, p_afastamento_unidade: null, p_acompanhante_nome: "QA_DOC_Acompanhante" }); await upload(companion.path); const adminPrepared = await admin.rpc("create_official_document", companion.args); expect(adminPrepared.error).toBeNull(); documentIds.push((adminPrepared.data as { id: string }).id);
-    expect((await reception.rpc("create_official_document", officialArgs().args)).error).not.toBeNull();
-    expect((await admin.rpc("create_official_document", officialArgs().args)).error).not.toBeNull();
-    expect((await dentistB.rpc("create_official_document", officialArgs().args)).error).not.toBeNull();
-    expect((await reception.rpc("create_official_document", officialArgs({ p_profissional_autor_id: professionalB }).args)).error).not.toBeNull();
+    const declaration = officialArgs({ p_tipo: "declaracao_comparecimento", p_comparecimento_inicio: "2026-09-01T13:00:00-04:00", p_comparecimento_fim: "2026-09-01T14:00:00-04:00", p_afastamento_quantidade: null, p_afastamento_unidade: null }); const prepared = await issueDocument(reception, receptionIdentity.id, declaration); expect(prepared.error).toBeNull(); documentIds.push((prepared.data as { id: string }).id);
+    const companion = officialArgs({ p_tipo: "declaracao_acompanhamento", p_comparecimento_inicio: "2026-09-01T13:00:00-04:00", p_comparecimento_fim: "2026-09-01T14:00:00-04:00", p_afastamento_quantidade: null, p_afastamento_unidade: null, p_acompanhante_nome: "QA_DOC_Acompanhante" }); const adminPrepared = await issueDocument(admin, adminId, companion); expect(adminPrepared.error).toBeNull(); documentIds.push((adminPrepared.data as { id: string }).id);
+    expect((await issueDocument(reception, receptionIdentity.id, officialArgs())).error).not.toBeNull();
+    expect((await issueDocument(admin, adminId, officialArgs())).error).not.toBeNull();
+    expect((await issueDocument(dentistB, dentistBIdentity.id, officialArgs())).error).not.toBeNull();
+    expect((await issueDocument(reception, receptionIdentity.id, officialArgs({ p_profissional_autor_id: professionalB }))).error).not.toBeNull();
     const { data: audit } = await service.from("auditoria").select("evento,dados").in("entidade_id", documentIds); expect(audit?.some((row) => row.evento === "documento_preparado")).toBe(true); expect(JSON.stringify(audit)).not.toContain("QA_DOC_Acompanhante");
   });
 
   it("nega inativo, sem perfil, DML direto e o RPC legado", async () => {
     for (const identity of [inactive, orphan]) { const blocked = await login(identity); expect((await blocked.rpc("create_official_document", officialArgs({ p_tipo: "declaracao_comparecimento", p_comparecimento_inicio: "2026-09-01T13:00:00-04:00", p_comparecimento_fim: "2026-09-01T14:00:00-04:00", p_afastamento_quantidade: null, p_afastamento_unidade: null }).args)).error).not.toBeNull(); }
+    expect((await dentistA.rpc("create_official_document", officialArgs().args)).error).not.toBeNull();
     expect((await reception.rpc("create_document_metadata", { p_paciente_id: patientId, p_profissional_id: professionalA, p_tipo: "atestado", p_emitido_em: "2026-09-01", p_periodo_inicio: null, p_periodo_fim: null, p_texto_adicional: null, p_storage_path: `${patientId}/documentos/${randomUUID()}.pdf`, p_nome_arquivo: "QA_DOC_legacy.pdf", p_tamanho_bytes: 11 })).error).not.toBeNull();
     expect((await dentistA.from("documentos").insert({ paciente_id: patientId })).error).not.toBeNull();
     expect((await dentistA.from("documento_cid").insert({ documento_id: randomUUID(), codigo: "K04.7", autorizado: true, autorizador_tipo: "paciente", autorizado_em: new Date().toISOString(), registrado_por: users[0].id })).error).not.toBeNull();
@@ -106,11 +135,11 @@ describe("QA_DOC_: documentos oficiais e snapshots privados", () => {
     ]));
     expect((await dentistB.rpc("list_document_author_attendances", { p_paciente_id: patientId })).data).toEqual([]);
 
-    const noCro = officialArgs({ p_storage_path: `${patientId}/documentos/${randomUUID()}.pdf`, p_pdf_sha256: sha("f") });
-    await upload(noCro.path);
+    const noCro = officialArgs();
+    await upload(noCro.path); const noCroToken = await prepareDocument(dentistAIdentity.id, noCro.args);
     expect((await service.from("profissionais").update({ registro_profissional: null }).eq("id", professionalA)).error).toBeNull();
     try {
-      expect((await dentistA.rpc("create_official_document", noCro.args)).error).not.toBeNull();
+      expect((await dentistA.rpc("create_official_document_verified", { ...noCro.args, p_upload_token: noCroToken })).error).not.toBeNull();
       expect((await service.from("documentos").select("id").eq("storage_path", noCro.path)).data).toEqual([]);
     } finally {
       expect((await service.from("profissionais").update({ registro_profissional: "CRO-MT 12345" }).eq("id", professionalA)).error).toBeNull();
@@ -118,32 +147,89 @@ describe("QA_DOC_: documentos oficiais e snapshots privados", () => {
 
     const invalidInterval = officialArgs({
       p_tipo: "declaracao_comparecimento", p_comparecimento_inicio: "2026-09-01T14:00:00-04:00", p_comparecimento_fim: "2026-09-01T13:00:00-04:00",
-      p_afastamento_quantidade: null, p_afastamento_unidade: null, p_storage_path: `${patientId}/documentos/${randomUUID()}.pdf`, p_pdf_sha256: sha("1"),
+      p_afastamento_quantidade: null, p_afastamento_unidade: null,
     });
-    await upload(invalidInterval.path);
-    expect((await reception.rpc("create_official_document", invalidInterval.args)).error).not.toBeNull();
+    expect((await issueDocument(reception, receptionIdentity.id, invalidInterval)).error).not.toBeNull();
 
     for (const quantity of [0, -1]) {
-      const invalidAbsence = officialArgs({ p_afastamento_quantidade: quantity, p_storage_path: `${patientId}/documentos/${randomUUID()}.pdf`, p_pdf_sha256: sha(String(Math.abs(quantity) + 2)) });
-      await upload(invalidAbsence.path);
-      expect((await dentistA.rpc("create_official_document", invalidAbsence.args)).error).not.toBeNull();
+      const invalidAbsence = officialArgs({ p_afastamento_quantidade: quantity });
+      expect((await issueDocument(dentistA, dentistAIdentity.id, invalidAbsence)).error).not.toBeNull();
     }
 
-    const hours = officialArgs({ p_afastamento_quantidade: 2, p_afastamento_unidade: "horas", p_storage_path: `${patientId}/documentos/${randomUUID()}.pdf`, p_pdf_sha256: sha("9") });
-    await upload(hours.path);
-    const issuedInHours = await dentistA.rpc("create_official_document", hours.args);
+    const hours = officialArgs({ p_afastamento_quantidade: 2, p_afastamento_unidade: "horas" });
+    const issuedInHours = await issueDocument(dentistA, dentistAIdentity.id, hours);
     expect(issuedInHours.error).toBeNull();
     documentIds.push((issuedInHours.data as { id: string }).id);
     expect((issuedInHours.data as { afastamento_quantidade: number; afastamento_unidade: string }).afastamento_quantidade).toBe(2);
     expect((issuedInHours.data as { afastamento_quantidade: number; afastamento_unidade: string }).afastamento_unidade).toBe("horas");
   });
 
+  it("S1 nega preparo sem privilégio, namespace alheio, objeto ausente e bucket incorreto", async () => {
+    const foreign = officialArgs({ p_storage_path: `${randomUUID()}/documentos/${randomUUID()}.pdf` });
+    await upload(foreign.path);
+    const foreignProof = await attemptProof(dentistAIdentity.id, foreign.args);
+    expect(foreignProof.result.error).not.toBeNull();
+    expect((await dentistA.rpc("create_official_document_verified", { ...foreign.args, p_upload_token: foreignProof.token })).error).not.toBeNull();
+    expect((await service.from("documentos").select("id").eq("storage_path", foreign.path)).data).toEqual([]);
+
+    const absent = officialArgs();
+    const absentProof = await attemptProof(dentistAIdentity.id, absent.args);
+    expect(absentProof.result.error).not.toBeNull();
+    expect((await service.from("documentos").select("id").eq("storage_path", absent.path)).data).toEqual([]);
+
+    const wrongBucket = officialArgs(); await upload(wrongBucket.path);
+    expect((await attemptProof(dentistAIdentity.id, wrongBucket.args, defaultPdf, { p_bucket_id: "outro-bucket" })).result.error).not.toBeNull();
+    expect((await attemptProof(dentistAIdentity.id, wrongBucket.args, defaultPdf, {}, dentistA)).result.error).not.toBeNull();
+    expect((await service.from("documentos").select("id").eq("storage_path", wrongBucket.path)).data).toEqual([]);
+  });
+
+  it("S1 vincula digest/tamanho e preserva a prova se o insert falhar", async () => {
+    const fixture = officialArgs(); await upload(fixture.path);
+    const token = await prepareDocument(dentistAIdentity.id, fixture.args);
+    const before = await service.from("auditoria").select("id", { count: "exact", head: true }).eq("entidade", "documentos").eq("usuario_id", dentistAIdentity.id);
+    expect((await dentistA.rpc("create_official_document_verified", { ...fixture.args, p_pdf_sha256: sha("f"), p_upload_token: token })).error).not.toBeNull();
+    expect((await dentistA.rpc("create_official_document_verified", { ...fixture.args, p_tamanho_bytes: bytesOf(defaultPdf).length + 1, p_upload_token: token })).error).not.toBeNull();
+    expect((await dentistA.rpc("create_official_document_verified", { ...fixture.args, p_nome_arquivo: "x", p_upload_token: token })).error).not.toBeNull();
+    expect((await service.from("documentos").select("id").eq("storage_path", fixture.path)).data).toEqual([]);
+    const after = await service.from("auditoria").select("id", { count: "exact", head: true }).eq("entidade", "documentos").eq("usuario_id", dentistAIdentity.id);
+    expect(after.count).toBe(before.count);
+    const valid = await dentistA.rpc("create_official_document_verified", { ...fixture.args, p_upload_token: token });
+    expect(valid.error).toBeNull(); documentIds.push((valid.data as { id: string }).id);
+    expect((valid.data as { pdf_sha256: string }).pdf_sha256).toBe(digest(defaultPdf));
+  });
+
+  it("S1 impede troca de ator/finalidade, replay e dupla emissão concorrente", async () => {
+    const actorBound = officialArgs(); await upload(actorBound.path);
+    const actorToken = await prepareDocument(dentistAIdentity.id, actorBound.args);
+    expect((await dentistB.rpc("create_official_document_verified", { ...actorBound.args, p_upload_token: actorToken })).error).not.toBeNull();
+    const issued = await dentistA.rpc("create_official_document_verified", { ...actorBound.args, p_upload_token: actorToken });
+    expect(issued.error).toBeNull(); const issuedId = (issued.data as { id: string }).id; documentIds.push(issuedId);
+    expect((await service.from("documentos").delete().eq("id", issuedId)).error).toBeNull();
+    expect((await dentistA.rpc("create_official_document_verified", { ...actorBound.args, p_upload_token: actorToken })).error).not.toBeNull();
+    expect((await service.from("documentos").select("id").eq("storage_path", actorBound.path)).data).toEqual([]);
+
+    const purposeBound = officialArgs(); await upload(purposeBound.path);
+    const { token: purposeToken, result: purposeProof } = await attemptProof(dentistAIdentity.id, purposeBound.args, defaultPdf, { p_purpose: "document:declaracao_comparecimento" });
+    expect(purposeProof.error).toBeNull();
+    expect((await dentistA.rpc("create_official_document_verified", { ...purposeBound.args, p_upload_token: purposeToken })).error).not.toBeNull();
+    const declaration = officialArgs({ p_storage_path: purposeBound.path, p_tipo: "declaracao_comparecimento", p_comparecimento_inicio: "2026-09-01T13:00:00-04:00", p_comparecimento_fim: "2026-09-01T14:00:00-04:00", p_afastamento_quantidade: null, p_afastamento_unidade: null });
+    const accepted = await dentistA.rpc("create_official_document_verified", { ...declaration.args, p_upload_token: purposeToken });
+    expect(accepted.error).toBeNull(); documentIds.push((accepted.data as { id: string }).id);
+
+    const concurrent = officialArgs(); await upload(concurrent.path);
+    const concurrentToken = await prepareDocument(dentistAIdentity.id, concurrent.args);
+    const results = await Promise.all([dentistA.rpc("create_official_document_verified", { ...concurrent.args, p_upload_token: concurrentToken }), dentistA.rpc("create_official_document_verified", { ...concurrent.args, p_upload_token: concurrentToken })]);
+    expect(results.filter((result) => result.error === null)).toHaveLength(1);
+    expect(results.filter((result) => result.error !== null)).toHaveLength(1);
+    documentIds.push((results.find((result) => result.error === null)!.data as { id: string }).id);
+    expect((await service.from("documentos").select("id").eq("storage_path", concurrent.path)).data).toHaveLength(1);
+  });
+
   it("preserva o binário histórico e incrementa versões concorrentes sem sobrescrita", async () => {
     const snapshotContent = "%PDF-QA_DOC-snapshot";
     const snapshotHash = createHash("sha256").update(snapshotContent).digest("hex");
-    const snapshot = officialArgs({ p_storage_path: `${patientId}/documentos/${randomUUID()}.pdf`, p_pdf_sha256: snapshotHash, p_tamanho_bytes: snapshotContent.length });
-    await upload(snapshot.path, snapshotContent);
-    const created = await dentistA.rpc("create_official_document", snapshot.args);
+    const snapshot = officialArgs({ p_pdf_sha256: snapshotHash, p_tamanho_bytes: bytesOf(snapshotContent).length });
+    const created = await issueDocument(dentistA, dentistAIdentity.id, snapshot, snapshotContent);
     expect(created.error).toBeNull();
     documentIds.push((created.data as { id: string }).id);
     expect((created.data as { pdf_sha256: string }).pdf_sha256).toBe(snapshotHash);
@@ -176,6 +262,14 @@ describe("QA_DOC_: documentos oficiais e snapshots privados", () => {
   it("registra versões imutáveis do orçamento sob RLS", async () => {
     const budget = await reception.rpc("create_budget", { p_paciente_id: patientId, p_profissional_id: professionalA, p_validade_em: null, p_observacao_administrativa: null }); expect(budget.error).toBeNull(); const budgetId = (budget.data as { id: string }).id; budgetIds.push(budgetId);
     expect((await reception.rpc("add_budget_item", { p_orcamento_id: budgetId, p_descricao: "QA_DOC_Procedimento", p_quantidade: 1, p_valor_unitario_centavos: 10000 })).error).toBeNull();
+    const foreignPath = `${randomUUID()}/orcamentos/${randomUUID()}.pdf`;
+    const missingPath = `${budgetId}/orcamentos/${randomUUID()}.pdf`;
+    for (const path of [foreignPath, missingPath]) {
+      expect((await reception.rpc("register_budget_pdf_version", {
+        p_orcamento_id: budgetId, p_storage_path: path, p_pdf_sha256: sha("b"), p_layout_version: 2, p_tamanho_bytes: 14,
+      })).error).not.toBeNull();
+      expect((await service.from("orcamento_pdf_versoes").select("id").eq("storage_path", path)).data).toEqual([]);
+    }
     for (const [index, digit] of [[1, "c"], [2, "d"]] as const) { const path = `${budgetId}/orcamentos/${randomUUID()}.pdf`; await upload(path, `%PDF-QA_DOC-v${index}`); const version = await reception.rpc("register_budget_pdf_version", { p_orcamento_id: budgetId, p_storage_path: path, p_pdf_sha256: sha(digit), p_layout_version: 2, p_tamanho_bytes: 14 }); expect(version.error).toBeNull(); versionIds.push((version.data as { id: string }).id); }
     const { data: versions } = await reception.from("orcamento_pdf_versoes").select("id,versao,pdf_sha256").eq("orcamento_id", budgetId).order("versao"); expect(versions?.map((row) => row.versao)).toEqual([1, 2]); expect(versions?.[0].pdf_sha256).not.toBe(versions?.[1].pdf_sha256);
     expect((await dentistA.from("orcamento_pdf_versoes").select("id").eq("orcamento_id", budgetId)).data).toHaveLength(2);

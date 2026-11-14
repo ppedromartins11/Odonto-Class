@@ -14,6 +14,7 @@ const relatedIds = async (client, table, field, parentIds) => {
 };
 
 async function main() {
+  throw new Error("LEGACY_QA_CLEANUP_DISABLED: audit retention and runId ownership manifest required");
   assertHomologationEnvironment();
   await confirmHomologationCleanup();
   if (process.env.SUPABASE_TEST_HOMOLOGATION !== ACK) throw new Error("Homologação fictícia não confirmada.");

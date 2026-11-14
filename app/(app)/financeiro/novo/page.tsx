@@ -21,7 +21,7 @@ export default async function NewPaymentPage({ searchParams }: { searchParams: S
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <div>
-        <h2 className="text-2xl font-medium">Registrar pagamento</h2>
+        <h1 className="text-2xl font-medium">Registrar pagamento</h1>
         <p className="mt-1 text-sm text-muted-foreground">Registre um pagamento vinculado ao paciente, atendimento ou orçamento.</p>
       </div>
       <PaymentForm patient={patient} initialReference={initialReference} />

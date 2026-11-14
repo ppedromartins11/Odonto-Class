@@ -11,6 +11,47 @@ import type { PerfilUsuario } from "@/lib/auth/session";
 import type { CreateUsuarioState, UpdateUsuarioAccessState, UpdateUsuarioProfileState } from "./types";
 
 const PERFIS_VALIDOS: PerfilUsuario[] = ["administrador", "dentista", "recepcao"];
+const CODIGOS_ERRO_AUTH_SEGUROS = new Set([
+  "email_address_invalid",
+  "email_exists",
+  "invite_not_allowed",
+  "over_email_send_rate_limit",
+  "signup_disabled",
+  "user_already_exists",
+]);
+const NOMES_ERRO_AUTH_SEGUROS = new Set(["AuthApiError", "PostgrestError", "Error"]);
+
+function safeInvitationError(error: unknown) {
+  const candidate = typeof error === "object" && error !== null
+    ? error as Record<string, unknown>
+    : {};
+  const details: { name?: string; code?: string; status?: number; sqlstate?: string } = {};
+  const name = typeof candidate.name === "string" && NOMES_ERRO_AUTH_SEGUROS.has(candidate.name)
+    ? candidate.name
+    : undefined;
+  const code = typeof candidate.code === "string" &&
+    (/^[0-9A-Z]{5}$/.test(candidate.code) || CODIGOS_ERRO_AUTH_SEGUROS.has(candidate.code))
+    ? candidate.code
+    : undefined;
+  const sqlstate = typeof candidate.sqlstate === "string" && /^[0-9A-Z]{5}$/.test(candidate.sqlstate)
+    ? candidate.sqlstate
+    : undefined;
+  if (name) details.name = name;
+  if (code) details.code = code;
+  if (typeof candidate.status === "number" && Number.isInteger(candidate.status)
+    && candidate.status >= 100 && candidate.status <= 599) {
+    details.status = candidate.status;
+  }
+  if (sqlstate) details.sqlstate = sqlstate;
+  return details;
+}
+
+function logInvitationStage(
+  event: string,
+  details: Record<string, string | number | undefined> = {}
+) {
+  console.info("createUsuario stage", { event, ...details });
+}
 
 /**
  * Cria um novo usuario do sistema. Restrito a administrador - a
@@ -34,34 +75,67 @@ export async function createUsuario(
   const perfil = String(formData.get("perfil") ?? "") as PerfilUsuario;
 
   if (!nome || !email) {
+    logInvitationStage("create_user_failure", { stage: "validation" });
     return { error: "Nome e e-mail são obrigatórios.", success: false };
   }
 
   if (!PERFIS_VALIDOS.includes(perfil)) {
+    logInvitationStage("create_user_failure", { stage: "validation" });
     return { error: "Selecione um perfil válido.", success: false };
   }
 
-  const supabase = await createSupabaseServerClient();
+  logInvitationStage("validation");
+  let stage = "prepare_invitation_start";
+  let supabase: Awaited<ReturnType<typeof createSupabaseServerClient>> | undefined;
   let invitationId: string | undefined;
   try {
+    supabase = await createSupabaseServerClient();
+    logInvitationStage(stage);
     const { data: authorization, error } = await supabase.rpc("prepare_user_invitation", {
       p_email: email, p_nome: nome, p_perfil: perfil,
     });
-    if (error || !authorization?.id || !authorization?.token) throw new Error("InvitationUnavailable");
+    if (error) throw error;
+    if (!authorization?.id || !authorization?.token) throw new Error("InvitationAuthorizationMissing");
     invitationId = authorization.id;
+
+    stage = "prepare_invitation_success";
+    logInvitationStage(stage);
+
+    stage = "invite_auth_start";
+    const siteUrl = getSiteUrl();
+    const redirectTo = `${siteUrl}/auth/confirm`;
+    const redirectOrigin = new URL(redirectTo).origin;
+    logInvitationStage(stage, { redirectOrigin });
+
     const admin = createSupabaseAdminClient();
     const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
       data: { provisioning_token: authorization.token },
-      redirectTo: `${getSiteUrl()}/auth/confirm`,
+      redirectTo,
     });
-    if (inviteError || !invited.user) throw new Error("InvitationUnavailable");
-  } catch {
+    if (inviteError) throw inviteError;
+    if (!invited.user) throw new Error("InvitationUserMissing");
+    stage = "invite_auth_success";
+    logInvitationStage(stage);
+  } catch (error) {
+    logInvitationStage("create_user_failure", {
+      stage,
+      ...safeInvitationError(error),
+    });
     // Revoga somente nossa autorizacao ainda nao consumida; se o Auth concluiu,
     // uma falha de transporte nao desfaz nem reabre o provisionamento.
-    if (invitationId) {
+    if (invitationId && supabase) {
+      logInvitationStage("cleanup_start");
       try {
-        await supabase.rpc("revoke_user_invitation", { p_convite_id: invitationId });
-      } catch {
+        const { error: cleanupError } = await supabase.rpc("revoke_user_invitation", {
+          p_convite_id: invitationId,
+        });
+        if (cleanupError) {
+          logInvitationStage("cleanup_failure", safeInvitationError(cleanupError));
+        } else {
+          logInvitationStage("cleanup_success");
+        }
+      } catch (cleanupError) {
+        logInvitationStage("cleanup_failure", safeInvitationError(cleanupError));
         // A autorizacao tambem expira em 30 minutos, sem privilegios por metadata.
       }
     }

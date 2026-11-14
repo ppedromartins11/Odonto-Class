@@ -1,5 +1,11 @@
 # Testes e Criterios de Aceitacao
 
+## Homologação automatizada
+
+`npm run homologate` executa o fluxo com laboratório local isolado, gates H01–H06,
+assertions obrigatórias, detecção de skips críticos e cleanup proof por execução.
+Comandos, guard remoto e limites: [HOMOLOGATION.md](HOMOLOGATION.md).
+
 ## Sprint 22.7
 
 Regressões HIGH e instruções para Supabase local: [Sprint 22.7](SPRINT_22_7.md).

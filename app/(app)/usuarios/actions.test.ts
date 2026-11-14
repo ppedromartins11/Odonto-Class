@@ -53,6 +53,79 @@ describe("convite administrativo com autorizacao SQL", () => {
     expect((await createUsuario({ error: null, success: false }, form())).success).toBe(false);
     expect(mocks.rpc).toHaveBeenLastCalledWith("revoke_user_invitation", { p_convite_id: targetId });
   });
+
+  it("registra etapas e erro sanitizado sem dados de convite", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    mocks.rpc
+      .mockResolvedValueOnce({ data: { id: targetId, token: "opaque-fixture" }, error: null })
+      .mockResolvedValueOnce({ error: null });
+    mocks.inviteUserByEmail.mockResolvedValue({
+      data: { user: null },
+      error: {
+        name: "AuthApiError",
+        code: "email_address_invalid",
+        status: 422,
+        message: "qa@example.test opaque-fixture must not be logged",
+      },
+    });
+
+    await expect(createUsuario({ error: null, success: false }, form())).resolves.toMatchObject({
+      success: false,
+    });
+
+    const events = info.mock.calls.map(([, entry]) => entry as Record<string, unknown>);
+    expect(events.map((entry) => entry.event)).toEqual([
+      "validation",
+      "prepare_invitation_start",
+      "prepare_invitation_success",
+      "invite_auth_start",
+      "create_user_failure",
+      "cleanup_start",
+      "cleanup_success",
+    ]);
+    expect(events[3]).toMatchObject({ redirectOrigin: "https://example.test" });
+    expect(events[4]).toMatchObject({
+      stage: "invite_auth_start",
+      name: "AuthApiError",
+      code: "email_address_invalid",
+      status: 422,
+    });
+
+    const output = JSON.stringify(info.mock.calls);
+    expect(output).not.toContain("qa@example.test");
+    expect(output).not.toContain("opaque-fixture");
+    expect(output).not.toContain("must not be logged");
+    info.mockRestore();
+  });
+
+  it("omite códigos de erro externos fora da lista segura", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    mocks.rpc.mockResolvedValueOnce({
+      data: null,
+      error: {
+        name: "refresh_token_opaque_fixture",
+        code: "access_token_opaque_fixture",
+        status: 400,
+        message: "qa@example.test opaque-fixture",
+      },
+    });
+
+    await expect(createUsuario({ error: null, success: false }, form())).resolves.toMatchObject({
+      success: false,
+    });
+
+    const failure = info.mock.calls
+      .map(([, entry]) => entry as Record<string, unknown>)
+      .find((entry) => entry.event === "create_user_failure");
+    expect(failure).toMatchObject({ status: 400, stage: "prepare_invitation_start" });
+    expect(failure).not.toHaveProperty("name");
+    expect(failure).not.toHaveProperty("code");
+    expect(JSON.stringify(info.mock.calls)).not.toContain("access_token_opaque_fixture");
+    expect(JSON.stringify(info.mock.calls)).not.toContain("refresh_token_opaque_fixture");
+    expect(JSON.stringify(info.mock.calls)).not.toContain("qa@example.test");
+    expect(JSON.stringify(info.mock.calls)).not.toContain("opaque-fixture");
+    info.mockRestore();
+  });
 });
 
 function accessForm(status: "ativo" | "inativo", usuarioId = targetId) {

@@ -34,9 +34,9 @@ export function PatientForm({ mode, patient, canEditClinical = false }: Props) {
 
       <section className="rounded-lg border border-border bg-card p-5">
         <div className="mb-5">
-          <h3 className="text-base font-medium text-card-foreground">
+          <h2 className="text-base font-medium text-card-foreground">
             Dados administrativos
-          </h3>
+          </h2>
           <p className="mt-1 text-xs text-muted-foreground">
             Somente o nome é obrigatório. Complete os demais dados quando estiverem disponíveis.
           </p>

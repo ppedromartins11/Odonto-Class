@@ -18,9 +18,10 @@ export default async function AppLayout({
 
   return (
     <>
+      <a href="#main-content" className="skip-link">Pular para o conteúdo principal</a>
       <Sidebar usuario={usuario} />
       <Header usuario={usuario} />
-      <main className="min-h-screen bg-background pb-14 pt-14 md:ml-56 md:pb-0">
+      <main id="main-content" tabIndex={-1} className="h-[calc(100dvh-4rem-env(safe-area-inset-bottom))] overflow-y-auto overscroll-y-contain bg-background pt-14 outline-none md:ml-56 md:h-auto md:min-h-screen md:overflow-visible">
         <div className="p-3 sm:p-6">{children}</div>
       </main>
     </>

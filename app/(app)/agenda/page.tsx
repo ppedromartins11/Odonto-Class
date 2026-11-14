@@ -66,7 +66,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Searc
     <div className="space-y-5">
       <div className="sticky top-14 z-10 -mx-1 flex flex-wrap items-start justify-between gap-3 rounded-lg bg-background/95 px-1 py-2 backdrop-blur">
         <div>
-          <h2 className="text-2xl font-medium text-foreground">Agenda</h2>
+          <h1 className="text-2xl font-medium text-foreground">Agenda</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">Consultas por dia ou semana, no horário da clínica.</p>
         </div>
         {canManage && (
@@ -98,7 +98,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Searc
               <form action="/agenda" className="flex gap-2">
                 <input type="hidden" name="data" value={selectedDate} />
                 <input type="hidden" name="visao" value={view} />
-                <select name="profissional" defaultValue={selectedProfessional ?? ""} className="h-9 min-w-48 rounded-md border border-border bg-input-background px-3 text-sm">
+                <select aria-label="Filtrar por profissional" name="profissional" defaultValue={selectedProfessional ?? ""} className="h-9 min-w-48 rounded-md border border-border bg-input-background px-3 text-sm">
                   <option value="">Todos os profissionais</option>
                   {professionals.map((professional) => <option key={professional.id} value={professional.id}>{professional.nome}</option>)}
                 </select>

@@ -76,7 +76,7 @@ export default async function UsuariosPage({ searchParams }: { searchParams: Pro
     <div className="mx-auto max-w-6xl space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-medium text-foreground">Usuários</h2>
+          <h1 className="text-2xl font-medium text-foreground">Usuários</h1>
           <p className="text-muted-foreground mt-0.5 text-sm">
             {ativos.length} usuário{ativos.length === 1 ? "" : "s"} ativo
             {ativos.length === 1 ? "" : "s"}
@@ -242,7 +242,7 @@ export default async function UsuariosPage({ searchParams }: { searchParams: Pro
       </div>
 
       <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
-        <h4 className="mb-4 text-base font-medium text-foreground">Permissões por perfil</h4>
+        <h2 className="mb-4 text-base font-medium text-foreground">Permissões por perfil</h2>
         <p className="text-xs text-muted-foreground mb-4">
           Referência ilustrativa. O controle de acesso real é aplicado no banco
           de dados (RLS) - ver docs/SECURITY.md.

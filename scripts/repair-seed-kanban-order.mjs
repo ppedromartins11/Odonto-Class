@@ -11,6 +11,7 @@ const required = (name) => {
 };
 
 async function main() {
+  throw new Error("LEGACY_QA_REPAIR_DISABLED: runId ownership manifest required");
   assertHomologationEnvironment();
   if (process.env.SUPABASE_TEST_HOMOLOGATION !== ACK) throw new Error("Homologacao ficticia nao confirmada.");
   const url = required("SUPABASE_TEST_URL");

@@ -1,15 +1,10 @@
 import { getCurrentUser } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
-import { BrandLogo } from "@/components/brand/BrandLogo";
+import Image from "next/image";
+import { LockKeyhole, ShieldCheck } from "lucide-react";
+import styles from "./login.module.css";
 import { LoginForm } from "./LoginForm";
 
-/**
- * Nao existe referencia visual no prototipo para esta tela (o prompt
- * original do Figma Make pediu explicitamente para nao implementar
- * autenticacao - ver Conflito 1 da analise). Desenhada do zero usando os
- * mesmos tokens (cores, radius, tipografia) do restante do sistema para
- * manter consistencia visual.
- */
 type LoginPageProps = {
   searchParams: Promise<{
     reason?: string;
@@ -36,17 +31,43 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const initialError = REASON_MESSAGES[reasonKey] ?? null;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-secondary/30 px-4 py-8">
-      <div className="w-full max-w-md">
-        <div className="mb-7 flex justify-center">
-          <BrandLogo className="w-72 max-w-[82vw] drop-shadow-sm" priority />
-        </div>
+    <main className={styles.page}>
+      <div className={styles.layout}>
+        <section className={styles.brand} aria-label="Odonto Class">
+          <div className={styles.logo}>
+            <Image
+              src="/brand/odonto-class-login.png"
+              alt="Odonto Class — Clínica Odontológica"
+              width={1254}
+              height={1254}
+              sizes="(max-width: 640px) 240px, (max-width: 960px) 300px, 420px"
+              priority
+            />
+          </div>
+          <div className={styles.brandMessage}>
+            <span className={styles.eyebrow}>CUIDADO EM CADA DETALHE</span>
+            <h2>Mais organização.<br /><span>Mais tempo para cuidar.</span></h2>
+            <p>Um espaço para conectar sua equipe e simplificar o dia a dia da clínica.</p>
+          </div>
+          <div className={styles.brandFooter}>
+            <span className={styles.brandLine} aria-hidden="true" />
+            Gestão clínica com a essência Odonto Class.
+          </div>
+        </section>
 
-        <div className="rounded-xl border border-border bg-card p-6 shadow-sm sm:p-7">
-          <h2 className="text-base font-medium text-card-foreground mb-4">Entrar</h2>
+        <section className={styles.card} aria-labelledby="login-title">
+          <div className={styles.icon} aria-hidden="true"><LockKeyhole size={23} strokeWidth={1.6} /></div>
+          <span className={styles.cardEyebrow}>PORTAL DA EQUIPE</span>
+          <h1 id="login-title">Acesse sua conta</h1>
+          <p className={styles.subtitle}>Faça login para acessar o sistema da clínica.</p>
           <LoginForm initialError={initialError} />
-        </div>
+          <div className={styles.cardFooter}>
+            <ShieldCheck size={17} aria-hidden="true" />
+            <span>Acesso exclusivo à equipe autorizada.</span>
+          </div>
+        </section>
+        <p className={styles.mobileFooter}>Odonto Class · Clínica Odontológica</p>
       </div>
-    </div>
+    </main>
   );
 }
