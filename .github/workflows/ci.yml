@@ -10,15 +10,18 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
           cache: "npm"
@@ -45,15 +48,23 @@ jobs:
     env:
       SUPABASE_TEST_HOMOLOGATION: ${{ secrets.SUPABASE_TEST_HOMOLOGATION }}
       SUPABASE_TEST_URL: ${{ secrets.SUPABASE_TEST_URL }}
+      SUPABASE_TEST_PROJECT_REF: ${{ vars.QA_SUPABASE_PROJECT_REF }}
+      SUPABASE_TEST_ENVIRONMENT: homologation
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_TEST_URL }}
       SUPABASE_TEST_ANON_KEY: ${{ secrets.SUPABASE_TEST_ANON_KEY }}
       SUPABASE_TEST_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_TEST_SERVICE_ROLE_KEY }}
       SUPABASE_TEST_DB_URL: ${{ secrets.SUPABASE_TEST_DB_URL }}
+      QA_SUPABASE_PROJECT_REF: ${{ vars.QA_SUPABASE_PROJECT_REF }}
+      PRODUCTION_SUPABASE_PROJECT_REF: ${{ vars.PRODUCTION_SUPABASE_PROJECT_REF }}
+      DR_SUPABASE_PROJECT_REF: ${{ vars.DR_SUPABASE_PROJECT_REF }}
+      VERCEL_PREVIEW_SUPABASE_PROJECT_REF: ${{ vars.VERCEL_PREVIEW_SUPABASE_PROJECT_REF }}
+      VERCEL_PRODUCTION_SUPABASE_PROJECT_REF: ${{ vars.VERCEL_PRODUCTION_SUPABASE_PROJECT_REF }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
           cache: "npm"

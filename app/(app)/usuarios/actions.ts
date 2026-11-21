@@ -11,6 +11,47 @@ import type { PerfilUsuario } from "@/lib/auth/session";
 import type { CreateUsuarioState, UpdateUsuarioAccessState, UpdateUsuarioProfileState } from "./types";
 
 const PERFIS_VALIDOS: PerfilUsuario[] = ["administrador", "dentista", "recepcao"];
+const CODIGOS_ERRO_AUTH_SEGUROS = new Set([
+  "email_address_invalid",
+  "email_exists",
+  "invite_not_allowed",
+  "over_email_send_rate_limit",
+  "signup_disabled",
+  "user_already_exists",
+]);
+const NOMES_ERRO_AUTH_SEGUROS = new Set(["AuthApiError", "PostgrestError", "Error"]);
+
+function safeInvitationError(error: unknown) {
+  const candidate = typeof error === "object" && error !== null
+    ? error as Record<string, unknown>
+    : {};
+  const details: { name?: string; code?: string; status?: number; sqlstate?: string } = {};
+  const name = typeof candidate.name === "string" && NOMES_ERRO_AUTH_SEGUROS.has(candidate.name)
+    ? candidate.name
+    : undefined;
+  const code = typeof candidate.code === "string" &&
+    (/^[0-9A-Z]{5}$/.test(candidate.code) || CODIGOS_ERRO_AUTH_SEGUROS.has(candidate.code))
+    ? candidate.code
+    : undefined;
+  const sqlstate = typeof candidate.sqlstate === "string" && /^[0-9A-Z]{5}$/.test(candidate.sqlstate)
+    ? candidate.sqlstate
+    : undefined;
+  if (name) details.name = name;
+  if (code) details.code = code;
+  if (typeof candidate.status === "number" && Number.isInteger(candidate.status)
+    && candidate.status >= 100 && candidate.status <= 599) {
+    details.status = candidate.status;
+  }
+  if (sqlstate) details.sqlstate = sqlstate;
+  return details;
+}
+
+function logInvitationStage(
+  event: string,
+  details: Record<string, string | number | undefined> = {}
+) {
+  console.info("createUsuario stage", { event, ...details });
+}
 
 /**
  * Cria um novo usuario do sistema. Restrito a administrador - a
@@ -27,37 +68,77 @@ export async function createUsuario(
   _prevState: CreateUsuarioState,
   formData: FormData
 ): Promise<CreateUsuarioState> {
-  const actor = await requireAdminAal2("/usuarios");
+  await requireAdminAal2("/usuarios");
 
   const nome = String(formData.get("nome") ?? "").trim();
-  const email = String(formData.get("email") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const perfil = String(formData.get("perfil") ?? "") as PerfilUsuario;
 
   if (!nome || !email) {
+    logInvitationStage("create_user_failure", { stage: "validation" });
     return { error: "Nome e e-mail são obrigatórios.", success: false };
   }
 
   if (!PERFIS_VALIDOS.includes(perfil)) {
+    logInvitationStage("create_user_failure", { stage: "validation" });
     return { error: "Selecione um perfil válido.", success: false };
   }
 
-  const admin = createSupabaseAdminClient();
-
-  const { data: invited, error: inviteError } =
-    await admin.auth.admin.inviteUserByEmail(email, {
-      data: {
-        nome,
-        perfil,
-        created_by: actor.id,
-      },
-      redirectTo: `${getSiteUrl()}/auth/confirm`,
+  logInvitationStage("validation");
+  let stage = "prepare_invitation_start";
+  let supabase: Awaited<ReturnType<typeof createSupabaseServerClient>> | undefined;
+  let invitationId: string | undefined;
+  try {
+    supabase = await createSupabaseServerClient();
+    logInvitationStage(stage);
+    const { data: authorization, error } = await supabase.rpc("prepare_user_invitation", {
+      p_email: email, p_nome: nome, p_perfil: perfil,
     });
+    if (error) throw error;
+    if (!authorization?.id || !authorization?.token) throw new Error("InvitationAuthorizationMissing");
+    invitationId = authorization.id;
 
-  if (inviteError || !invited.user) {
-    console.error("Falha ao convidar usuario", {
-      status: inviteError?.status,
-      code: inviteError?.code,
+    stage = "prepare_invitation_success";
+    logInvitationStage(stage);
+
+    stage = "invite_auth_start";
+    const siteUrl = getSiteUrl();
+    const redirectTo = `${siteUrl}/auth/confirm`;
+    const redirectOrigin = new URL(redirectTo).origin;
+    logInvitationStage(stage, { redirectOrigin });
+
+    const admin = createSupabaseAdminClient();
+    const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
+      data: { provisioning_token: authorization.token },
+      redirectTo,
     });
+    if (inviteError) throw inviteError;
+    if (!invited.user) throw new Error("InvitationUserMissing");
+    stage = "invite_auth_success";
+    logInvitationStage(stage);
+  } catch (error) {
+    logInvitationStage("create_user_failure", {
+      stage,
+      ...safeInvitationError(error),
+    });
+    // Revoga somente nossa autorizacao ainda nao consumida; se o Auth concluiu,
+    // uma falha de transporte nao desfaz nem reabre o provisionamento.
+    if (invitationId && supabase) {
+      logInvitationStage("cleanup_start");
+      try {
+        const { error: cleanupError } = await supabase.rpc("revoke_user_invitation", {
+          p_convite_id: invitationId,
+        });
+        if (cleanupError) {
+          logInvitationStage("cleanup_failure", safeInvitationError(cleanupError));
+        } else {
+          logInvitationStage("cleanup_success");
+        }
+      } catch (cleanupError) {
+        logInvitationStage("cleanup_failure", safeInvitationError(cleanupError));
+        // A autorizacao tambem expira em 30 minutos, sem privilegios por metadata.
+      }
+    }
     return {
       error: "Não foi possível enviar o convite. Verifique o e-mail e tente novamente.",
       success: false,
@@ -109,88 +190,134 @@ export async function updateUsuarioAccess(
     return { error: "Nenhuma alteração foi informada.", success: false };
   }
 
-  const supabase = await createSupabaseServerClient();
-  const admin = createSupabaseAdminClient();
-
-  if (status === "ativo") {
-    const { error: unbanError } = await admin.auth.admin.updateUserById(usuarioId, {
-      ban_duration: "none",
-    });
-
-    if (unbanError) {
-      console.error("Falha ao reativar conta Auth", {
-        status: unbanError.status,
-        code: unbanError.code,
-      });
-      return {
-        error: "Não foi possível reativar a conta de acesso.",
-        success: false,
-      };
-    }
-  }
-
-  const { error: accessError } = await supabase.rpc("update_user_access", {
-    p_usuario_id: usuarioId,
-    p_perfil: perfil,
-    p_status: status,
-  });
-
-  if (accessError) {
-    if (status === "ativo") {
-      const { error: compensationError } =
-        await admin.auth.admin.updateUserById(usuarioId, {
-          ban_duration: "876000h",
-        });
-      if (compensationError) {
-        console.error("Falha na compensacao da reativacao Auth", {
-          status: compensationError.status,
-          code: compensationError.code,
-        });
-      }
-    }
-
-    console.error("Falha na RPC update_user_access", {
-      code: accessError.code,
-    });
-    if (accessError.code === "23514" || accessError.code === "42501") {
-      await recordAuditEvent({
-        usuarioId: actor.id,
-        evento: "acao_administrativa_negada",
-        entidade: "usuarios",
-        entidadeId: usuarioId,
-        dados: { motivo_codigo: accessError.code },
-      });
-    }
+  if (
+    usuarioId === actor.id &&
+    (status === "inativo" || (perfil !== null && perfil !== "administrador"))
+  ) {
     return {
-      error:
-        accessError.code === "23514" || accessError.code === "42501"
-          ? "A alteração foi recusada pelas regras de segurança administrativa."
-          : "Não foi possível alterar o acesso do usuário.",
+      error: "Sua própria conta administrativa não pode ser desativada ou rebaixada.",
       success: false,
     };
   }
 
-  if (status === "inativo") {
-    const { error: banError } = await admin.auth.admin.updateUserById(usuarioId, {
-      ban_duration: "876000h",
+  let stage = "inicializacao";
+  let accessUpdated = false;
+  try {
+    const supabase = await createSupabaseServerClient();
+    const admin = createSupabaseAdminClient();
+
+    if (status === "ativo") {
+      stage = "reativacao_auth";
+      const { error: unbanError } = await admin.auth.admin.updateUserById(usuarioId, {
+        ban_duration: "none",
+      });
+
+      if (unbanError) {
+        console.error("Falha ao reativar conta Auth", {
+          status: unbanError.status,
+          code: unbanError.code,
+        });
+        return {
+          error: "Não foi possível reativar a conta de acesso.",
+          success: false,
+        };
+      }
+    }
+
+    stage = "rpc_update_user_access";
+    const { error: accessError } = await supabase.rpc("update_user_access", {
+      p_usuario_id: usuarioId,
+      p_perfil: perfil,
+      p_status: status,
     });
 
-    if (banError) {
-      console.error("Falha ao suspender conta Auth", {
-        status: banError.status,
-        code: banError.code,
+    if (accessError) {
+      if (status === "ativo") {
+        stage = "compensacao_auth";
+        const { error: compensationError } =
+          await admin.auth.admin.updateUserById(usuarioId, {
+            ban_duration: "876000h",
+          });
+        if (compensationError) {
+          console.error("Falha na compensacao da reativacao Auth", {
+            status: compensationError.status,
+            code: compensationError.code,
+          });
+        }
+      }
+
+      console.error("Falha na RPC update_user_access", {
+        code: accessError.code,
       });
-      revalidatePath("/usuarios");
+      if (accessError.code === "23514" || accessError.code === "42501") {
+        await recordAuditEvent({
+          usuarioId: actor.id,
+          evento: "acao_administrativa_negada",
+          entidade: "usuarios",
+          entidadeId: usuarioId,
+          dados: { motivo_codigo: accessError.code },
+        });
+      }
+      return {
+        error:
+          accessError.code === "23514" || accessError.code === "42501"
+            ? "A alteração foi recusada pelas regras de segurança administrativa."
+            : accessError.code === "P0002"
+              ? "Usuário não encontrado. Atualize a lista e tente novamente."
+              : "Não foi possível alterar o acesso do usuário.",
+        success: false,
+      };
+    }
+    accessUpdated = true;
+
+    if (status === "inativo") {
+      stage = "suspensao_auth";
+      const { error: banError } = await admin.auth.admin.updateUserById(usuarioId, {
+        ban_duration: "876000h",
+      });
+
+      if (banError) {
+        console.error("Falha ao suspender conta Auth", {
+          status: banError.status,
+          code: banError.code,
+        });
+        revalidatePath("/usuarios");
+        return {
+          error:
+            "O acesso aos dados foi bloqueado, mas a suspensão da conta precisa ser tentada novamente.",
+          success: false,
+        };
+      }
+    }
+
+    stage = "revalidacao";
+    revalidatePath("/usuarios");
+    return { error: null, success: true };
+  } catch (error) {
+    console.error("Falha inesperada ao alterar acesso de usuario", {
+      stage,
+      name: error instanceof Error ? error.name : "UnknownError",
+    });
+    if (stage === "revalidacao") {
+      return { error: null, success: true };
+    }
+    if (accessUpdated && status === "inativo") {
+      try {
+        revalidatePath("/usuarios");
+      } catch {
+        // O acesso no banco ja esta bloqueado; a tela atualiza no proximo refresh.
+      }
       return {
         error:
           "O acesso aos dados foi bloqueado, mas a suspensão da conta precisa ser tentada novamente.",
         success: false,
       };
     }
+    return {
+      error: "Não foi possível alterar o acesso agora. Tente novamente.",
+      success: false,
+    };
   }
-
-  revalidatePath("/usuarios");
-  return { error: null, success: true };
 }
 
 export async function updateUsuarioProfile(

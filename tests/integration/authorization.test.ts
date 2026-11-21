@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { createQaAdmin } from "./helpers";
+import { createQaUser, createQaAdmin } from "./helpers";
 
 type Role = "administrador" | "dentista" | "recepcao";
 
@@ -49,7 +49,7 @@ describe("autorizacao Sprint 1.5 em homologacao", () => {
       role,
     };
 
-    const { data, error } = await service.auth.admin.createUser({
+    const { data, error } = await createQaUser(service, {
       email: identity.email,
       password: identity.password,
       email_confirm: true,

@@ -180,7 +180,7 @@ export default async function PatientPage({ params, searchParams }: { params: Pr
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-50 text-base font-medium text-primary">{initials(patient.nome)}</div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="truncate text-xl font-medium text-foreground">{patient.nome}</h2>
+                <h1 className="truncate text-xl font-medium text-foreground">{patient.nome}</h1>
                 <Badge tone={patient.ativo ? "success" : "neutral"}>{patient.ativo ? "Ativo" : "Inativo"}</Badge>
               </div>
               <p className="mt-0.5 text-xs text-muted-foreground">{ageInYears !== null ? `${ageInYears} anos · ` : ""}Paciente desde {patientSince(patient.created_at)}</p>

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/auth/session";
+import { requireAdminAal2, requireUser } from "@/lib/auth/session";
 import { isValidUuid } from "@/lib/patients/validation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { TreatmentPlanActionState } from "@/lib/treatments/types";
@@ -32,6 +32,7 @@ export async function cancelTreatmentPlan(_: TreatmentPlanActionState, formData:
   const planId = String(formData.get("planId") ?? "");
   if (!isValidUuid(planId)) return { success: false, error: "Plano inválido." };
   if (user.perfil !== "administrador") return { success: false, error: "Você não tem permissão para cancelar este plano." };
+  await requireAdminAal2(`/tratamentos/${planId}`);
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.rpc("cancel_treatment_plan", { p_plano_tratamento_id: planId });
   if (error || !data) return { success: false, error: actionError(error?.code) };

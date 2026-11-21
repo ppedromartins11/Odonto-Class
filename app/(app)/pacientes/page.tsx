@@ -39,7 +39,7 @@ export default async function PatientsPage({ searchParams }: { searchParams: Sea
     <div className="mx-auto max-w-5xl space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-medium text-foreground">Pacientes</h2>
+          <h1 className="text-2xl font-medium text-foreground">Pacientes</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
             Cadastro e localização rápida por nome ou telefone.
           </p>

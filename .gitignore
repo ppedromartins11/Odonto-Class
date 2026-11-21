@@ -5,17 +5,23 @@
 
 # testing
 /coverage
+/test-results/
+/playwright-report/
 
 # next.js
 /.next/
 /out/
+/.turbo/
 
 # production
 /build
+/dist/
 
-# env - NUNCA commitar credenciais reais
-.env
-.env*.local
+# env - nunca versionar credenciais reais
+.env*
+!.env.local.example
+!.env.test.example
+!.env.homologacao.example
 
 # vercel
 .vercel
@@ -26,6 +32,20 @@
 # supabase local
 supabase/.branches
 supabase/.temp
+
+# laboratório local recriável de homologação
+/scripts/tmp/
+
+# disaster-recovery artifacts generated locally; never version dumps or backups
+/.dr/
+/artifacts/homologacao/
+
+# local database dumps/backups
+/.backups/
+/backup*.sql
+/dump*.sql
+/*.dump
+/*.backup
 
 # misc
 .DS_Store

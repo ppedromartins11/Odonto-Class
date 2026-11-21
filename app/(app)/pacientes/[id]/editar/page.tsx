@@ -30,7 +30,7 @@ export default async function EditPatientPage({
         >
           <ChevronLeft className="h-3.5 w-3.5" /> Voltar para a ficha
         </Link>
-        <h2 className="text-2xl font-medium text-foreground">Editar paciente</h2>
+        <h1 className="text-2xl font-medium text-foreground">Editar paciente</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">{patient.nome}</p>
       </div>
       <PatientForm mode="edit" patient={patient} />

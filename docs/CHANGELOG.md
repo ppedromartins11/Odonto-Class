@@ -1,5 +1,36 @@
 # Changelog
 
+## Separação Production / QA / DR — 2026-10-07
+
+- QA exclusivo `zxvpyxvhymuibaxgxetf` recebeu as migrations versionadas `0001`–`0031`; Production e DR não receberam escrita.
+- Preview Vercel e configurações locais ignoradas passaram a apontar para QA; Production Vercel mantém `sqouddqzpmkofenyufuj`.
+- Guard fixa os três refs oficiais. Scripts legados de cleanup remoto foram desativados até existir manifesto de ownership por entidade.
+- Homologação remota permanece bloqueada: faltam acesso DB QA, Auth/atores fictícios, runner remoto com cleanup seguro e execução H01–H06. Consulte [o plano](plans/environment-separation.md).
+
+## Automa??o de homologa??o ? 2026-10-05
+
+- Comando `npm run homologate`, laborat?rio local isolado, guard fail-closed,
+  gates H01?H06, assertions obrigat?rias, detec??o de skips e relat?rios por run.
+- QA existente ampliado; revis?o independente de seguran?a dos controles de
+  target/ownership/Docker/junctions e sanitiza??o. Sem novo agente ou migration.
+- Cleanup da su?te MFA corrigido por UUIDs criados: remove auditoria antes de
+  excluir atores, verifica erros e comprova aus?ncia, preservando assertions MFA.
+- Checkpoint remoto somente leitura confirma 0030/0031 aplicadas; res?duos QA
+  preexistentes bloqueiam aprova??o. Nenhuma mutation remota ou deploy.
+- Procedimento e limites em [HOMOLOGATION.md](HOMOLOGATION.md).
+
+## Sprint 22.7 — HIGHs da auditoria, aguardando revisão/homologação
+
+- 0030: autorização SQL para binário clínico, identidade de atendimento protegida,
+  RPC legada de orçamento revogada, AAL2 em ajuste/cancelamento/auditoria e
+  provisionamento por convite autorizado com token de uso único.
+- 0031: transição de lotes bloqueada por consumo reversível sem lote; estorno
+  incompatível rejeitado antes de alterar saldo.
+- Regressões de autorização/domínio, HTTP/PDF, MFA real e concorrência; fixtures
+  e seed migrados ao novo fluxo de convite. Gate manual de signup documentado.
+- 0001–0029 preservadas; nenhum deploy/migration remota, commit ou push nesta etapa.
+  [Relatório e plano de homologação](SPRINT_22_7.md).
+
 ## Documentos oficiais Odonto Class
 
 - Migration `0019_documentos_oficiais.sql`: tipos específicos de declaração,

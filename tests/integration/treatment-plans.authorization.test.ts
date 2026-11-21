@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { createQaAdmin } from "./helpers";
+import { createQaUser, createQaAdmin } from "./helpers";
 
 const ACK = "I_ACKNOWLEDGE_FAKE_DATA_ONLY";
 const PREFIX = "QA_TRAT_";
@@ -19,7 +19,7 @@ async function login(identity: Pick<Identity, "email" | "password">) { const cli
 async function createIdentity(role: Role) {
   const suffix = randomUUID();
   const identity = { email: `qa_trat_${role}_${suffix}@example.com`, password: `Tmp-${randomUUID()}-A9!`, role };
-  const { data, error } = await service.auth.admin.createUser({ email: identity.email, password: identity.password, email_confirm: true, user_metadata: { nome: `${PREFIX}${role}_${suffix}`, perfil: role, created_by: adminId } });
+  const { data, error } = await createQaUser(service, { email: identity.email, password: identity.password, email_confirm: true, user_metadata: { nome: `${PREFIX}${role}_${suffix}`, perfil: role, created_by: adminId } });
   if (error || !data.user) throw error ?? new Error("Usuario QA_TRAT nao criado.");
   const result = { ...identity, id: data.user.id }; users.push(result); return result;
 }
@@ -106,6 +106,27 @@ describe("Sprint 21: orcamento para tratamento", () => {
     expect(audit.data?.map((row) => row.evento)).toEqual(expect.arrayContaining(["orcamento_convertido_tratamento", "plano_tratamento_criado"]));
     expect(JSON.stringify(audit.data)).not.toContain(`${PREFIX}Observacao sensivel`);
     expect(JSON.stringify(audit.data)).not.toContain(`${PREFIX}Item`);
+  });
+
+  it("nega chamadas diretas aos helpers internos sem alterar plano, orçamento ou auditoria", async () => {
+    const planId = planIds[0]!;
+    const budgetId = budgetIds[0]!;
+    const planBefore = await service.from("planos_tratamento").select("status,updated_by").eq("id", planId).single();
+    const budgetBefore = await service.from("orcamentos").select("total_centavos").eq("id", budgetId).single();
+    const auditBefore = await service.from("auditoria").select("id", { count: "exact", head: true }).eq("entidade_id", planId);
+    for (const client of [freshClient(), admin, reception, dentistA, dentistB, await login(inactive), await login(orphan)]) {
+      expect((await client.rpc("refresh_treatment_plan_state", { p_plano_tratamento_id: planId })).error).not.toBeNull();
+      expect((await client.rpc("refresh_budget_total", { p_orcamento_id: budgetId })).error).not.toBeNull();
+      expect((await client.rpc("assert_payment_links", {
+        p_paciente_id: patientId, p_atendimento_id: null, p_orcamento_id: budgetId,
+      })).error).not.toBeNull();
+    }
+    const planAfter = await service.from("planos_tratamento").select("status,updated_by").eq("id", planId).single();
+    const budgetAfter = await service.from("orcamentos").select("total_centavos").eq("id", budgetId).single();
+    const auditAfter = await service.from("auditoria").select("id", { count: "exact", head: true }).eq("entidade_id", planId);
+    expect(planAfter.data).toEqual(planBefore.data);
+    expect(budgetAfter.data).toEqual(budgetBefore.data);
+    expect(auditAfter.count).toBe(auditBefore.count);
   });
 
   it("bloqueia dupla conversao, recepcao, outro dentista, inativo e sem perfil", async () => {

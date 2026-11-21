@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { createQaAdmin } from "./helpers";
+import { createQaUser, createQaAdmin } from "./helpers";
 
 const ACK = "I_ACKNOWLEDGE_FAKE_DATA_ONLY";
 type Role = "administrador" | "recepcao" | "dentista";
@@ -18,6 +18,7 @@ const attendanceIds: string[] = [];
 const patientIds: string[] = [];
 let url: string, anon: string, service: SupabaseClient, admin: SupabaseClient, reception: SupabaseClient, dentistA: SupabaseClient, dentistB: SupabaseClient;
 let adminId: string, dentistAId: string, dentistBId: string, professionalA: string, professionalB: string, patientA: string, patientB: string, attendanceA: string, approvedBudgetId: string, inactive: Identity, orphan: Identity;
+let testPaymentDate: string | undefined;
 
 function required(name: string) { const value = process.env[name]; if (!value) throw new Error(`${name} não configurada em .env.test.local.`); return value; }
 function freshClient() { return createClient(url, anon, { auth: { autoRefreshToken: false, persistSession: false } }); }
@@ -25,7 +26,7 @@ async function login(identity: Pick<Identity, "email" | "password">) { const cli
 async function createIdentity(role: Role) {
   const suffix = randomUUID();
   const candidate = { email: `qa_fin_${role}_${suffix}@example.com`, password: `Tmp-${randomUUID()}-A9!`, role };
-  const { data, error } = await service.auth.admin.createUser({ email: candidate.email, password: candidate.password, email_confirm: true, user_metadata: { nome: `QA_FIN_${role}_${suffix}`, perfil: role, created_by: adminId } });
+  const { data, error } = await createQaUser(service, { email: candidate.email, password: candidate.password, email_confirm: true, user_metadata: { nome: `QA_FIN_${role}_${suffix}`, perfil: role, created_by: adminId } });
   if (error || !data.user) throw error ?? new Error("Usuário QA_FIN ausente.");
   const identity = { ...candidate, id: data.user.id };
   users.push(identity);
@@ -45,7 +46,7 @@ async function createPayment(client: SupabaseClient, values: { patientId?: strin
     p_orcamento_id: values.budgetId ?? null,
     p_valor_centavos: values.cents ?? 12345,
     p_forma: "pix",
-    p_data_pagamento: values.paymentDate ?? new Date().toISOString().slice(0, 10),
+    p_data_pagamento: values.paymentDate ?? testPaymentDate ?? new Date().toISOString().slice(0, 10),
     p_observacao_administrativa: values.observation ?? null,
   });
   if (!result.error && result.data) paymentIds.push((result.data as { id: string }).id);
@@ -56,6 +57,12 @@ async function paymentSummary(date: string): Promise<PaymentSummary> {
   const result = await admin.rpc("get_payment_summary", { p_data_inicio: date, p_data_fim: date });
   expect(result.error).toBeNull();
   return (result.data as PaymentSummary[])[0];
+}
+
+async function clinicDate() {
+  const result = await admin.rpc("clinic_today");
+  expect(result.error).toBeNull();
+  return String(result.data);
 }
 
 describe("financeiro: pagamentos, RLS, RPCs e auditoria", () => {
@@ -110,7 +117,8 @@ describe("financeiro: pagamentos, RLS, RPCs e auditoria", () => {
   });
 
   it("registra pagamentos apenas por RPC e mantém valores em centavos", async () => {
-    const period = new Date().toISOString().slice(0, 10);
+    const period = await clinicDate();
+    testPaymentDate = period;
     const before = await paymentSummary(period);
     const patientOnly = await createPayment(reception, { cents: 12345, observation: "QA_FIN_observação_sensível" });
     expect(patientOnly.error).toBeNull();

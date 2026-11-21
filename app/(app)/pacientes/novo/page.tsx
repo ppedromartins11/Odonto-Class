@@ -15,7 +15,7 @@ export default async function NewPatientPage() {
         >
           <ChevronLeft className="h-3.5 w-3.5" /> Voltar para pacientes
         </Link>
-        <h2 className="text-2xl font-medium text-foreground">Novo paciente</h2>
+        <h1 className="text-2xl font-medium text-foreground">Novo paciente</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">
           Cadastre apenas as informações disponíveis neste momento.
         </p>

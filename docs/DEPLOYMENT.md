@@ -1,16 +1,31 @@
 # Deploy
 
+## Gate da Sprint 22.7 — obrigatório antes do próximo deploy
+
+**DESABILITAR SIGNUP PÚBLICO no Supabase Auth, manualmente, e verificar
+`disable_signup=true`.** A configuração remota não foi alterada nesta Sprint.
+Convites passam por autorização SQL de administrador AAL2. As migrations
+0030/0031 foram testadas localmente e ainda aguardam revisão/aplicação remota.
+O RC anterior não deve ser considerado seguro para release.
+
+Plano exato de homologação, compatibilidade e cleanup: [Sprint 22.7](SPRINT_22_7.md).
+
 ## Release candidate atual
 
 O release candidate inclui Auth, Usuarios, Dashboard, Pacientes, Agenda,
 Atendimentos, Procedimentos, Retornos, Tarefas, Documentos/PDF, Arquivos
-privados, Orcamentos, Financeiro basico (pagamentos), Estoque e catalogo de
-Servicos. Validade/Esterilizacao continua parcial, desativada no menu e fora
-da homologacao operacional.
+privados, Orcamentos, Financeiro, Estoque, catalogo de Servicos, planos de
+tratamento, Validade/Lotes, Esterilizacao, Odontograma e rastreabilidade
+clinica de lote por procedimento.
 
-As migrations `0001`-`0015` fazem parte do historico local e da homologacao
+As migrations `0001`-`0029` fazem parte do historico local e da homologacao
 ficticia. Migrations aplicadas nunca sao reescritas; qualquer divergencia deve
 ser investigada antes de um deploy, sem reset ou reaplicacao de SQL historico.
+
+O release candidate foi validado com Next.js `16.3.3`, smoke/E2E por perfil,
+build de producao e `npm audit --omit=dev` sem vulnerabilidades runtime. Essa
+evidencia valida o artefato atual, mas nao substitui os gates externos de
+producao.
 
 ### Checklist de deploy para homologacao online
 
@@ -35,9 +50,34 @@ ser investigada antes de um deploy, sem reset ou reaplicacao de SQL historico.
    `npm run typecheck`, `npm run test` e `npm run build`; depois fazer smoke
    test com dados estritamente ficticios.
 
-Antes de qualquer dado real ou producao: habilitar MFA para administradores,
-definir e testar backup/restauracao, revisar a seguranca final e concluir o
-bloco parcial de Financeiro/Orcamentos/Validade.
+MFA/AAL2 administrativo e o procedimento manual de backup/restore foram
+validados em homologacao ficticia. Isso nao elimina os gates externos abaixo
+nem autoriza automaticamente dados reais ou producao.
+
+### GATE DE PRODUCAO — configuracao externa
+
+Estes itens dependem do ambiente/provedor e nao sao bugs resolvidos apenas
+pelo codigo. Todos precisam de evidencia antes do go-live:
+
+- [ ] SMTP transacional validado com remetente do dominio e sem credencial no
+      repositorio.
+- [ ] Templates de convite e recuperacao revisados; links exercitados ate o
+      callback SSR/PKCE.
+- [ ] Supabase Auth com `Site URL` de producao e allowlist exata de Redirect
+      URLs de producao e Preview.
+- [ ] Dominio, DNS e TLS validos, incluindo renovacao e redirect HTTPS.
+- [ ] Variaveis Vercel separadas por Production/Preview; service role apenas
+      server-side e nenhum secret exposto no bundle.
+- [ ] Recuperacao de MFA testada pelo procedimento administrativo documentado,
+      sem bypass de AAL2.
+- [ ] CSP com nonce/reporting e HSTS avaliados no dominio final, sem quebrar
+      Auth, PDFs ou downloads assinados.
+- [ ] Rate limiting configurado e testado para login, recuperacao, convites,
+      uploads e mutacoes sensiveis.
+- [ ] Backup completo pre-release concluido, criptografado e verificado; ponto
+      de rollback e responsavel pela decisao registrados.
+- [ ] Smoke/E2E final executado no deploy candidato e rollback ensaiado sem
+      alterar migrations historicas.
 
 ## Gate da Sprint 1.5
 
@@ -104,8 +144,9 @@ MFA administrativo, backup/restauracao e configuracao de ambiente.
    `.env.test.example`, aplicar/lintar as migrations pela URI Postgres e
    executar `npm run test:integration`.
 
-8. Antes do go-live, configurar e testar MFA/AAL2 para todo
-   administrador. Enquanto isso nao ocorrer, producao nao esta aprovada.
+8. Confirmar no deploy candidato que o MFA/AAL2 administrativo ja homologado
+   continua exigido e testar o procedimento operacional de recuperacao. Nao
+   criar bypass para liberar o go-live.
 
 ## Gate de banco da Sprint 15
 
@@ -136,10 +177,11 @@ token do CLI nao estiver disponivel.
 
 ## Backup e recuperacao (RNF-07)
 
-A definir formalmente quando o banco definitivo existir (Sprint 1 em
-diante): a politica de backup do plano Supabase escolhido deve ser
-revisada e um teste de restauracao deve ser feito antes de qualquer uso
-com dados reais.
+O procedimento, escopo e evidencia da prova de restore isolada estao em
+`docs/BACKUP_RESTORE.md`. Antes de dados reais ou producao, configurar a
+rotina aprovada de backup logico e Storage fisico, armazenamento criptografado
+fora da maquina de origem, retencao, reconstrucao de configuracoes externas e
+DR Drill trimestral.
 
 ## Estado na Sprint 0
 

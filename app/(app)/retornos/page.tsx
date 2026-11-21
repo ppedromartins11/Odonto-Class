@@ -83,7 +83,7 @@ export default async function ReturnsPage({ searchParams }: { searchParams: Sear
   return (
     <div className="mx-auto max-w-6xl space-y-5">
       <div>
-        <h2 className="text-2xl font-medium text-foreground">Retornos</h2>
+        <h1 className="text-2xl font-medium text-foreground">Retornos</h1>
         <p className="mt-1 text-sm text-muted-foreground">Acompanhe pacientes que precisam retornar, agende novos horários e finalize pendências.</p>
       </div>
 

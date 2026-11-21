@@ -76,7 +76,7 @@ export default async function UsuariosPage({ searchParams }: { searchParams: Pro
     <div className="mx-auto max-w-6xl space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-medium text-foreground">Usuários</h2>
+          <h1 className="text-2xl font-medium text-foreground">Usuários</h1>
           <p className="text-muted-foreground mt-0.5 text-sm">
             {ativos.length} usuário{ativos.length === 1 ? "" : "s"} ativo
             {ativos.length === 1 ? "" : "s"}
@@ -113,7 +113,54 @@ export default async function UsuariosPage({ searchParams }: { searchParams: Pro
             Nenhum usuário cadastrado ainda.
           </p>
         ) : (
-          <div className="overflow-x-auto"><table className="min-w-[46rem] w-full">
+          <>
+            <div className="divide-y divide-border md:hidden">
+              {lista.map((usuario) => {
+                const cfg = ROLE_CONFIG[usuario.perfil as PerfilUsuario];
+                const Icon = cfg.icon;
+                return (
+                  <article key={usuario.id} className="space-y-4 p-4">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-accent">
+                        <span className="text-xs font-semibold text-primary">
+                          {initials(usuario.nome)}
+                        </span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-foreground">{usuario.nome}</p>
+                        <p className="break-all text-xs text-muted-foreground">{usuario.email}</p>
+                      </div>
+                      <Badge tone={usuario.status === "ativo" ? "success" : "neutral"}>
+                        {usuario.status === "ativo" ? "Ativo" : "Inativo"}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className={`inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium ${cfg.className}`}>
+                        <Icon className="h-3 w-3" />
+                        {cfg.label}
+                      </span>
+                      <EditarUsuarioDialog
+                        user={{
+                          id: usuario.id,
+                          nome: usuario.nome,
+                          email: usuario.email,
+                          perfil: usuario.perfil as PerfilUsuario,
+                          registroProfissional: usuario.profissionais?.[0]?.registro_profissional ?? null,
+                        }}
+                        openByDefault={editar === usuario.id}
+                      />
+                    </div>
+                    <UsuarioAccessControls
+                      usuarioId={usuario.id}
+                      perfilAtual={usuario.perfil as PerfilUsuario}
+                      statusAtual={usuario.status as "ativo" | "inativo"}
+                      isCurrentUser={usuario.id === currentAdmin.id}
+                    />
+                  </article>
+                );
+              })}
+            </div>
+            <div className="hidden overflow-x-auto md:block"><table className="min-w-[46rem] w-full">
             <thead>
               <tr className="border-b border-border bg-secondary/30">
                 <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">
@@ -189,12 +236,13 @@ export default async function UsuariosPage({ searchParams }: { searchParams: Pro
                 );
               })}
             </tbody>
-          </table></div>
+            </table></div>
+          </>
         )}
       </div>
 
       <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
-        <h4 className="mb-4 text-base font-medium text-foreground">Permissões por perfil</h4>
+        <h2 className="mb-4 text-base font-medium text-foreground">Permissões por perfil</h2>
         <p className="text-xs text-muted-foreground mb-4">
           Referência ilustrativa. O controle de acesso real é aplicado no banco
           de dados (RLS) - ver docs/SECURITY.md.

@@ -49,5 +49,60 @@ export type ProcedureFormValues = {
   corResina: string | null;
   detalhes: string | null;
 };
+
+export type ClinicalMaterialOption = {
+  id: string;
+  nome: string;
+  unidade: string;
+  quantidade_atual: number;
+  controla_lote_validade: boolean;
+};
+
+export type ClinicalLotOption = {
+  id: string;
+  material_id: string;
+  codigo_lote: string;
+  data_validade: string;
+  quantidade_atual: number;
+};
+
+export type ClinicalMaterialSuggestion = {
+  id: string;
+  procedimento_id: string;
+  material_id: string;
+  material_nome: string;
+  unidade: string;
+  quantidade_prevista: number;
+  controla_lote_validade: boolean;
+  consumo_ativo_registrado: boolean;
+};
+
+export type ClinicalMaterialConsumption = {
+  id: string;
+  procedimento_id: string;
+  procedimento_material_consumo_id: string | null;
+  material_id: string;
+  material_nome: string;
+  unidade: string;
+  lote_id: string | null;
+  lote_codigo: string | null;
+  lote_validade: string | null;
+  quantidade: number;
+  created_at: string;
+  estornado_em: string | null;
+  movimentacao_estoque_id: string;
+  movimentacao_lote_id: string | null;
+  movimentacao_estorno_id: string | null;
+};
+
+export type AttendanceClinicalMaterials = {
+  consumptions: ClinicalMaterialConsumption[];
+  suggestions: ClinicalMaterialSuggestion[];
+  materials: ClinicalMaterialOption[];
+};
+
+export type ClinicalMaterialActionState = DomainActionState & {
+  notice?: string;
+};
 import type { DomainActionState } from "@/lib/agenda/types";
 import type { FdiTooth } from "@/lib/odontogram/fdi";

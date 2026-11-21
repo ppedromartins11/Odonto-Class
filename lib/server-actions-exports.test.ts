@@ -28,4 +28,15 @@ describe('contrato dos modulos "use server"', () => {
 
     expect(invalidExports).toEqual([]);
   });
+
+  it("autoriza arquivo de paciente antes do upload privilegiado", () => {
+    const source = readFileSync("app/(app)/pacientes/file-actions.ts", "utf8");
+    const authorization = source.indexOf("await authorizePatientFileUpload");
+    const deniedReturn = source.indexOf("if (!authorized) return");
+    const privilegedUpload = source.indexOf('.storage.from("arquivos-paciente").upload');
+
+    expect(authorization).toBeGreaterThan(-1);
+    expect(deniedReturn).toBeGreaterThan(authorization);
+    expect(privilegedUpload).toBeGreaterThan(deniedReturn);
+  });
 });

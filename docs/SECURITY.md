@@ -1,5 +1,23 @@
 # Seguranca e LGPD
 
+## Hardening da Sprint 22.7 — implantação remota pendente
+
+0030 separa autorização de metadata e binário documental: atestados/legado
+genérico só para dentista autor; declarações factuais sem CID preservam acesso
+administrativo. RPC legada de status de orçamento perde EXECUTE. Agenda não
+troca paciente/profissional após atendimento iniciado; retorno de atendimento
+confere novamente autoria/paciente. Ajuste de estoque, cancelamento de plano e
+leitura de auditoria exigem AAL2 no banco.
+
+Provisionamento usa autorização de convite criada por admin AAL2, token de uso
+único, hash persistido, expiração e e-mail normalizado. Nenhum privilégio deriva
+de user_metadata. Desabilitar signup público manualmente é gate obrigatório
+antes do próximo deploy, além da proteção estrutural. Não foi alterado remotamente.
+
+0031 bloqueia ativação de lotes com consumo sem lote ainda reversível e impede
+estorno legado incompatível, sem reconstruir rastreabilidade histórica.
+Detalhes e evidências de teste: [Sprint 22.7](SPRINT_22_7.md).
+
 ## Matriz do modulo Estoque (Sprint 12)
 
 | Acao | Administrador ativo | Recepcao ativa | Dentista ativo | Inativo/sem perfil |
@@ -53,7 +71,7 @@ serem tratados como definitivos.
 
 | Tema | Abordagem |
 |---|---|
-| Autenticacao | Supabase Auth (e-mail + senha), SSR/PKCE; MFA obrigatorio para administrador antes do go-live (PAV-20). |
+| Autenticacao | Supabase Auth (e-mail + senha), SSR/PKCE; MFA/AAL2 obrigatorio para administrador, implementado e homologado na Sprint 22.1 (PAV-20). |
 | Autorizacao | Sempre verificada no backend/banco (RLS) - nunca apenas ocultando UI. |
 | RBAC | Perfil gravado em `usuarios.perfil`; policies de RLS leem `auth.uid()`. |
 | Isolamento de dados | RLS em toda tabela com dado clinico/pessoal. |
@@ -62,8 +80,8 @@ serem tratados como definitivos.
 | Logs | Nunca registrar dado clinico sensivel em logs de aplicacao/erro. |
 | Auditoria | Tabela `auditoria` append-only criada na migration `0002`. Eventos de identidade/acesso da Sprint 1.5 estao fechados em PAV-18; eventos clinicos entram antes do modulo correspondente. |
 | Uploads | Bucket privado `arquivos-paciente`; PDF/JPEG/PNG ate 10 MiB, URL assinada temporaria de cinco minutos e autorizacao server-side. |
-| Backups | Backups automaticos do Postgres gerenciado; teste de restauracao obrigatorio antes de producao (RNF-07). |
-| Retencao | Prontuario odontologico normalmente tem prazo minimo de retencao legal - **prazo exato requer validacao profissional**. |
+| Backups | Backups automaticos do Postgres gerenciado; teste de restauracao obrigatorio antes de producao (RNF-07). Ver `docs/BACKUP_RESTORE.md`. |
+| Retencao | Logs de auditoria seguem a politica operacional provisoria abaixo; retencao de prontuario e prazo legal exato requerem validacao profissional. |
 | Exclusao | Exclusao logica por padrao; exclusao fisica de prontuario esta desabilitada por decisao (PAV-17) e **requer validacao profissional** antes de qualquer mudanca. |
 | Exposicao de dados sensiveis | Minimizacao de campos coletados (PAV-09); segregacao entre dado administrativo e clinico onde possivel. |
 
@@ -71,6 +89,30 @@ serem tratados como definitivos.
 
 Nenhum ambiente de desenvolvimento ou teste deve conter dados reais de
 paciente (RN-09). Dados ficticios apenas.
+
+## Governanca inicial dos logs de auditoria
+
+Esta e uma politica operacional provisoria, nao uma afirmacao de obrigacao
+legal. Ate revisao juridica e aprovacao formal antes de dados reais, a tabela
+append-only `auditoria` nao possui descarte automatico. O baseline de retencao
+e de **24 meses**, com revisao anual de capacidade, finalidade e prazo. Se a
+revisao juridica exigir periodo maior, prevalece o maior prazo aprovado.
+
+- Finalidade: seguranca, investigacao de incidentes, rastreabilidade de
+  identidade, operacoes administrativas e eventos clinicos minimizados.
+- Consulta: somente administrador ativo em AAL2, pelas interfaces/RPCs
+  autorizadas; service role apenas em procedimento operacional controlado.
+- Exportacao: solicitacao registrada e aprovada pelo responsavel da clinica;
+  filtro pelo periodo/finalidade minima; exportacao server-side em arquivo
+  criptografado, com SHA-256 e inventario, sem incluir secrets ou conteudo
+  clinico que nao exista legitimamente no log.
+- Protecao: transferencia por canal seguro, acesso nominal e registro de quem
+  gerou/recebeu. Arquivos de trabalho locais devem ser eliminados em ate 24
+  horas apos entrega e verificacao.
+- Descarte: somente apos expirar a politica aplicavel, com autorizacao formal,
+  backup/hold investigativo verificado e evidencia sanitizada da operacao.
+  A interface administrativa de exportacao/descarte permanece P2; nao ha
+  `DELETE` disponivel ao cliente autenticado.
 
 ## Base implementada nas Sprints 1 e 1.5
 
@@ -118,7 +160,9 @@ um segundo autenticador TOTP de backup.
 
 O modulo de arquivos
 ja limita PDF/JPEG/PNG a 10 MiB, valida MIME, extensao e magic bytes e usa
-bucket privado com URL assinada temporaria.
+bucket privado com URL assinada temporaria. Antes de qualquer acesso
+privilegiado ao Storage, o servidor executa o preflight de autorizacao; o
+cliente nunca recebe service role nem acesso direto ao bucket.
 
 ## Headers e configuracoes externas
 

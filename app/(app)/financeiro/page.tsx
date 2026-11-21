@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { DollarSign, Plus } from "lucide-react";
 import { requireUser } from "@/lib/auth/session";
+import { todayInClinic } from "@/lib/agenda/dates";
 import { formatCents, isPaymentMethod, isPaymentStatus } from "@/lib/financial/validation";
 import { getPaymentSummary, listFinancialReceivables, listPayments } from "@/lib/financial/queries";
+import { loadFinancialPage, parseFinancialPage } from "@/lib/financial/pagination";
 import type { PaymentMethod, PaymentStatus } from "@/lib/financial/types";
 import type { ReceivableStatus } from "@/lib/financial/receivables";
 import { PaymentStatusActions } from "./PaymentStatusActions";
@@ -18,30 +20,34 @@ type SearchParams = Promise<{ q?: string; paciente?: string; inicio?: string; fi
 export default async function FinancialPage({ searchParams }: { searchParams: SearchParams }) {
   const user = await requireUser();
   const p = await searchParams;
-  const page = Math.max(1, Number(p.page ?? "1") || 1);
+  const requestedPaymentPage = parseFinancialPage(p.page);
   const method: PaymentMethod | undefined = isPaymentMethod(p.forma ?? "") ? p.forma as PaymentMethod : undefined;
   const status: PaymentStatus | undefined = isPaymentStatus(p.status ?? "") ? p.status as PaymentStatus : undefined;
   const receivableStatus: ReceivableStatus | undefined = ["pendente", "parcialmente_pago", "pago", "cancelado"].includes(p.recebivel ?? "") ? p.recebivel as ReceivableStatus : undefined;
-  const receivablePage = Math.max(1, Number(p.recebivelPage ?? "1") || 1);
-  const today = new Date().toISOString().slice(0, 10);
+  const requestedReceivablePage = parseFinancialPage(p.recebivelPage);
+  const today = todayInClinic();
   const firstDay = `${today.slice(0, 7)}-01`;
-  const [result, summary, receivables] = await Promise.all([
-    listPayments({ query: p.q ?? "", patientId: p.paciente, startDate: p.inicio, endDate: p.fim, method, status, page }),
+  const [paymentList, summary, receivableList] = await Promise.all([
+    loadFinancialPage(requestedPaymentPage, (page) => listPayments({ query: p.q ?? "", patientId: p.paciente, startDate: p.inicio, endDate: p.fim, method, status, page }), (result) => result.payments.length > 0),
     user.perfil === "administrador" ? getPaymentSummary(p.inicio ?? firstDay, p.fim ?? today) : Promise.resolve(null),
-    user.perfil === "dentista" ? Promise.resolve({ receivables: [], total: 0, pageSize: 20 }) : listFinancialReceivables({ query: p.q ?? "", status: receivableStatus, overdue: p.vencidos === "1", page: receivablePage }),
+    user.perfil === "dentista" ? Promise.resolve(null) : loadFinancialPage(requestedReceivablePage, (page) => listFinancialReceivables({ query: p.q ?? "", status: receivableStatus, overdue: p.vencidos === "1", page }), (result) => result.receivables.length > 0),
   ]);
-  const pages = Math.max(1, Math.ceil(result.total / result.pageSize));
-  const pageHref = (nextPage: number) => {
+  const { result, page, pages } = paymentList;
+  const receivables = receivableList?.result;
+  const receivablePage = receivableList?.page ?? 1;
+  const receivablePages = receivableList?.pages ?? 1;
+  const pageHref = (key: "page" | "recebivelPage", nextPage: number) => {
     const values = new URLSearchParams();
-    for (const [key, value] of Object.entries(p)) if (key !== "page" && value) values.set(key, value);
-    values.set("page", String(nextPage));
+    for (const [name, value] of Object.entries(p)) if (name !== "page" && name !== "recebivelPage" && typeof value === "string" && value) values.set(name, value);
+    values.set("page", String(key === "page" ? nextPage : page));
+    values.set("recebivelPage", String(key === "recebivelPage" ? nextPage : receivablePage));
     return `/financeiro?${values}`;
   };
 
   return (
     <div className="mx-auto max-w-7xl space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div><h2 className="text-2xl font-medium">Financeiro</h2><p className="mt-1 text-sm text-muted-foreground">Controle de pagamentos da clínica.</p></div>
+        <div><h1 className="text-2xl font-medium">Financeiro</h1><p className="mt-1 text-sm text-muted-foreground">Controle de pagamentos da clínica.</p></div>
         {user.perfil !== "dentista" && <div className="flex gap-2"><Link href="/financeiro/recebiveis/novo" className="inline-flex h-9 items-center gap-2 rounded bg-primary px-3 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" />Novo recebível</Link><Link href="/financeiro/novo" className="inline-flex h-9 items-center gap-2 rounded border px-3 text-sm font-medium">Pagamento avulso</Link></div>}
       </div>
 
@@ -53,19 +59,23 @@ export default async function FinancialPage({ searchParams }: { searchParams: Se
         <article className="rounded-lg border border-red-200 bg-red-50/30 p-4"><p className="text-xs text-red-700">Vencido</p><p className="mt-1 text-xl font-semibold text-red-800">{formatCents(summary.vencido_centavos)}</p></article>
       </section>}
 
-      {user.perfil !== "dentista" && <section className="space-y-3 rounded-lg border bg-card p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-medium">Contas a receber</h3><p className="mt-1 text-xs text-muted-foreground">Obrigações financeiras e parcelas pendentes.</p></div><form className="flex flex-wrap gap-2"><input type="hidden" name="q" value={p.q ?? ""}/><select name="recebivel" defaultValue={receivableStatus ?? ""} className="h-9 rounded border bg-background px-2 text-xs"><option value="">Todos</option>{Object.entries(receivableStatusLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select><label className="inline-flex h-9 items-center gap-1 rounded border px-2 text-xs"><input name="vencidos" value="1" type="checkbox" defaultChecked={p.vencidos === "1"}/>Vencidos</label><button className="h-9 rounded border px-3 text-xs">Filtrar</button></form></div>{receivables.receivables.length === 0 ? <p className="rounded border border-dashed px-4 py-6 text-sm text-muted-foreground">Nenhum recebível encontrado.</p> : <div className="overflow-hidden rounded border"><div className="hidden grid-cols-[1.2fr_1fr_.7fr_.7fr_.8fr_auto] gap-3 border-b px-3 py-2 text-xs uppercase text-muted-foreground md:grid"><span>Paciente</span><span>Origem</span><span>Total</span><span>Em aberto</span><span>Vencimento</span><span>Status</span></div><div className="divide-y">{receivables.receivables.map((item) => <Link key={item.id} href={`/financeiro/recebiveis/${item.id}`} className="grid gap-1 px-3 py-3 text-sm hover:bg-secondary/50 md:grid-cols-[1.2fr_1fr_.7fr_.7fr_.8fr_auto] md:items-center md:gap-3"><span className="font-medium">{item.paciente_nome}</span><span className="text-muted-foreground">{item.referencia}</span><span>{formatCents(item.valor_total_centavos)}</span><span>{formatCents(Number(item.valor_aberto_centavos))}</span><span className={item.proximo_vencimento && item.proximo_vencimento < today ? "text-red-700" : ""}>{item.proximo_vencimento ?? "—"}</span><span className="inline-flex w-fit rounded bg-secondary px-2 py-1 text-xs">{receivableStatusLabels[item.status]}</span></Link>)}</div></div>}</section>}
+      {user.perfil !== "dentista" && receivables && <section className="space-y-3 rounded-lg border bg-card p-4" aria-labelledby="receivables-title"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 id="receivables-title" className="font-medium">Contas a receber</h2><p className="mt-1 text-xs text-muted-foreground">Obrigações financeiras e parcelas pendentes.</p></div><form className="flex flex-wrap gap-2"><input type="hidden" name="q" value={p.q ?? ""}/><input type="hidden" name="page" value={page}/><input type="hidden" name="paciente" value={p.paciente ?? ""}/><input type="hidden" name="inicio" value={p.inicio ?? ""}/><input type="hidden" name="fim" value={p.fim ?? ""}/><input type="hidden" name="forma" value={p.forma ?? ""}/><input type="hidden" name="status" value={p.status ?? ""}/><select aria-label="Status do recebível" name="recebivel" defaultValue={receivableStatus ?? ""} className="h-9 rounded border bg-background px-2 text-xs"><option value="">Todos</option>{Object.entries(receivableStatusLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select><label className="inline-flex h-9 items-center gap-1 rounded border px-2 text-xs"><input name="vencidos" value="1" type="checkbox" defaultChecked={p.vencidos === "1"}/>Vencidos</label><button className="h-9 rounded border px-3 text-xs">Filtrar</button></form></div>{receivables.receivables.length === 0 ? <p className="rounded border border-dashed px-4 py-6 text-sm text-muted-foreground">Nenhum recebível encontrado para os filtros atuais.</p> : <div className="overflow-hidden rounded border"><div className="hidden grid-cols-[1.2fr_1fr_.7fr_.7fr_.8fr_auto] gap-3 border-b px-3 py-2 text-xs uppercase text-muted-foreground md:grid"><span>Paciente</span><span>Origem</span><span>Total</span><span>Em aberto</span><span>Vencimento</span><span>Status</span></div><div className="divide-y">{receivables.receivables.map((item) => <Link key={item.id} href={`/financeiro/recebiveis/${item.id}`} className="grid gap-1 px-3 py-3 text-sm hover:bg-secondary/50 md:grid-cols-[1.2fr_1fr_.7fr_.7fr_.8fr_auto] md:items-center md:gap-3"><span className="font-medium">{item.paciente_nome}</span><span className="text-muted-foreground">{item.referencia}</span><span>{formatCents(item.valor_total_centavos)}</span><span>{formatCents(Number(item.valor_aberto_centavos))}</span><span className={item.proximo_vencimento && item.proximo_vencimento < today ? "text-red-700" : ""}>{item.proximo_vencimento ?? "—"}</span><span className="inline-flex w-fit rounded bg-secondary px-2 py-1 text-xs">{receivableStatusLabels[item.status]}</span></Link>)}</div></div>}{receivables.total > 0 && <p className="text-xs text-muted-foreground">Recebíveis: página {receivablePage} de {receivablePages} · {receivables.total} registro(s)</p>}{receivablePages > 1 && <nav aria-label="Páginas de recebíveis" className="flex flex-wrap justify-end gap-2 text-sm">{receivablePage > 1 && <Link href={pageHref("recebivelPage", receivablePage - 1)} className="rounded border px-3 py-1.5">Anterior</Link>}{receivablePage < receivablePages && <Link href={pageHref("recebivelPage", receivablePage + 1)} className="rounded border px-3 py-1.5">Próxima</Link>}</nav>}</section>}
 
       <form className="grid gap-2 rounded-lg border bg-card p-3 md:grid-cols-6">
-        <input name="q" defaultValue={p.q} placeholder="Buscar paciente" className="h-10 rounded border bg-background px-3 text-sm" />
-        <input name="inicio" type="date" defaultValue={p.inicio} className="h-10 rounded border bg-background px-3 text-sm" />
-        <input name="fim" type="date" defaultValue={p.fim} className="h-10 rounded border bg-background px-3 text-sm" />
-        <select name="forma" defaultValue={method ?? ""} className="h-10 rounded border bg-background px-3 text-sm"><option value="">Todas as formas</option>{Object.entries(methodLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
-        <select name="status" defaultValue={status ?? ""} className="h-10 rounded border bg-background px-3 text-sm"><option value="">Todos os status</option>{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+        <input type="hidden" name="paciente" value={p.paciente ?? ""} />
+        <input type="hidden" name="recebivel" value={p.recebivel ?? ""} />
+        <input type="hidden" name="vencidos" value={p.vencidos ?? ""} />
+        <input type="hidden" name="recebivelPage" value={receivablePage} />
+        <input aria-label="Buscar paciente" name="q" defaultValue={p.q} placeholder="Buscar paciente" className="h-10 rounded border bg-background px-3 text-sm" />
+        <input aria-label="Data inicial" name="inicio" type="date" defaultValue={p.inicio} className="h-10 rounded border bg-background px-3 text-sm" />
+        <input aria-label="Data final" name="fim" type="date" defaultValue={p.fim} className="h-10 rounded border bg-background px-3 text-sm" />
+        <select aria-label="Forma de pagamento" name="forma" defaultValue={method ?? ""} className="h-10 rounded border bg-background px-3 text-sm"><option value="">Todas as formas</option>{Object.entries(methodLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+        <select aria-label="Status do pagamento" name="status" defaultValue={status ?? ""} className="h-10 rounded border bg-background px-3 text-sm"><option value="">Todos os status</option>{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
         <button className="h-10 rounded border text-sm font-medium hover:bg-secondary">Filtrar</button>
       </form>
 
       {result.payments.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-10 text-center"><DollarSign className="mx-auto h-8 w-8 text-muted-foreground" /><h3 className="mt-3 font-medium">Nenhum pagamento encontrado.</h3></div>
+        <div className="rounded-lg border border-dashed p-10 text-center"><DollarSign className="mx-auto h-8 w-8 text-muted-foreground" /><h2 className="mt-3 font-medium">Nenhum pagamento encontrado.</h2></div>
       ) : (
         <div className="overflow-hidden rounded-lg border bg-card">
           <div className="hidden grid-cols-[.8fr_1.4fr_1fr_1fr_.8fr_.8fr_1fr] gap-3 border-b px-4 py-3 text-xs uppercase text-muted-foreground md:grid"><span>Data</span><span>Paciente</span><span>Referência</span><span>Forma</span><span>Valor</span><span>Status</span><span>Responsável</span></div>
@@ -81,7 +91,8 @@ export default async function FinancialPage({ searchParams }: { searchParams: Se
         </div>
       )}
 
-      {pages > 1 && <nav className="flex justify-end gap-2 text-sm">{page > 1 && <Link href={pageHref(page - 1)} className="rounded border px-3 py-1.5">Anterior</Link>}{page < pages && <Link href={pageHref(page + 1)} className="rounded border px-3 py-1.5">Próxima</Link>}</nav>}
+      {result.total > 0 && <p className="text-right text-xs text-muted-foreground">Pagamentos: página {page} de {pages} · {result.total} registro(s)</p>}
+      {pages > 1 && <nav aria-label="Páginas de pagamentos" className="flex flex-wrap justify-end gap-2 text-sm">{page > 1 && <Link href={pageHref("page", page - 1)} className="rounded border px-3 py-1.5">Anterior</Link>}{page < pages && <Link href={pageHref("page", page + 1)} className="rounded border px-3 py-1.5">Próxima</Link>}</nav>}
     </div>
   );
 }

@@ -18,7 +18,7 @@ export default async function EditAppointmentPage({ params }: { params: Promise<
   if (!patient) notFound();
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <div><Link href="/agenda" className="mb-3 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"><ChevronLeft className="h-3.5 w-3.5" /> Voltar para agenda</Link><h2 className="text-2xl font-medium">Editar ou remarcar</h2><p className="mt-0.5 text-sm text-muted-foreground">Ao alterar horário ou profissional, uma confirmação anterior volta para “agendado”.</p></div>
+      <div><Link href="/agenda" className="mb-3 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"><ChevronLeft className="h-3.5 w-3.5" /> Voltar para agenda</Link><h1 className="text-2xl font-medium">Editar ou remarcar</h1><p className="mt-0.5 text-sm text-muted-foreground">Ao alterar horário ou profissional, uma confirmação anterior volta para “agendado”.</p></div>
       <AppointmentForm professionals={professionals} appointment={appointment} patient={patient} />
     </div>
   );

@@ -1,6 +1,6 @@
 "use server";
 
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth/session";
@@ -9,6 +9,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { CLINIC_NAME, CLINIC_TAGLINE } from "@/lib/config/clinic";
 import { DOCUMENT_LAYOUT_VERSION } from "@/lib/documents/theme";
 import { renderPatientDocumentPdf } from "@/lib/operational/pdf";
+import { PATIENT_STORAGE_BUCKET, reconcileFailedMetadata, verifyStoredUpload } from "@/lib/operational/storage-integrity";
 import { isValidUuid } from "@/lib/patients/validation";
 import type { DomainActionState, DocumentAuthorAttendance, NewDocumentType } from "@/lib/operational/types";
 
@@ -86,14 +87,65 @@ export async function createDocument(_: DomainActionState, form: FormData): Prom
     cidCode,
     preparedForPhysicalSignature: user.perfil !== "dentista",
   });
-  const hash = createHash("sha256").update(bytes).digest("hex");
-  const path = `${patientId}/documentos/${randomUUID()}.pdf`;
+  const path = `${patientId.toLowerCase()}/documentos/${randomUUID()}.pdf`;
   const fileName = `${type}-${issuedAt}.pdf`;
   const admin = createSupabaseAdminClient();
-  const upload = await admin.storage.from("arquivos-paciente").upload(path, bytes, { contentType: "application/pdf", upsert: false });
+  const storage = admin.storage.from(PATIENT_STORAGE_BUCKET);
+  const upload = await storage.upload(path, bytes, { contentType: "application/pdf", upsert: false });
   if (upload.error) return response("Não foi possível armazenar o PDF privado.");
 
-  const metadata = await supabase.rpc("create_official_document", {
+  const verified = await verifyStoredUpload({
+    patientId,
+    purpose: `document:${type}`,
+    path,
+    expectedBytes: bytes,
+    mimeType: "application/pdf",
+    readInfo: () => storage.info(path),
+    readBytes: () => storage.download(path, {}, { cache: "no-store" }),
+  });
+  if (!verified) {
+    try {
+      const removal = await storage.remove([path]);
+      if (removal.error) console.error("Falha na compensacao de upload documental.");
+    } catch { console.error("Falha na compensacao de upload documental."); }
+    return response("Nao foi possivel verificar o PDF privado.");
+  }
+
+  const uploadToken = randomBytes(32).toString("hex");
+  const tokenHash = createHash("sha256").update(uploadToken).digest("hex");
+  let proof;
+  try {
+    proof = await admin.rpc("prepare_upload_attestation", {
+    p_actor_id: user.id,
+    p_paciente_id: patientId,
+    p_purpose: `document:${type}`,
+    p_bucket_id: PATIENT_STORAGE_BUCKET,
+    p_storage_path: path,
+    p_sha256: verified.sha256,
+    p_tamanho_bytes: verified.size,
+    p_mime_type: verified.mimeType,
+    p_token_hash: tokenHash,
+    });
+  } catch {
+    try { await admin.rpc("cancel_upload_attestation", { p_token_hash: tokenHash }); } catch { /* TTL expires the proof. */ }
+    try {
+      const removal = await storage.remove([path]);
+      if (removal.error) console.error("Falha na compensacao de upload documental.");
+    } catch { console.error("Falha na compensacao de upload documental."); }
+    return response("Nao foi possivel verificar o PDF privado.");
+  }
+  if (proof.error) {
+    try { await admin.rpc("cancel_upload_attestation", { p_token_hash: tokenHash }); } catch { /* TTL expires the proof. */ }
+    try {
+      const removal = await storage.remove([path]);
+      if (removal.error) console.error("Falha na compensacao de upload documental.");
+    } catch { console.error("Falha na compensacao de upload documental."); }
+    return response("Nao foi possivel verificar o PDF privado.");
+  }
+
+  let metadata;
+  try {
+    metadata = await supabase.rpc("create_official_document_verified", {
     p_paciente_id: patientId,
     p_atendimento_id: attendanceId,
     p_profissional_autor_id: professionalId,
@@ -113,12 +165,23 @@ export async function createDocument(_: DomainActionState, form: FormData): Prom
     p_cid_autorizador_tipo: cidAuthorizerType,
     p_storage_path: path,
     p_nome_arquivo: fileName,
-    p_tamanho_bytes: bytes.length,
+    p_tamanho_bytes: verified.size,
     p_layout_version: DOCUMENT_LAYOUT_VERSION,
-    p_pdf_sha256: hash,
-  });
+    p_pdf_sha256: verified.sha256,
+    p_upload_token: uploadToken,
+    });
+  } catch {
+    console.error("Falha inconclusiva ao registrar metadados documentais; reconciliacao necessaria.");
+    return response("Nao foi possivel confirmar o documento. Verifique a lista antes de reenviar.");
+  }
   if (metadata.error) {
-    await admin.storage.from("arquivos-paciente").remove([path]);
+    const outcome = await reconcileFailedMetadata({
+      rpcError: metadata.error,
+      metadataForPath: () => admin.from("documentos").select("id").eq("storage_path", path).maybeSingle(),
+      cancelProof: () => admin.rpc("cancel_upload_attestation", { p_token_hash: tokenHash }),
+      removeObject: () => storage.remove([path]),
+    });
+    if (outcome === "preserved") console.error("Falha inconclusiva ao registrar metadados documentais; reconciliacao necessaria.");
     return response(friendlyDocumentError(metadata.error.message));
   }
   revalidatePath(`/pacientes/${patientId}`);

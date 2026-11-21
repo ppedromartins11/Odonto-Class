@@ -11,8 +11,8 @@ function dateParts(date: Date) {
   return `${value.year}-${value.month}-${value.day}`;
 }
 
-export function todayInClinic() {
-  return dateParts(new Date());
+export function todayInClinic(now = new Date()) {
+  return dateParts(now);
 }
 
 export function isValidDateKey(value: string | undefined): value is string {

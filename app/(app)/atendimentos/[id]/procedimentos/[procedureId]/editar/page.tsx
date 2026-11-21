@@ -12,5 +12,5 @@ export default async function EditProcedurePage({ params }: { params: Promise<{ 
   if (!isValidUuid(id) || !isValidUuid(procedureId)) notFound();
   const [attendance, procedure] = await Promise.all([getAttendance(id), getProcedure(procedureId)]);
   if (!attendance || !procedure || procedure.atendimento_id !== attendance.id || attendance.status !== "em_andamento") notFound();
-  return <div className="mx-auto max-w-5xl space-y-5"><div><h2 className="text-2xl font-medium">Editar procedimento</h2><p className="mt-1 text-sm text-muted-foreground">Alterações são auditadas sem copiar o conteúdo clínico.</p></div><section className="rounded-lg border border-border bg-card p-5">{procedure.servico_id ? <ServiceProcedureEditForm attendanceId={attendance.id} procedure={procedure} /> : <ProcedureForm attendanceId={attendance.id} procedure={procedure} />}</section></div>;
+  return <div className="mx-auto max-w-5xl space-y-5"><div><h1 className="text-2xl font-medium">Editar procedimento</h1><p className="mt-1 text-sm text-muted-foreground">Alterações são auditadas sem copiar o conteúdo clínico.</p></div><section className="rounded-lg border border-border bg-card p-5">{procedure.servico_id ? <ServiceProcedureEditForm attendanceId={attendance.id} procedure={procedure} /> : <ProcedureForm attendanceId={attendance.id} procedure={procedure} />}</section></div>;
 }

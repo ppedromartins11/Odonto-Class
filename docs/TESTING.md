@@ -1,5 +1,20 @@
 # Testes e Criterios de Aceitacao
 
+## Homologação automatizada
+
+`npm run homologate` executa o fluxo com laboratório local isolado, gates H01–H06,
+assertions obrigatórias, detecção de skips críticos e cleanup proof por execução.
+Comandos, guard remoto e limites: [HOMOLOGATION.md](HOMOLOGATION.md).
+
+## Sprint 22.7
+
+Regressões HIGH e instruções para Supabase local: [Sprint 22.7](SPRINT_22_7.md).
+`release-highs.authorization.test.ts` exige API e banco em loopback para signup
+adversarial e preparação SQL de estados antigos. Para provar o binário HTTP,
+informar `SUPABASE_TEST_APP_URL` local após build com o mesmo Supabase.
+Fixtures existentes agora usam convite autorizado por admin QA AAL2; definir
+credenciais de bootstrap QA em `.env.test.example`, nunca uma conta real.
+
 ## Estrategia
 
 - CI (`.github/workflows/ci.yml`) roda lint, typecheck, testes e build em todo

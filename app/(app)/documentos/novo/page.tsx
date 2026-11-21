@@ -25,7 +25,7 @@ export default async function NewDocument({ searchParams }: { searchParams: Prom
   if (paciente && !patient) notFound();
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <div><h2 className="text-2xl font-medium">Novo documento oficial</h2><p className="mt-1 text-sm text-muted-foreground">Emita atestados ou prepare declarações vinculadas a um atendimento real e a um profissional com registro ativo.</p></div>
+      <div><h1 className="text-2xl font-medium">Novo documento oficial</h1><p className="mt-1 text-sm text-muted-foreground">Emita atestados ou prepare declarações vinculadas a um atendimento real e a um profissional com registro ativo.</p></div>
       <DocumentForm patient={patient} initialAttendances={attendances} profile={user.perfil} professionalUserIds={professionalUserIds} />
     </div>
   );

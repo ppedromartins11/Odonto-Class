@@ -1,13 +1,13 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { MAX_UPLOAD_BYTES, safeUpload } from "../../lib/operational/validation";
-import { createQaAdmin } from "./helpers";
+import { createQaUser, createQaAdmin } from "./helpers";
 
 type Role = "administrador" | "dentista" | "recepcao";
 type Identity = { id: string; email: string; password: string; role: Role };
 const REQUIRED_MARKER = "I_ACKNOWLEDGE_FAKE_DATA_ONLY";
-const users: Identity[] = [], paths: string[] = [], auditIds: string[] = [];
+const users: Identity[] = [], paths: string[] = [], proofHashes: string[] = [], auditIds: string[] = [];
 let url: string, anon: string, service: SupabaseClient, admin: SupabaseClient, reception: SupabaseClient, dentistA: SupabaseClient, dentistB: SupabaseClient;
 let adminId: string, patientId: string, professionalA: string, receptionIdentity: Identity, dentistAIdentity: Identity, dentistBIdentity: Identity, inactiveIdentity: Identity, orphanIdentity: Identity;
 let returnId: string, appointmentId: string, taskId: string, clinicalFileId: string, documentId: string;
@@ -15,9 +15,26 @@ let returnId: string, appointmentId: string, taskId: string, clinicalFileId: str
 function required(name: string) { const value = process.env[name]; if (!value) throw new Error(`${name} nao configurada em .env.test.local.`); return value; }
 function client() { return createClient(url, anon, { auth: { autoRefreshToken: false, persistSession: false } }); }
 async function signed(identity: Pick<Identity, "email" | "password">) { const result = client(); expect((await result.auth.signInWithPassword(identity)).error).toBeNull(); return result; }
-async function identity(role: Role) { const suffix = randomUUID(); const candidate = { email: `qa_rc_operacional-${role}-${suffix}@example.com`, password: `Tmp-${randomUUID()}-A9!`, role }; const { data, error } = await service.auth.admin.createUser({ email: candidate.email, password: candidate.password, email_confirm: true, user_metadata: { nome: `QA_RC_Usuario_operacional_${suffix}`, perfil: role, created_by: adminId } }); if (error || !data.user) throw error ?? new Error("Usuario ficticio ausente."); const result = { ...candidate, id: data.user.id }; users.push(result); return result; }
+async function identity(role: Role) { const suffix = randomUUID(); const candidate = { email: `qa_rc_operacional-${role}-${suffix}@example.com`, password: `Tmp-${randomUUID()}-A9!`, role }; const { data, error } = await createQaUser(service, { email: candidate.email, password: candidate.password, email_confirm: true, user_metadata: { nome: `QA_RC_Usuario_operacional_${suffix}`, perfil: role, created_by: adminId } }); if (error || !data.user) throw error ?? new Error("Usuario ficticio ausente."); const result = { ...candidate, id: data.user.id }; users.push(result); return result; }
 function slot(hours: number) { const start = new Date(Date.now() + hours * 60 * 60 * 1000); const value = (date: Date) => date.toISOString().slice(0, 16); return { start: value(start), end: value(new Date(start.getTime() + 60 * 60 * 1000)) }; }
 function pathFor(patient: string, document = false) { const path = document ? `${patient}/documentos/${randomUUID()}.pdf` : `${patient}/${randomUUID()}.pdf`; paths.push(path); return path; }
+const pdfBytes = new Uint8Array([37, 80, 68, 70, 45]);
+const digest = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
+async function attemptProof(actorId: string, purpose: string, path: string, bytes: Uint8Array, overrides: Record<string, unknown> = {}, caller = service) {
+  const token = randomBytes(32).toString("hex");
+  const tokenHash = createHash("sha256").update(token).digest("hex"); proofHashes.push(tokenHash);
+  const result = await caller.rpc("prepare_upload_attestation", {
+    p_actor_id: actorId, p_paciente_id: patientId, p_purpose: purpose,
+    p_bucket_id: "arquivos-paciente", p_storage_path: path,
+    p_sha256: digest(bytes), p_tamanho_bytes: bytes.length, p_mime_type: "application/pdf",
+    p_token_hash: tokenHash, ...overrides,
+  });
+  return { token, result };
+}
+async function prepareProof(actorId: string, purpose: string, path: string, bytes: Uint8Array) {
+  const { token, result } = await attemptProof(actorId, purpose, path, bytes);
+  expect(result.error).toBeNull(); return token;
+}
 
 describe("bloco operacional: RLS, Storage, documentos, retornos e tarefas", () => {
   beforeAll(async () => {
@@ -35,6 +52,7 @@ describe("bloco operacional: RLS, Storage, documentos, retornos e tarefas", () =
 
   afterAll(async () => {
     if (!service) return;
+    for (const tokenHash of proofHashes) expect((await service.rpc("cancel_upload_attestation", { p_token_hash: tokenHash })).error).toBeNull();
     if (paths.length) await service.storage.from("arquivos-paciente").remove(paths);
     if (auditIds.length) await service.from("auditoria").delete().in("entidade_id", auditIds);
     if (taskId) await service.from("tarefas").delete().eq("id", taskId);
@@ -59,11 +77,15 @@ describe("bloco operacional: RLS, Storage, documentos, retornos e tarefas", () =
 
   it("aplica RLS clinico por metadado e impede bypass por UUID/path", async () => {
     const { data: created, error } = await reception.rpc("create_appointment", { p_paciente_id: patientId, p_profissional_id: professionalA, p_inicio_local: slot(48).start, p_fim_local: slot(49).end, p_observacoes_administrativas: null }); expect(error).toBeNull(); appointmentId = (created as { id: string }).id; auditIds.push(appointmentId);
-    const administrativePath = pathFor(patientId); const clinicalPath = pathFor(patientId); const bytes = new Uint8Array([37, 80, 68, 70, 45]);
+    const administrativePath = pathFor(patientId); const clinicalPath = pathFor(patientId); const bytes = pdfBytes;
     expect((await service.storage.from("arquivos-paciente").upload(administrativePath, bytes, { contentType: "application/pdf", upsert: false })).error).toBeNull();
-    const administrative = await reception.rpc("create_patient_file_metadata", { p_paciente_id: patientId, p_storage_path: administrativePath, p_nome_original: "QA_RC_administrativo.pdf", p_mime_type: "application/pdf", p_tamanho_bytes: 5, p_categoria: "administrativo" }); expect(administrative.error).toBeNull(); auditIds.push((administrative.data as { id: string }).id);
+    const administrativeToken = await prepareProof(receptionIdentity.id, "file:administrativo", administrativePath, bytes);
+    const administrative = await reception.rpc("create_patient_file_metadata_verified", { p_paciente_id: patientId, p_storage_path: administrativePath, p_nome_original: "QA_RC_administrativo.pdf", p_mime_type: "application/pdf", p_tamanho_bytes: bytes.length, p_categoria: "administrativo", p_sha256: digest(bytes), p_upload_token: administrativeToken }); expect(administrative.error).toBeNull(); auditIds.push((administrative.data as { id: string }).id);
     expect((await service.storage.from("arquivos-paciente").upload(clinicalPath, bytes, { contentType: "application/pdf", upsert: false })).error).toBeNull();
-    const clinical = await dentistA.rpc("create_patient_file_metadata", { p_paciente_id: patientId, p_storage_path: clinicalPath, p_nome_original: "QA_RC_clinico.pdf", p_mime_type: "application/pdf", p_tamanho_bytes: 5, p_categoria: "clinico" }); expect(clinical.error).toBeNull(); clinicalFileId = (clinical.data as { id: string }).id; auditIds.push(clinicalFileId);
+    const clinicalToken = await prepareProof(dentistAIdentity.id, "file:clinico", clinicalPath, bytes);
+    const clinical = await dentistA.rpc("create_patient_file_metadata_verified", { p_paciente_id: patientId, p_storage_path: clinicalPath, p_nome_original: "QA_RC_clinico.pdf", p_mime_type: "application/pdf", p_tamanho_bytes: bytes.length, p_categoria: "clinico", p_sha256: digest(bytes), p_upload_token: clinicalToken }); expect(clinical.error).toBeNull(); clinicalFileId = (clinical.data as { id: string }).id; auditIds.push(clinicalFileId);
+    expect((clinical.data as { sha256: string }).sha256).toBe(digest(bytes));
+    expect((await reception.rpc("create_patient_file_metadata", { p_paciente_id: patientId, p_storage_path: administrativePath, p_nome_original: "QA_RC_legado.pdf", p_mime_type: "application/pdf", p_tamanho_bytes: bytes.length, p_categoria: "administrativo" })).error).not.toBeNull();
     expect((await dentistA.storage.from("arquivos-paciente").upload(clinicalPath, bytes, { contentType: "application/pdf", upsert: false })).error).not.toBeNull();
     expect((await reception.from("arquivos_paciente").select("id").eq("id", clinicalFileId)).data).toEqual([]);
     expect((await admin.from("arquivos_paciente").select("id").eq("id", clinicalFileId)).data).toEqual([]);
@@ -75,10 +97,59 @@ describe("bloco operacional: RLS, Storage, documentos, retornos e tarefas", () =
     const { data: metadata } = await service.from("arquivos_paciente").select("*").eq("id", clinicalFileId).single(); expect(JSON.stringify(metadata)).not.toContain("token=");
   });
 
+  it("S1 rejeita namespace, objeto, MIME, digest e tamanho inconsistentes sem metadata parcial", async () => {
+    const foreignPath = pathFor(randomUUID());
+    expect((await service.storage.from("arquivos-paciente").upload(foreignPath, pdfBytes, { contentType: "application/pdf", upsert: false })).error).toBeNull();
+    expect((await attemptProof(receptionIdentity.id, "file:administrativo", foreignPath, pdfBytes)).result.error).not.toBeNull();
+    expect((await service.from("arquivos_paciente").select("id").eq("storage_path", foreignPath)).data).toEqual([]);
+
+    const absentPath = pathFor(patientId);
+    expect((await attemptProof(receptionIdentity.id, "file:administrativo", absentPath, pdfBytes)).result.error).not.toBeNull();
+    const mimePath = pathFor(patientId);
+    expect((await service.storage.from("arquivos-paciente").upload(mimePath, pdfBytes, { contentType: "application/pdf", upsert: false })).error).toBeNull();
+    expect((await attemptProof(receptionIdentity.id, "file:administrativo", mimePath, pdfBytes, { p_mime_type: "image/jpeg" })).result.error).not.toBeNull();
+
+    const path = pathFor(patientId);
+    expect((await service.storage.from("arquivos-paciente").upload(path, pdfBytes, { contentType: "application/pdf", upsert: false })).error).toBeNull();
+    const token = await prepareProof(receptionIdentity.id, "file:administrativo", path, pdfBytes);
+    const args = { p_paciente_id: patientId, p_storage_path: path, p_nome_original: "QA_RC_verificado.pdf", p_mime_type: "application/pdf", p_tamanho_bytes: pdfBytes.length, p_categoria: "administrativo", p_sha256: digest(pdfBytes), p_upload_token: token };
+    const before = await service.from("auditoria").select("id", { count: "exact", head: true }).eq("evento", "arquivo_enviado").eq("usuario_id", receptionIdentity.id);
+    expect((await reception.rpc("create_patient_file_metadata_verified", { ...args, p_sha256: "f".repeat(64) })).error).not.toBeNull();
+    expect((await reception.rpc("create_patient_file_metadata_verified", { ...args, p_tamanho_bytes: pdfBytes.length + 1 })).error).not.toBeNull();
+    expect((await reception.rpc("create_patient_file_metadata_verified", { ...args, p_nome_original: "" })).error).not.toBeNull();
+    expect((await service.from("arquivos_paciente").select("id").eq("storage_path", path)).data).toEqual([]);
+    const after = await service.from("auditoria").select("id", { count: "exact", head: true }).eq("evento", "arquivo_enviado").eq("usuario_id", receptionIdentity.id);
+    expect(after.count).toBe(before.count);
+    const valid = await reception.rpc("create_patient_file_metadata_verified", args);
+    expect(valid.error).toBeNull(); auditIds.push((valid.data as { id: string }).id);
+    expect((valid.data as { sha256: string }).sha256).toBe(digest(pdfBytes));
+  });
+
+  it("S1 vincula prova ao ator e categoria e bloqueia replay mesmo após remover a metadata", async () => {
+    const path = pathFor(patientId);
+    expect((await service.storage.from("arquivos-paciente").upload(path, pdfBytes, { contentType: "application/pdf", upsert: false })).error).toBeNull();
+    const token = await prepareProof(receptionIdentity.id, "file:administrativo", path, pdfBytes);
+    const args = { p_paciente_id: patientId, p_storage_path: path, p_nome_original: "QA_RC_ator.pdf", p_mime_type: "application/pdf", p_tamanho_bytes: pdfBytes.length, p_categoria: "administrativo", p_sha256: digest(pdfBytes), p_upload_token: token };
+    expect((await admin.rpc("create_patient_file_metadata_verified", args)).error).not.toBeNull();
+    const accepted = await reception.rpc("create_patient_file_metadata_verified", args);
+    expect(accepted.error).toBeNull(); const fileId = (accepted.data as { id: string }).id; auditIds.push(fileId);
+    expect((await service.from("arquivos_paciente").delete().eq("id", fileId)).error).toBeNull();
+    expect((await reception.rpc("create_patient_file_metadata_verified", args)).error).not.toBeNull();
+    expect((await service.from("arquivos_paciente").select("id").eq("storage_path", path)).data).toEqual([]);
+
+    const purposePath = pathFor(patientId);
+    expect((await service.storage.from("arquivos-paciente").upload(purposePath, pdfBytes, { contentType: "application/pdf", upsert: false })).error).toBeNull();
+    const { token: wrongPurposeToken, result } = await attemptProof(receptionIdentity.id, "file:clinico", purposePath, pdfBytes);
+    expect(result.error).toBeNull();
+    expect((await reception.rpc("create_patient_file_metadata_verified", { ...args, p_storage_path: purposePath, p_upload_token: wrongPurposeToken })).error).not.toBeNull();
+    expect((await service.from("arquivos_paciente").select("id").eq("storage_path", purposePath)).data).toEqual([]);
+  });
+
   it("gera documento oficial privado, bloqueia RPC legada e nao audita conteudo", async () => {
-    const documentPath = pathFor(patientId, true); const bytes = new Uint8Array([37, 80, 68, 70, 45]); expect((await service.storage.from("arquivos-paciente").upload(documentPath, bytes, { contentType: "application/pdf", upsert: false })).error).toBeNull();
+    const documentPath = pathFor(patientId, true); const bytes = pdfBytes; expect((await service.storage.from("arquivos-paciente").upload(documentPath, bytes, { contentType: "application/pdf", upsert: false })).error).toBeNull();
     const attendance = await dentistA.rpc("create_direct_attendance", { p_paciente_id: patientId }); expect(attendance.error).toBeNull(); const documentAttendanceId = (attendance.data as { id: string }).id; auditIds.push(documentAttendanceId);
-    const created = await dentistA.rpc("create_official_document", { p_paciente_id: patientId, p_atendimento_id: documentAttendanceId, p_profissional_autor_id: professionalA, p_tipo: "atestado", p_emitido_em: new Date().toISOString().slice(0, 10), p_finalidade: "QA_RC_justificativa", p_comparecimento_inicio: null, p_comparecimento_fim: null, p_afastamento_quantidade: null, p_afastamento_unidade: null, p_acompanhante_nome: null, p_acompanhante_identificacao: null, p_acompanhante_relacao: null, p_texto_adicional: "QA_RC_conteudo_clinico_nao_auditavel", p_cid_codigo: null, p_cid_autorizado: false, p_cid_autorizador_tipo: null, p_storage_path: documentPath, p_nome_arquivo: "QA_RC_atestado.pdf", p_tamanho_bytes: 5, p_layout_version: 2, p_pdf_sha256: "a".repeat(64) }); expect(created.error).toBeNull(); documentId = (created.data as { id: string }).id; auditIds.push(documentId);
+    const documentToken = await prepareProof(dentistAIdentity.id, "document:atestado", documentPath, bytes);
+    const created = await dentistA.rpc("create_official_document_verified", { p_paciente_id: patientId, p_atendimento_id: documentAttendanceId, p_profissional_autor_id: professionalA, p_tipo: "atestado", p_emitido_em: new Date().toISOString().slice(0, 10), p_finalidade: "QA_RC_justificativa", p_comparecimento_inicio: null, p_comparecimento_fim: null, p_afastamento_quantidade: null, p_afastamento_unidade: null, p_acompanhante_nome: null, p_acompanhante_identificacao: null, p_acompanhante_relacao: null, p_texto_adicional: "QA_RC_conteudo_clinico_nao_auditavel", p_cid_codigo: null, p_cid_autorizado: false, p_cid_autorizador_tipo: null, p_storage_path: documentPath, p_nome_arquivo: "QA_RC_atestado.pdf", p_tamanho_bytes: bytes.length, p_layout_version: 2, p_pdf_sha256: digest(bytes), p_upload_token: documentToken }); expect(created.error).toBeNull(); documentId = (created.data as { id: string }).id; auditIds.push(documentId);
     expect((await admin.rpc("create_document_metadata", { p_paciente_id: patientId, p_profissional_id: professionalA, p_tipo: "atestado", p_emitido_em: new Date().toISOString().slice(0, 10), p_periodo_inicio: null, p_periodo_fim: null, p_texto_adicional: null, p_storage_path: `${patientId}/documentos/${randomUUID()}.pdf`, p_nome_arquivo: "QA_RC_legado.pdf", p_tamanho_bytes: 5 })).error).not.toBeNull();
     expect((await dentistA.from("documentos").select("id").eq("id", documentId)).data).toHaveLength(1); expect((await dentistB.from("documentos").select("id").eq("id", documentId)).data).toEqual([]);
     const { data: audit } = await admin.from("auditoria").select("dados").eq("entidade_id", documentId); expect(JSON.stringify(audit)).not.toContain("QA_RC_conteudo_clinico_nao_auditavel");
