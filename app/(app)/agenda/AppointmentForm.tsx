@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { initialDomainActionState } from "@/lib/agenda/action-state";
@@ -22,6 +22,7 @@ export function AppointmentForm({
   defaultStart,
   defaultEnd,
   returnId,
+  requestId,
 }: {
   professionals: ActiveProfessional[];
   appointment?: Appointment;
@@ -29,18 +30,29 @@ export function AppointmentForm({
   defaultStart?: string;
   defaultEnd?: string;
   returnId?: string | null;
+  requestId?: string;
 }) {
   const editing = Boolean(appointment);
   const [state, formAction, pending] = useActionState(
     editing ? updateAppointment : createAppointment,
     initialDomainActionState
   );
+  const [stableRequestId] = useState(requestId ?? "");
   const start = appointment ? toClinicLocalInput(appointment.inicio) : defaultStart;
   const end = appointment ? toClinicLocalInput(appointment.fim) : defaultEnd;
+
+  if (state.success && state.appointmentId) {
+    return <section role="status" className="space-y-3 rounded-lg border border-green-200 bg-green-50 p-5 text-sm text-green-900">
+      <h2 className="text-base font-medium">Agendamento confirmado</h2>
+      <p>{returnId ? "A consulta foi criada e vinculada ao retorno." : "A consulta foi criada."}</p>
+      <Link href={`/agenda/${state.appointmentId}/editar`} className="inline-flex rounded border border-green-300 px-3 py-2 font-medium hover:bg-green-100">Abrir consulta</Link>
+    </section>;
+  }
 
   return (
     <form action={formAction} className="space-y-5">
       {appointment && <input type="hidden" name="appointmentId" value={appointment.id} />}
+      {!editing && stableRequestId && <input type="hidden" name="requestId" value={stableRequestId} />}
       {returnId && <input type="hidden" name="returnId" value={returnId} />}
       <section className="rounded-lg border border-border bg-card p-5">
         <div className="mb-5">
@@ -49,10 +61,15 @@ export function AppointmentForm({
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="md:col-span-2">
-            <PatientPicker
+            {returnId && patient ? <div>
+              <span className="mb-1.5 block text-foreground">Paciente do retorno</span>
+              <input type="hidden" name="pacienteId" value={patient.id} />
+              <p className="rounded-md border bg-input-background px-3 py-2 text-sm font-medium">{patient.nome}</p>
+              <FieldError message={state.fieldErrors?.pacienteId} />
+            </div> : <PatientPicker
               initialPatient={patient ? { id: patient.id, nome: patient.nome, telefone_contato: patient.telefone_contato } : null}
               error={state.fieldErrors?.pacienteId}
-            />
+            />}
           </div>
           <div className="md:col-span-2">
             <label htmlFor="profissionalId" className="mb-1.5 block text-foreground">Profissional</label>
@@ -60,7 +77,7 @@ export function AppointmentForm({
               id="profissionalId"
               name="profissionalId"
               required
-              defaultValue={appointment?.profissional_id ?? ""}
+              defaultValue={state.submitted?.profissionalId ?? appointment?.profissional_id ?? ""}
               className={`h-10 w-full rounded-md border bg-input-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring ${state.fieldErrors?.profissionalId ? "border-destructive" : "border-border"}`}
             >
               <option value="">Selecione</option>
@@ -72,12 +89,12 @@ export function AppointmentForm({
           </div>
           <div>
             <label htmlFor="inicioLocal" className="mb-1.5 block text-foreground">Início</label>
-            <Input id="inicioLocal" name="inicioLocal" type="datetime-local" required defaultValue={start} error={Boolean(state.fieldErrors?.inicioLocal)} />
+            <Input id="inicioLocal" name="inicioLocal" type="datetime-local" required defaultValue={state.submitted?.inicioLocal ?? start} error={Boolean(state.fieldErrors?.inicioLocal)} />
             <FieldError message={state.fieldErrors?.inicioLocal} />
           </div>
           <div>
             <label htmlFor="fimLocal" className="mb-1.5 block text-foreground">Fim</label>
-            <Input id="fimLocal" name="fimLocal" type="datetime-local" required defaultValue={end} error={Boolean(state.fieldErrors?.fimLocal)} />
+            <Input id="fimLocal" name="fimLocal" type="datetime-local" required defaultValue={state.submitted?.fimLocal ?? end} error={Boolean(state.fieldErrors?.fimLocal)} />
             <FieldError message={state.fieldErrors?.fimLocal} />
           </div>
           <div className="md:col-span-2">
@@ -87,7 +104,7 @@ export function AppointmentForm({
               name="observacoesAdministrativas"
               rows={3}
               maxLength={1000}
-              defaultValue={appointment?.observacoes_administrativas ?? ""}
+              defaultValue={state.submitted?.observacoesAdministrativas ?? appointment?.observacoes_administrativas ?? ""}
               placeholder="Somente informações operacionais; não registre conteúdo clínico."
               className={`w-full resize-y rounded-md border bg-input-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring ${state.fieldErrors?.observacoesAdministrativas ? "border-destructive" : "border-border"}`}
             />
@@ -97,7 +114,7 @@ export function AppointmentForm({
       </section>
       {state.error && <p role="alert" className="text-sm text-destructive">{state.error}</p>}
       <div className="flex justify-end gap-2">
-        <Link href="/agenda" className="inline-flex h-10 items-center rounded-md border border-border bg-secondary px-4 text-sm font-medium hover:bg-secondary/80">Cancelar</Link>
+        <Link href={returnId ? "/retornos" : "/agenda"} className="inline-flex h-10 items-center rounded-md border border-border bg-secondary px-4 text-sm font-medium hover:bg-secondary/80">Cancelar</Link>
         <Button type="submit" disabled={pending}>{pending ? "Salvando..." : editing ? "Salvar alterações" : "Criar agendamento"}</Button>
       </div>
     </form>

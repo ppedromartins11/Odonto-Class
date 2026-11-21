@@ -5,13 +5,17 @@
 
 # testing
 /coverage
+/test-results/
+/playwright-report/
 
 # next.js
 /.next/
 /out/
+/.turbo/
 
 # production
 /build
+/dist/
 
 # env - nunca versionar credenciais reais
 .env*
@@ -29,8 +33,12 @@
 supabase/.branches
 supabase/.temp
 
+# laboratório local recriável de homologação
+/scripts/tmp/
+
 # disaster-recovery artifacts generated locally; never version dumps or backups
 /.dr/
+/artifacts/homologacao/
 
 # local database dumps/backups
 /.backups/
@@ -45,8 +53,3 @@ supabase/.temp
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-
-.vercel
-.env*
-!.env.homologacao.example
-/artifacts/homologacao/

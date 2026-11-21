@@ -47,6 +47,19 @@ export async function getAppointment(id: string): Promise<Appointment | null> {
   return (data as Appointment | null) ?? null;
 }
 
+export async function getReturnForScheduling(id: string): Promise<{
+  id: string;
+  paciente_id: string;
+  status: "pendente" | "agendado" | "concluido" | "cancelado";
+  agendamento_id: string | null;
+} | null> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.from("retornos")
+    .select("id,paciente_id,status,agendamento_id").eq("id", id).maybeSingle();
+  if (error) queryFailure("RETURN_SCHEDULING_LOAD_FAILED", error.code);
+  return data as { id: string; paciente_id: string; status: "pendente" | "agendado" | "concluido" | "cancelado"; agendamento_id: string | null } | null;
+}
+
 export async function listPatientAppointments(patientId: string, limit = 10) {
   const supabase = await createSupabaseServerClient();
   const [{ data, error }, professionals] = await Promise.all([

@@ -1,0 +1,24 @@
+﻿{
+    "repository":  "https://github.com/supabase/cli",
+    "tag":  "v2.116.0",
+    "commit":  "997a1e69a4a83466964ed874d3a604c88a7b3866",
+    "files":  [
+                  {
+                      "filename":  "dump_data.sh",
+                      "sha256":  "c943c7a926122ea0649ddd4bf9b8fb9b12bed23ac9f33da0b489ac83e687d241"
+                  },
+                  {
+                      "filename":  "dump_role.sh",
+                      "sha256":  "cc442e4f19d349b7db1dde69913ed06ef20f68198391d9beef33f63493cf26c8"
+                  },
+                  {
+                      "filename":  "dump_schema.sh",
+                      "sha256":  "5cd57189f6565ddf651ff149995398a4c9b1971ca34a0093a77c011a41f21d64"
+                  },
+                  {
+                      "filename":  "legacy-pg-dump.env.ts.txt",
+                      "sha256":  "608b0c8068951e635b6759398c3fd2df31c49864432f8cf5fde28bcffda7a76c"
+                  }
+              ]
+}
+

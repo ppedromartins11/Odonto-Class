@@ -30,32 +30,60 @@ export async function createAppointment(
   if (!canManageAgenda(user.perfil)) {
     return { success: false, error: "Você não tem permissão para manter a agenda." };
   }
+  const submitted = {
+    pacienteId: String(formData.get("pacienteId") ?? ""),
+    profissionalId: String(formData.get("profissionalId") ?? ""),
+    inicioLocal: String(formData.get("inicioLocal") ?? ""),
+    fimLocal: String(formData.get("fimLocal") ?? ""),
+    observacoesAdministrativas: String(formData.get("observacoesAdministrativas") ?? "") || null,
+  };
   const parsed = validateAppointmentFormData(formData);
   if (!parsed.success) {
-    return { success: false, error: "Revise os campos destacados.", fieldErrors: parsed.fieldErrors };
+    return { success: false, error: "Revise os campos destacados.", fieldErrors: parsed.fieldErrors, submitted };
   }
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.rpc("create_appointment", {
-    p_paciente_id: parsed.data.pacienteId,
-    p_profissional_id: parsed.data.profissionalId,
-    p_inicio_local: parsed.data.inicioLocal,
-    p_fim_local: parsed.data.fimLocal,
-    p_observacoes_administrativas: parsed.data.observacoesAdministrativas,
-  });
-  if (error || !data) {
-    console.error("Falha na RPC create_appointment", { code: error?.code });
-    return { success: false, error: agendaError(error?.code) };
-  }
+  const requestId = String(formData.get("requestId") ?? "");
   const returnId = String(formData.get("returnId") ?? "");
-  if (returnId) {
-    const { error: returnError } = await supabase.rpc("link_return_appointment", {
-      p_retorno_id: returnId,
-      p_agendamento_id: (data as { id: string }).id,
-    });
-    if (returnError) return { success: false, error: "Agendamento criado, mas o retorno não foi vinculado." };
+  if (!isValidUuid(requestId) || (returnId && !isValidUuid(returnId))) {
+    return { success: false, error: "Solicitação de agendamento inválida. Reabra o formulário.", submitted };
   }
-  revalidatePath("/agenda");
-  redirect(`/agenda?data=${parsed.data.inicioLocal.slice(0, 10)}`);
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase.rpc("create_appointment_consistent", {
+      p_request_id: requestId,
+      p_retorno_id: returnId || null,
+      p_paciente_id: parsed.data.pacienteId,
+      p_profissional_id: parsed.data.profissionalId,
+      p_inicio_local: parsed.data.inicioLocal,
+      p_fim_local: parsed.data.fimLocal,
+      p_observacoes_administrativas: parsed.data.observacoesAdministrativas,
+    });
+    if (error) {
+      console.error("Falha na RPC create_appointment_consistent", { code: error.code });
+      if (error.message === "RETURN_ALREADY_SCHEDULED") {
+        return { success: false, error: "Este retorno já possui um agendamento. Consulte a lista de retornos antes de tentar novamente.", submitted };
+      }
+      if (error.message === "RETURN_NOT_PENDING") {
+        return { success: false, error: "Este retorno não está pendente para agendamento. Consulte a lista de retornos.", submitted };
+      }
+      if (error.code === "PGRST202") {
+        return { success: false, error: "O agendamento está temporariamente indisponível. Avise a administração.", submitted };
+      }
+      if (error.code === "P0002") return { success: false, error: "Retorno não encontrado. Reabra a lista de retornos.", submitted };
+      if (["23P01", "42501", "23514", "22023", "22P02"].includes(error.code ?? "")) {
+        return { success: false, error: agendaError(error.code), submitted };
+      }
+      return { success: false, error: "Não foi possível confirmar o resultado. Tente novamente neste formulário; a mesma solicitação não criará outra consulta.", submitted };
+    }
+    const appointmentId = (data as { id?: string } | null)?.id;
+    if (!appointmentId || !isValidUuid(appointmentId)) {
+      return { success: false, error: "Não foi possível confirmar o resultado. Tente novamente neste formulário; a mesma solicitação não criará outra consulta.", submitted };
+    }
+    revalidatePath("/agenda");
+    if (returnId) revalidatePath("/retornos");
+    return { success: true, error: null, appointmentId };
+  } catch {
+    return { success: false, error: "A conexão falhou e o resultado é desconhecido. Tente novamente neste formulário; a mesma solicitação não criará outra consulta.", submitted };
+  }
 }
 
 export async function updateAppointment(
@@ -116,5 +144,6 @@ export async function changeAppointmentStatus(
   }
   revalidatePath("/agenda");
   revalidatePath("/pacientes");
+  revalidatePath("/retornos");
   return { success: true, error: null };
 }

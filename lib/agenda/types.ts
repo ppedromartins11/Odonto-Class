@@ -53,4 +53,6 @@ export type DomainActionState = {
   success: boolean;
   error: string | null;
   fieldErrors?: Record<string, string>;
+  appointmentId?: string;
+  submitted?: AppointmentFormValues;
 };
