@@ -59,7 +59,7 @@ export function AppointmentForm({
           <h2 className="text-base font-medium text-card-foreground">Dados do agendamento</h2>
           <p className="mt-1 text-xs text-muted-foreground">Horários são exibidos no fuso da clínica (Cuiabá).</p>
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
           <div className="md:col-span-2">
             {returnId && patient ? <div>
               <span className="mb-1.5 block text-foreground">Paciente do retorno</span>
@@ -78,7 +78,7 @@ export function AppointmentForm({
               name="profissionalId"
               required
               defaultValue={state.submitted?.profissionalId ?? appointment?.profissional_id ?? ""}
-              className={`h-10 w-full rounded-md border bg-input-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring ${state.fieldErrors?.profissionalId ? "border-destructive" : "border-border"}`}
+              className={`h-11 w-full min-w-0 max-w-full rounded-md border bg-input-background px-3 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-ring ${state.fieldErrors?.profissionalId ? "border-destructive" : "border-border"}`}
             >
               <option value="">Selecione</option>
               {professionals.map((professional) => (
@@ -87,12 +87,12 @@ export function AppointmentForm({
             </select>
             <FieldError message={state.fieldErrors?.profissionalId} />
           </div>
-          <div>
+          <div className="min-w-0">
             <label htmlFor="inicioLocal" className="mb-1.5 block text-foreground">Início</label>
             <Input id="inicioLocal" name="inicioLocal" type="datetime-local" required defaultValue={state.submitted?.inicioLocal ?? start} error={Boolean(state.fieldErrors?.inicioLocal)} />
             <FieldError message={state.fieldErrors?.inicioLocal} />
           </div>
-          <div>
+          <div className="min-w-0">
             <label htmlFor="fimLocal" className="mb-1.5 block text-foreground">Fim</label>
             <Input id="fimLocal" name="fimLocal" type="datetime-local" required defaultValue={state.submitted?.fimLocal ?? end} error={Boolean(state.fieldErrors?.fimLocal)} />
             <FieldError message={state.fieldErrors?.fimLocal} />
@@ -112,10 +112,11 @@ export function AppointmentForm({
           </div>
         </div>
       </section>
+      {!editing && professionals.length === 0 && <p role="alert" className="text-sm text-destructive">Nenhum profissional ativo disponível para agendamento. Avise a administração.</p>}
       {state.error && <p role="alert" className="text-sm text-destructive">{state.error}</p>}
       <div className="flex justify-end gap-2">
         <Link href={returnId ? "/retornos" : "/agenda"} className="inline-flex h-10 items-center rounded-md border border-border bg-secondary px-4 text-sm font-medium hover:bg-secondary/80">Cancelar</Link>
-        <Button type="submit" disabled={pending}>{pending ? "Salvando..." : editing ? "Salvar alterações" : "Criar agendamento"}</Button>
+        <Button type="submit" disabled={pending || (!editing && professionals.length === 0)}>{pending ? "Salvando..." : editing ? "Salvar alterações" : "Criar agendamento"}</Button>
       </div>
     </form>
   );
