@@ -17,7 +17,6 @@ import {
   ShieldCheck,
   RefreshCw,
   UserCog,
-  Menu,
   X,
 } from "lucide-react";
 import { CLINIC_NAME, CLINIC_TAGLINE } from "@/lib/config/clinic";
@@ -40,8 +39,6 @@ const NAV_ITEMS = [
   { href: "/usuarios", label: "Usu\u00e1rios", icon: UserCog, enabled: true, adminOnly: true },
 ] as const;
 
-const MOBILE_PRIMARY = ["/dashboard", "/agenda", "/pacientes", "/retornos"];
-
 function isCurrentPath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
@@ -57,9 +54,6 @@ export function Sidebar({
 }) {
   const activePath = usePathname();
   const visibleItems = NAV_ITEMS.filter((item) => !("adminOnly" in item && item.adminOnly && usuario.perfil !== "administrador"));
-  const mobileItems = visibleItems.filter((item) => MOBILE_PRIMARY.includes(item.href));
-  const moreItems = visibleItems.filter((item) => !MOBILE_PRIMARY.includes(item.href));
-  const moreIsActive = moreItems.some((item) => isCurrentPath(activePath, item.href));
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -90,15 +84,12 @@ export function Sidebar({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [menuOpen, onMenuOpenChange]);
 
-  const linkClass = (isActive: boolean, mobile = false) =>
-    `flex min-w-0 items-center rounded-lg transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-      mobile
-        ? "min-h-12 flex-1 flex-col justify-center gap-1 px-1 py-1 text-[11px]"
-        : "min-h-11 w-full gap-2.5 px-3 py-2 text-sm"
-    } ${isActive ? "bg-accent text-accent-foreground font-medium" : "text-muted-foreground hover:bg-secondary hover:text-foreground"}`;
+  const linkClass = (isActive: boolean) =>
+    `flex min-h-11 w-full min-w-0 items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${isActive ? "bg-accent text-accent-foreground font-medium" : "text-muted-foreground hover:bg-secondary hover:text-foreground"}`;
 
   return (
-    <aside className="fixed inset-x-0 bottom-0 z-30 flex h-[calc(4rem+env(safe-area-inset-bottom))] flex-col border-t border-sidebar-border bg-sidebar pb-[env(safe-area-inset-bottom)] md:inset-y-0 md:left-0 md:h-full md:w-56 md:border-r md:border-t-0 md:pb-0">
+    <>
+    <aside className="fixed inset-y-0 left-0 z-30 hidden h-full w-56 flex-col border-r border-sidebar-border bg-sidebar md:flex">
       <Link href="/dashboard" aria-label={`${CLINIC_NAME} — ir ao Dashboard`} className="hidden items-center gap-2.5 border-b border-sidebar-border px-4 py-3.5 transition-colors hover:bg-secondary/50 md:flex">
         <BrandLogo variant="mark" className="w-11 shrink-0 rounded-md" priority />
         <div className="min-w-0">
@@ -122,30 +113,7 @@ export function Sidebar({
         </div>
       </nav>
 
-      <nav aria-label={"Navega\u00e7\u00e3o m\u00f3vel"} className="flex min-h-16 items-stretch gap-1 px-2 py-1 md:hidden">
-        {mobileItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = isCurrentPath(activePath, item.href);
-          return (
-            <Link key={item.href} href={item.href} aria-current={isActive ? "page" : undefined} className={linkClass(isActive, true)}>
-              <Icon aria-hidden="true" className="h-5 w-5 shrink-0" />
-              <span className="max-w-full truncate">{item.label}</span>
-            </Link>
-          );
-        })}
-        <button
-          id="mobile-menu-trigger"
-          type="button"
-          aria-controls="mobile-navigation-panel"
-          aria-expanded={menuOpen}
-          aria-label="Menu de módulos"
-          onClick={() => onMenuOpenChange(!menuOpen)}
-          className={`${linkClass(moreIsActive || menuOpen, true)} bg-transparent`}
-        >
-          <Menu aria-hidden="true" className="h-5 w-5 shrink-0" />
-          <span>Menu</span>
-        </button>
-      </nav>
+    </aside>
 
       {menuOpen && (
         <>
@@ -195,6 +163,6 @@ export function Sidebar({
           </div>
         </>
       )}
-    </aside>
+    </>
   );
 }

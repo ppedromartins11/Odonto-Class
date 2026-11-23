@@ -5,7 +5,7 @@ import type { UsuarioAtual } from "@/lib/auth/session";
 import { Header } from "./Header";
 import { Sidebar } from "./Sidebar";
 
-/** A barra superior e a navegacao inferior compartilham o mesmo menu mobile. */
+/** O cabeçalho abre o menu mobile; a navegação desktop permanece independente. */
 export function AppNavigation({ usuario }: { usuario: UsuarioAtual }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
