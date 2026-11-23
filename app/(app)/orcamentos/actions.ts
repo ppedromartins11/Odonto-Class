@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth/session";
 import { isValidUuid } from "@/lib/patients/validation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { isBudgetStatus, parseCents } from "@/lib/budgets/validation";
+import { isBudgetStatus, parseBudgetItems } from "@/lib/budgets/validation";
 import type { BudgetActionState } from "@/lib/budgets/types";
 import { getBudget } from "@/lib/budgets/queries";
 import { renderBudgetPdf } from "@/lib/budgets/pdf";
@@ -15,20 +15,7 @@ import { CLINIC_NAME, CLINIC_TAGLINE } from "@/lib/config/clinic";
 import { DOCUMENT_LAYOUT_VERSION } from "@/lib/documents/theme";
 import { reconcileFailedBudgetPdfRegistration, verifyBudgetPdfObject } from "@/lib/budgets/pdf-integrity";
 
-type ItemInput = { id?: string; descricao: string; quantidade: number; valorUnitarioCentavos: number; removed?: boolean };
 const result = (error: string | null, fieldErrors?: Record<string, string>): BudgetActionState => ({ success: !error, error, fieldErrors });
-
-function readItems(raw: FormDataEntryValue | null): ItemInput[] | null {
-  try {
-    const value = JSON.parse(String(raw ?? "[]")) as unknown;
-    if (!Array.isArray(value) || value.length > 100) return null;
-    const items = value.map((item) => {
-      const row = item as Record<string, unknown>;
-      return { id: typeof row.id === "string" ? row.id : undefined, descricao: String(row.descricao ?? "").trim(), quantidade: Number(row.quantidade), valorUnitarioCentavos: Number(row.valorUnitarioCentavos), removed: row.removed === true };
-    });
-    return items.every((item) => (!item.id || isValidUuid(item.id)) && item.descricao.length >= 2 && item.descricao.length <= 300 && Number.isInteger(item.quantidade) && item.quantidade >= 1 && item.quantidade <= 999 && parseCents(item.valorUnitarioCentavos) !== null) ? items : null;
-  } catch { return null; }
-}
 
 export async function saveBudget(_: BudgetActionState, form: FormData): Promise<BudgetActionState> {
   await requireUser();
@@ -38,8 +25,16 @@ export async function saveBudget(_: BudgetActionState, form: FormData): Promise<
   const validity = String(form.get("validity") ?? "") || null;
   const observation = String(form.get("observation") ?? "");
   const desiredStatus = String(form.get("desiredStatus") ?? "rascunho");
-  const items = readItems(form.get("items"));
-  if (!isValidUuid(patientId) || !isValidUuid(professionalId) || !items || items.filter((item) => !item.removed).length === 0) return result("Revise os dados do orçamento.");
+  const parsedItems = parseBudgetItems(String(form.get("items") ?? ""));
+  const fieldErrors: Record<string, string> = {};
+  if (!isValidUuid(patientId)) fieldErrors.patientId = "Selecione um paciente válido na lista.";
+  if (!isValidUuid(professionalId)) fieldErrors.professionalId = "Selecione um profissional responsável.";
+  if (parsedItems.error) fieldErrors.items = parsedItems.error;
+  if (Object.keys(fieldErrors).length > 0) {
+    return result("Confira os campos destacados para salvar o orçamento.", fieldErrors);
+  }
+  const items = parsedItems.items!;
+
   if (validity && !/^\d{4}-\d{2}-\d{2}$/.test(validity)) return result("Informe uma validade válida.");
   if (desiredStatus !== "rascunho" && desiredStatus !== "enviado") return result("Status inicial inválido.");
   if (desiredStatus === "enviado" && !validity) return result("A validade é obrigatória para enviar o orçamento.", { validity: "Informe a validade." });
