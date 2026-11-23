@@ -80,7 +80,7 @@ export async function issueBudgetPdf(_: BudgetActionState, form: FormData): Prom
 
   // Configuracao ausente no ambiente publicado nao deve derrubar a pagina.
   // Sem a chave privada o bucket continua protegido; nao tentar fallback publico.
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (!(process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY)) {
     console.error("BUDGET_PDF_PRIVATE_STORAGE_NOT_CONFIGURED");
     return result("A emissão de PDFs está temporariamente indisponível. Avise a administração para configurar o armazenamento privado.");
   }
