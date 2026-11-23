@@ -14,6 +14,9 @@ import { cookies } from "next/headers";
  * e nunca deve ser usada aqui.
  */
 export async function createSupabaseServerClient() {
+  // A sessao sempre depende do request. Marque a rota como dinamica antes de
+  // ler configuracoes que so estao presentes em runtime, inclusive no CI.
+  const cookieStore = await cookies();
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -23,8 +26,6 @@ export async function createSupabaseServerClient() {
         "Copie .env.local.example para .env.local e preencha com os valores do seu projeto Supabase."
     );
   }
-
-  const cookieStore = await cookies();
 
   return createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
