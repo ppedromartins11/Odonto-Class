@@ -78,7 +78,20 @@ export async function issueBudgetPdf(_: BudgetActionState, form: FormData): Prom
   const budget = await getBudget(budgetId);
   if (!budget) return result("Orçamento não encontrado ou sem acesso.");
 
-  const bytes = await renderBudgetPdf({ ...budget, clinicName: CLINIC_NAME, clinicTagline: CLINIC_TAGLINE });
+  // Configuracao ausente no ambiente publicado nao deve derrubar a pagina.
+  // Sem a chave privada o bucket continua protegido; nao tentar fallback publico.
+  if (!(process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY)) {
+    console.error("BUDGET_PDF_PRIVATE_STORAGE_NOT_CONFIGURED");
+    return result("A emissão de PDFs está temporariamente indisponível. Avise a administração para configurar o armazenamento privado.");
+  }
+
+  let bytes: Buffer;
+  try {
+    bytes = await renderBudgetPdf({ ...budget, clinicName: CLINIC_NAME, clinicTagline: CLINIC_TAGLINE });
+  } catch {
+    console.error("BUDGET_PDF_RENDER_FAILED");
+    return result("Não foi possível gerar o PDF do orçamento. Tente novamente ou avise a administração.");
+  }
   const hash = createHash("sha256").update(bytes).digest("hex");
   const path = `${budget.id}/orcamentos/${randomUUID()}.pdf`;
   const admin = createSupabaseAdminClient();

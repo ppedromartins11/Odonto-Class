@@ -18,4 +18,28 @@ describe("budget PDF", () => {
     const bytes = await renderBudgetPdf({ id: "11111111-1111-4111-8111-111111111111", numero: 43, paciente_id: "", profissional_id: "", data_orcamento: "2026-08-27", validade_em: null, observacao_administrativa: null, status: "rascunho", effective_status: "rascunho", total_centavos: 70000, created_at: "2026-08-27T00:00:00Z", paciente_nome: "Paciente QA", profissional_nome: "Dra. QA", clinicName: "Odonto Class", clinicTagline: "Clínica Odontológica", items });
     expect((await PDFDocument.load(bytes)).getPageCount()).toBeGreaterThan(1);
   });
+  it("renders a separately identified, non-archived preview without a Storage key", async () => {
+    const bytes = await renderBudgetPdf({
+      id: "11111111-1111-4111-8111-111111111111",
+      numero: 99,
+      paciente_id: "",
+      profissional_id: "",
+      data_orcamento: "2026-11-23",
+      validade_em: null,
+      observacao_administrativa: null,
+      status: "aprovado",
+      effective_status: "aprovado",
+      total_centavos: 20000,
+      created_at: "2026-11-23T00:00:00Z",
+      paciente_nome: "Paciente fictício",
+      profissional_nome: "Profissional fictício",
+      clinicName: "Odonto Class",
+      clinicTagline: "Clínica Odontológica",
+      preview: true,
+      items: [{ id: "item", orcamento_id: "", descricao: "Clareamento", quantidade: 1, valor_unitario_centavos: 20000, total_centavos: 20000, ativo: true }],
+    });
+    expect(bytes.subarray(0, 4).toString()).toBe("%PDF");
+    expect((await PDFDocument.load(bytes)).getPageCount()).toBeGreaterThan(0);
+  });
+
 });

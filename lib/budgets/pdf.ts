@@ -4,13 +4,13 @@ import { formatDocumentCurrency, formatDocumentDate } from "../documents/format"
 import { loadDocumentLogo } from "../documents/logo";
 import type { BudgetDetail } from "./types";
 
-export async function renderBudgetPdf(input: BudgetDetail & { clinicName: string; clinicTagline: string }): Promise<Buffer> {
+export async function renderBudgetPdf(input: BudgetDetail & { clinicName: string; clinicTagline: string; preview?: boolean }): Promise<Buffer> {
   const layout = await DocumentPdfLayout.create({
     clinicName: input.clinicName,
     clinicTagline: input.clinicTagline,
     logoBytes: await loadDocumentLogo(),
   });
-  layout.title("ORÇAMENTO ODONTOLÓGICO");
+  layout.title(input.preview ? "PRÉVIA DE ORÇAMENTO ODONTOLÓGICO" : "ORÇAMENTO ODONTOLÓGICO");
   layout.labelValue("Número", String(input.numero));
   layout.labelValue("Paciente", input.paciente_nome);
   layout.labelValue("Profissional responsável", input.profissional_nome);
@@ -41,6 +41,8 @@ export async function renderBudgetPdf(input: BudgetDetail & { clinicName: string
     layout.paragraph(input.observacao_administrativa, { size: 9.5 });
   }
   layout.gap(25);
-  layout.paragraph("Este documento registra os itens e valores existentes no momento da emissão. Versões posteriores não substituem esta versão.", { size: 8.5 });
+  layout.paragraph(input.preview
+    ? "PRÉVIA NÃO REGISTRADA — valores e itens sujeitos a alterações. Este PDF não é uma versão emitida ou arquivada."
+    : "Este documento registra os itens e valores existentes no momento da emissão. Versões posteriores não substituem esta versão.", { size: 8.5 });
   return layout.save();
 }
