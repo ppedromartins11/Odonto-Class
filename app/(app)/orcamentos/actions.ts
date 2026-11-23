@@ -13,6 +13,7 @@ import { renderBudgetPdf } from "@/lib/budgets/pdf";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { CLINIC_NAME, CLINIC_TAGLINE } from "@/lib/config/clinic";
 import { DOCUMENT_LAYOUT_VERSION } from "@/lib/documents/theme";
+import { reconcileFailedBudgetPdfRegistration, verifyBudgetPdfObject } from "@/lib/budgets/pdf-integrity";
 
 type ItemInput = { id?: string; descricao: string; quantidade: number; valorUnitarioCentavos: number; removed?: boolean };
 const result = (error: string | null, fieldErrors?: Record<string, string>): BudgetActionState => ({ success: !error, error, fieldErrors });
@@ -86,20 +87,58 @@ export async function issueBudgetPdf(_: BudgetActionState, form: FormData): Prom
   const hash = createHash("sha256").update(bytes).digest("hex");
   const path = `${budget.id}/orcamentos/${randomUUID()}.pdf`;
   const admin = createSupabaseAdminClient();
-  const upload = await admin.storage.from("arquivos-paciente").upload(path, bytes, { contentType: "application/pdf", upsert: false });
+  const storage = admin.storage.from("arquivos-paciente");
+  const upload = await storage.upload(path, bytes, { contentType: "application/pdf", upsert: false });
   if (upload.error) return result("Não foi possível armazenar a versão privada do PDF.");
 
-  const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc("register_budget_pdf_version", {
-    p_orcamento_id: budget.id,
-    p_storage_path: path,
-    p_pdf_sha256: hash,
-    p_layout_version: DOCUMENT_LAYOUT_VERSION,
-    p_tamanho_bytes: bytes.length,
+  // O registro de versao so prossegue se os bytes gravados corresponderem
+  // aos bytes emitidos, e a identidade do objeto estiver estavel.
+  const verified = await verifyBudgetPdfObject({
+    budgetId: budget.id,
+    path,
+    expectedBytes: bytes,
+    readInfo: () => storage.info(path),
+    readBytes: () => storage.download(path, {}, { cache: "no-store" }),
   });
-  if (error) {
-    await admin.storage.from("arquivos-paciente").remove([path]);
+  if (!verified) {
+    const cleanup = await storage.remove([path]);
+    if (cleanup.error) console.error("BUDGET_PDF_UPLOAD_CLEANUP_INCOMPLETE");
+    return result("Não foi possível verificar a integridade do PDF armazenado.");
+  }
+
+  const supabase = await createSupabaseServerClient();
+  let registration;
+  try {
+    registration = await supabase.rpc("register_budget_pdf_version", {
+      p_orcamento_id: budget.id,
+      p_storage_path: path,
+      p_pdf_sha256: hash,
+      p_layout_version: DOCUMENT_LAYOUT_VERSION,
+      p_tamanho_bytes: bytes.length,
+    });
+  } catch {
+    // Timeout ou falha de rede nao prova rollback: o objeto deve permanecer.
+    console.error("BUDGET_PDF_REGISTRATION_UNKNOWN");
+    return result("Não foi possível confirmar o registro. Consulte as versões antes de tentar novamente.");
+  }
+
+  if (registration.error) {
+    const outcome = await reconcileFailedBudgetPdfRegistration({
+      rpcError: registration.error,
+      metadataForPath: () => admin.from("orcamento_pdf_versoes")
+        .select("id").eq("storage_path", path).maybeSingle(),
+      removeObject: () => storage.remove([path]),
+    });
+    if (outcome === "preserved") {
+      console.error("BUDGET_PDF_REGISTRATION_RECONCILIATION_REQUIRED", { code: registration.error.code });
+      return result("Não foi possível confirmar o registro. Consulte as versões antes de tentar novamente.");
+    }
     return result("Não foi possível registrar a versão emitida do orçamento.");
+  }
+  if (!registration.data) {
+    // Resposta sem dados nao autoriza exclusao de um PDF possivelmente registrado.
+    console.error("BUDGET_PDF_REGISTRATION_EMPTY_RESPONSE");
+    return result("Não foi possível confirmar o registro. Consulte as versões antes de tentar novamente.");
   }
   revalidatePath(`/orcamentos/${budget.id}`);
   return { success: true, error: null };
