@@ -11,7 +11,7 @@ export const Input = forwardRef<HTMLInputElement, Props>(function Input(
   return (
     <input
       ref={ref}
-      className={`min-h-11 w-full rounded-md border bg-input-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60 ${
+      className={`min-h-11 w-full min-w-0 max-w-full rounded-md border bg-input-background px-3 text-base sm:text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60 ${
         error ? "border-destructive" : "border-border"
       } ${className}`}
       {...props}

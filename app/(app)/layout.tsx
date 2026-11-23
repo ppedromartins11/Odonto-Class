@@ -1,7 +1,6 @@
 import { connection } from "next/server";
 import { requireAdminAal2, requireUser } from "@/lib/auth/session";
-import { Sidebar } from "@/components/layout/Sidebar";
-import { Header } from "@/components/layout/Header";
+import { AppNavigation } from "@/components/layout/AppNavigation";
 
 /**
  * Layout de toda a area autenticada (Dashboard, Usuarios, e os futuros
@@ -23,8 +22,7 @@ export default async function AppLayout({
   return (
     <>
       <a href="#main-content" className="skip-link">Pular para o conteúdo principal</a>
-      <Sidebar usuario={usuario} />
-      <Header usuario={usuario} />
+      <AppNavigation usuario={usuario} />
       <main id="main-content" tabIndex={-1} className="h-[calc(100dvh-4rem-env(safe-area-inset-bottom))] overflow-y-auto overscroll-y-contain bg-background pt-14 outline-none md:ml-56 md:h-auto md:min-h-screen md:overflow-visible">
         <div className="p-3 sm:p-6">{children}</div>
       </main>

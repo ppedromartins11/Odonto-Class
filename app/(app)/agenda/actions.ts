@@ -66,7 +66,7 @@ export async function createAppointment(
         return { success: false, error: "Este retorno não está pendente para agendamento. Consulte a lista de retornos.", submitted };
       }
       if (error.code === "PGRST202") {
-        return { success: false, error: "O agendamento está temporariamente indisponível. Avise a administração.", submitted };
+        return { success: false, error: "O agendamento está indisponível porque o banco precisa de uma atualização. Nenhum agendamento foi criado. Avise a administração.", submitted };
       }
       if (error.code === "P0002") return { success: false, error: "Retorno não encontrado. Reabra a lista de retornos.", submitted };
       if (["23P01", "42501", "23514", "22023", "22P02"].includes(error.code ?? "")) {

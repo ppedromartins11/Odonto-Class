@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -16,7 +17,8 @@ import {
   ShieldCheck,
   RefreshCw,
   UserCog,
-  MoreHorizontal,
+  Menu,
+  X,
 } from "lucide-react";
 import { CLINIC_NAME, CLINIC_TAGLINE } from "@/lib/config/clinic";
 import type { UsuarioAtual } from "@/lib/auth/session";
@@ -44,12 +46,49 @@ function isCurrentPath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function Sidebar({ usuario }: { usuario: UsuarioAtual }) {
+export function Sidebar({
+  usuario,
+  menuOpen,
+  onMenuOpenChange,
+}: {
+  usuario: UsuarioAtual;
+  menuOpen: boolean;
+  onMenuOpenChange: (open: boolean) => void;
+}) {
   const activePath = usePathname();
   const visibleItems = NAV_ITEMS.filter((item) => !("adminOnly" in item && item.adminOnly && usuario.perfil !== "administrador"));
   const mobileItems = visibleItems.filter((item) => MOBILE_PRIMARY.includes(item.href));
   const moreItems = visibleItems.filter((item) => !MOBILE_PRIMARY.includes(item.href));
   const moreIsActive = moreItems.some((item) => isCurrentPath(activePath, item.href));
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const panel = panelRef.current;
+    panel?.querySelector<HTMLElement>("button")?.focus();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onMenuOpenChange(false);
+        previousFocus?.focus();
+      }
+      if (event.key !== "Tab" || !panel) return;
+      const focusable = Array.from(panel.querySelectorAll<HTMLElement>("a[href], button:not([disabled])"));
+      if (!focusable.length) return;
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [menuOpen, onMenuOpenChange]);
 
   const linkClass = (isActive: boolean, mobile = false) =>
     `flex min-w-0 items-center rounded-lg transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
@@ -94,24 +133,68 @@ export function Sidebar({ usuario }: { usuario: UsuarioAtual }) {
             </Link>
           );
         })}
-        <button type="button" popoverTarget="mobile-more-menu" popoverTargetAction="toggle" aria-controls="mobile-more-menu" aria-label={moreIsActive ? "Mais m\u00f3dulos, incluindo a p\u00e1gina atual" : "Mais m\u00f3dulos"} className={`${linkClass(moreIsActive, true)} bg-transparent`}>
-            <MoreHorizontal aria-hidden="true" className="h-5 w-5 shrink-0" />
-            <span>Mais</span>
+        <button
+          id="mobile-menu-trigger"
+          type="button"
+          aria-controls="mobile-navigation-panel"
+          aria-expanded={menuOpen}
+          aria-label="Menu de módulos"
+          onClick={() => onMenuOpenChange(!menuOpen)}
+          className={`${linkClass(moreIsActive || menuOpen, true)} bg-transparent`}
+        >
+          <Menu aria-hidden="true" className="h-5 w-5 shrink-0" />
+          <span>Menu</span>
         </button>
       </nav>
 
-      <nav id="mobile-more-menu" popover="auto" aria-label={"Mais m\u00f3dulos"} className="fixed inset-x-2 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 ml-auto max-h-[min(65vh,28rem)] w-[min(20rem,calc(100vw-1rem))] overflow-y-auto rounded-xl border border-border bg-popover p-2 shadow-xl md:hidden">
-            {moreItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = isCurrentPath(activePath, item.href);
-              return (
-                <Link key={item.href} href={item.href} aria-current={isActive ? "page" : undefined} className={linkClass(isActive)}>
-                  <Icon aria-hidden="true" className="h-4 w-4 shrink-0" />
-                  <span className="truncate">{item.label}</span>
-                </Link>
-              );
-            })}
-      </nav>
+      {menuOpen && (
+        <>
+          <button
+            type="button"
+            aria-label="Fechar menu de módulos"
+            onClick={() => onMenuOpenChange(false)}
+            className="fixed inset-0 z-40 bg-slate-950/40 md:hidden"
+          />
+          <div
+            id="mobile-navigation-panel"
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="mobile-navigation-title"
+            className="fixed inset-y-0 left-0 z-50 w-[min(21rem,88vw)] overflow-y-auto border-r border-border bg-card px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] shadow-2xl md:hidden"
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-border px-2 pb-3">
+              <h2 id="mobile-navigation-title" className="text-base font-semibold">Menu de módulos</h2>
+              <button
+                type="button"
+                aria-label="Fechar menu"
+                onClick={() => onMenuOpenChange(false)}
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md hover:bg-secondary"
+              >
+                <X aria-hidden="true" className="h-5 w-5" />
+              </button>
+            </div>
+            <nav aria-label="Todos os módulos" className="mt-3 space-y-1">
+              {visibleItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = isCurrentPath(activePath, item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-current={isActive ? "page" : undefined}
+                    onClick={() => onMenuOpenChange(false)}
+                    className={linkClass(isActive)}
+                  >
+                    <Icon aria-hidden="true" className="h-5 w-5 shrink-0" />
+                    <span className="truncate">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+        </>
+      )}
     </aside>
   );
 }
