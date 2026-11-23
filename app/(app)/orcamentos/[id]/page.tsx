@@ -84,7 +84,7 @@ export default async function BudgetDetailPage({ params }: { params: Promise<{ i
           {budget.effective_status === "convertido" && !treatmentPlan && <p className="text-sm text-muted-foreground">Conversão comercial legada sem plano clínico associado.</p>}
         </>
       )}
-      <BudgetPdfVersions budgetId={budget.id} versions={pdfVersions} storageConfigured={Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY)} />
+      <BudgetPdfVersions budgetId={budget.id} versions={pdfVersions} storageConfigured={Boolean(process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY)} />
     </div>
   );
 }
