@@ -11,7 +11,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.from("orcamento_pdf_versoes").select("storage_path,versao").eq("id", versionId).eq("orcamento_id", id).maybeSingle();
   if (error || !data) return new NextResponse(null, { status: 404 });
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return new NextResponse(null, { status: 503, headers: { "Cache-Control": "no-store" } });
+  if (!(process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY)) return new NextResponse(null, { status: 503, headers: { "Cache-Control": "no-store" } });
   const signed = await createSupabaseAdminClient().storage.from("arquivos-paciente").createSignedUrl(data.storage_path, 300, { download: `orcamento-versao-${data.versao}.pdf` });
   if (signed.error || !signed.data.signedUrl) return new NextResponse(null, { status: 404 });
   return NextResponse.redirect(signed.data.signedUrl, { headers: { "Cache-Control": "private, no-store" } });
