@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/agenda" }));
+vi.mock("@/lib/config/clinic", () => ({ CLINIC_NAME: "Odonto Class", CLINIC_TAGLINE: "Clínica" }));
 vi.mock("@/components/brand/BrandLogo", () => ({
   BrandLogo: () => <span aria-hidden="true">Marca</span>,
 }));
