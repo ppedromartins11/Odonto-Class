@@ -22,6 +22,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
       ...budget,
       clinicName: CLINIC_NAME,
       clinicTagline: CLINIC_TAGLINE,
+      preview: true,
     });
 
     return new NextResponse(new Uint8Array(bytes), {
