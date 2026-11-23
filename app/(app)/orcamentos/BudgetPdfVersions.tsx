@@ -16,7 +16,15 @@ export function BudgetPdfVersions({ budgetId, versions, storageConfigured }: { b
           <button disabled={pending || !storageConfigured} className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground disabled:opacity-60"><FilePlus2 className="h-4 w-4" />{pending ? "Emitindo..." : versions.length ? "Emitir nova versão" : "Emitir PDF"}</button>
         </form>
       </div>
-      {!storageConfigured && <p role="alert" className="mt-3 text-sm text-destructive">A emissão de PDFs está indisponível neste ambiente. A administração precisa configurar o armazenamento privado no servidor.</p>}
+      {!storageConfigured && (
+        <div role="status" className="mt-3 space-y-2 text-sm">
+          <p className="text-destructive">A emissão de versões imutáveis está indisponível. A administração precisa configurar o armazenamento privado no servidor.</p>
+          <a href={`/api/orcamentos/${budgetId}/pdf/preview`} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-border px-3 py-2 font-medium hover:bg-secondary">
+            <Download className="h-4 w-4" /> Baixar prévia em PDF (não registrada)
+          </a>
+          <p className="text-xs text-muted-foreground">A prévia é gerada somente para o usuário autorizado e não fica arquivada como versão oficial.</p>
+        </div>
+      )}
       {state.error && <p role="alert" className="mt-3 text-sm text-destructive">{state.error}</p>}
       {state.success && <p role="status" className="mt-3 text-sm text-emerald-700">Nova versão emitida com sucesso.</p>}
       {versions.length === 0 ? <p className="mt-4 rounded-md border border-dashed p-4 text-sm text-muted-foreground">Nenhuma versão foi emitida. O orçamento em tela ainda pode mudar.</p> : (
