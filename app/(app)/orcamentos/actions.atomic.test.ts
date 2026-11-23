@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
 }));
 vi.mock("@/lib/auth/session", () => ({ requireUser: mocks.requireUser }));
+vi.mock("@/lib/patients/validation", async () => vi.importActual("../../../lib/patients/validation"));
+vi.mock("@/lib/budgets/validation", async () => vi.importActual("../../../lib/budgets/validation"));
 vi.mock("@/lib/supabase/server", () => ({ createSupabaseServerClient: async () => ({ rpc: mocks.rpc }) }));
 vi.mock("@/lib/supabase/admin", () => ({ createSupabaseAdminClient: vi.fn() }));
 vi.mock("@/lib/budgets/queries", () => ({ getBudget: vi.fn() }));
@@ -21,7 +23,7 @@ vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 
 import { saveBudget } from "./actions";
-import { initialBudgetActionState } from "@/lib/budgets/types";
+import { initialBudgetActionState } from "../../../lib/budgets/types";
 
 const patientId = "22222222-2222-4222-8222-222222222222";
 const professionalId = "33333333-3333-4333-8333-333333333333";
