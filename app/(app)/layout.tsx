@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { requireAdminAal2, requireUser } from "@/lib/auth/session";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
@@ -13,6 +14,9 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // A área autenticada depende de sessão e configuração disponíveis apenas em runtime.
+  // Evita tentar carregar o Supabase ao pré-renderizar páginas privadas no CI.
+  await connection();
   const usuario = await requireUser();
   if (usuario.perfil === "administrador") await requireAdminAal2("/dashboard");
 
