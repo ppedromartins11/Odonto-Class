@@ -26,6 +26,11 @@ jobs:
           node-version: 24
           cache: "npm"
 
+      - name: Guard against committed environment credentials
+        run: |
+          node --test scripts/guards/repository-env-guard.test.mjs
+          node scripts/guards/repository-env-guard.mjs
+
       - name: Install dependencies
         run: npm ci
 
