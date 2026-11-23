@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
+vi.mock("@/lib/budgets/types", () => ({
+  initialBudgetActionState: { success: false, error: null },
+}));
+
 vi.mock("./actions", () => ({
   issueBudgetPdf: async () => ({ success: false, error: null }),
 }));
