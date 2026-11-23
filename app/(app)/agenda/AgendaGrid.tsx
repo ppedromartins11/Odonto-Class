@@ -37,14 +37,14 @@ export function AgendaGrid({ items, startDate, days, profile }: { items: AgendaI
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const canManage = canCreateAppointment(profile);
   const dateKeys = Array.from({ length: days }, (_, index) => addDays(startDate, index));
-  const gridColumns = `4.5rem repeat(${days}, minmax(${days === 1 ? "19rem" : "11rem"}, 1fr))`;
+  const gridColumns = days === 1 ? "4rem minmax(0, 1fr)" : `4.5rem repeat(${days}, minmax(11rem, 1fr))`;
   const selected = items.find((item) => item.id === selectedId) ?? null;
   const { occupying: occupyingItems, historical: historicalItems } = splitAppointmentsByOccupancy(items);
 
   return <>
     <section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-      <div className="overflow-x-auto">
-        <div className="min-w-[25rem]" style={{ minWidth: days === 1 ? "25rem" : "58rem" }}>
+      <div className={days === 1 ? "min-w-0" : "overflow-x-auto"}>
+        <div className={days === 1 ? "w-full min-w-0" : "min-w-[58rem]"}>
           <div className="grid border-b border-border bg-secondary/40" style={{ gridTemplateColumns: gridColumns }}>
             <div className="border-r border-border px-3 py-3 text-xs font-medium text-muted-foreground">Horário</div>
             {dateKeys.map((dateKey) => <div key={dateKey} className="border-r border-border px-3 py-3 last:border-r-0"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{formatClinicDate(dateKey, { weekday: "short" })}</p><p className="mt-0.5 text-sm font-semibold text-foreground">{formatClinicDate(dateKey, { day: "2-digit", month: "long" })}</p></div>)}
@@ -53,13 +53,13 @@ export function AgendaGrid({ items, startDate, days, profile }: { items: AgendaI
             <div className="relative border-r border-border bg-secondary/20" style={{ height: `${(END_HOUR - START_HOUR) * HOUR_HEIGHT}px` }}>
               {HOURS.slice(0, -1).map((hour) => <span key={hour} className="absolute right-3 -translate-y-2 text-xs text-muted-foreground" style={{ top: `${(hour - START_HOUR) * HOUR_HEIGHT}px` }}>{String(hour).padStart(2, "0")}:00</span>)}
             </div>
-            {dateKeys.map((dateKey) => <div key={dateKey} className="relative border-r border-border last:border-r-0" style={{ height: `${(END_HOUR - START_HOUR) * HOUR_HEIGHT}px`, backgroundImage: `repeating-linear-gradient(to bottom, transparent 0, transparent ${HOUR_HEIGHT - 1}px, rgb(226 232 240) ${HOUR_HEIGHT - 1}px, rgb(226 232 240) ${HOUR_HEIGHT}px)` }}>
+            {dateKeys.map((dateKey) => <div key={dateKey} className="relative min-w-0 border-r border-border last:border-r-0" style={{ height: `${(END_HOUR - START_HOUR) * HOUR_HEIGHT}px`, backgroundImage: `repeating-linear-gradient(to bottom, transparent 0, transparent ${HOUR_HEIGHT - 1}px, rgb(226 232 240) ${HOUR_HEIGHT - 1}px, rgb(226 232 240) ${HOUR_HEIGHT}px)` }}>
               {occupyingItems.filter((item) => toClinicDateKey(item.inicio) === dateKey).map((item) => {
                 const status = APPOINTMENT_STATUS_VISUAL[item.status];
                 const position = appointmentPosition(item);
                 const selectedItem = selectedId === item.id;
                 const open = () => setSelectedId(item.id);
-                return <button type="button" key={item.id} aria-label={`Abrir detalhes da consulta de ${item.paciente_nome}`} aria-pressed={selectedItem} onClick={open} className={`absolute left-2 right-2 cursor-pointer rounded-lg border p-2.5 shadow-sm outline-none transition hover:-translate-y-px hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring ${APPOINTMENT_BLOCK_STYLE[item.status]} ${selectedItem ? "ring-2 ring-primary ring-offset-2" : ""}`} style={{ top: `${position.top + 2}px`, height: `${position.height}px` }}>
+                return <button type="button" key={item.id} aria-label={`Abrir detalhes da consulta de ${item.paciente_nome}`} aria-pressed={selectedItem} onClick={open} className={`absolute left-1 right-1 min-w-0 cursor-pointer sm:left-2 sm:right-2 rounded-lg border p-2.5 shadow-sm outline-none transition hover:-translate-y-px hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring ${APPOINTMENT_BLOCK_STYLE[item.status]} ${selectedItem ? "ring-2 ring-primary ring-offset-2" : ""}`} style={{ top: `${position.top + 2}px`, height: `${position.height}px` }}>
                   <div className="flex items-start justify-between gap-2"><p className="flex items-center gap-1 text-xs font-semibold text-foreground"><Clock className="h-3.5 w-3.5 text-primary" />{formatClinicTime(item.inicio)}–{formatClinicTime(item.fim)}</p><Badge tone={status.tone} className="shrink-0">{status.label}</Badge></div>
                   <p className="mt-1 flex items-start gap-1 text-sm font-semibold leading-5 text-foreground"><UserRound className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span className="line-clamp-1">{item.paciente_nome}</span></p>
                   <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{item.profissional_nome}</p>
