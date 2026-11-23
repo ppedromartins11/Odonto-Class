@@ -9,6 +9,15 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      confirm_isolated_test_db:
+        description: "Executar integracao SOMENTE em ambiente ficticio isolado (nunca Production)?"
+        required: true
+        type: choice
+        default: "NAO"
+        options:
+          - "NAO"
+          - "SIM"
 
 permissions:
   contents: read
@@ -26,6 +35,11 @@ jobs:
           node-version: 24
           cache: "npm"
 
+      - name: Guard against committed environment credentials
+        run: |
+          node --test scripts/guards/repository-env-guard.test.mjs
+          node scripts/guards/repository-env-guard.mjs
+
       - name: Install dependencies
         run: npm ci
 
@@ -42,7 +56,7 @@ jobs:
         run: npm run build
 
   integration:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.confirm_isolated_test_db == 'SIM'
     runs-on: ubuntu-latest
     environment: homologacao-ficticia
     env:
