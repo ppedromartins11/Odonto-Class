@@ -38,26 +38,36 @@ export async function saveBudget(_: BudgetActionState, form: FormData): Promise<
   if (validity && !/^\d{4}-\d{2}-\d{2}$/.test(validity)) return result("Informe uma validade válida.");
   if (desiredStatus !== "rascunho" && desiredStatus !== "enviado") return result("Status inicial inválido.");
   if (desiredStatus === "enviado" && !validity) return result("A validade é obrigatória para enviar o orçamento.", { validity: "Informe a validade." });
+  if (budgetId && !isValidUuid(budgetId)) return result("Orçamento inválido.");
+
+  // A7: uma única RPC PostgreSQL aplica cabeçalho, itens e status sob a MESMA
+  // transação. Sem fallback para chamadas individuais que gravam parcialmente.
   const supabase = await createSupabaseServerClient();
-  let id = budgetId;
-  if (id) {
-    if (!isValidUuid(id)) return result("Orçamento inválido.");
-    const { error } = await supabase.rpc("update_budget", { p_orcamento_id: id, p_paciente_id: patientId, p_profissional_id: professionalId, p_validade_em: validity, p_observacao_administrativa: observation || null });
-    if (error) return result("Não foi possível atualizar o orçamento.");
-  } else {
-    const { data, error } = await supabase.rpc("create_budget", { p_paciente_id: patientId, p_profissional_id: professionalId, p_validade_em: validity, p_observacao_administrativa: observation || null });
-    if (error || !data) return result("Não foi possível criar o orçamento.");
-    id = (data as { id: string }).id;
+  let saved;
+  try {
+    saved = await supabase.rpc("save_budget_atomic", {
+      p_orcamento_id: budgetId || null,
+      p_paciente_id: patientId,
+      p_profissional_id: professionalId,
+      p_validade_em: validity,
+      p_observacao_administrativa: observation || null,
+      p_itens: items,
+      p_status: desiredStatus,
+    });
+  } catch {
+    // Timeout/rede não confirmam rollback; não induzir envio duplicado.
+    return result("Não foi possível confirmar o salvamento. Consulte a lista antes de tentar novamente.");
   }
-  for (const item of items) {
-    const call = item.id
-      ? item.removed
-        ? supabase.rpc("remove_budget_item", { p_item_id: item.id })
-        : supabase.rpc("update_budget_item", { p_item_id: item.id, p_descricao: item.descricao, p_quantidade: item.quantidade, p_valor_unitario_centavos: item.valorUnitarioCentavos })
-      : item.removed ? null : supabase.rpc("add_budget_item", { p_orcamento_id: id, p_descricao: item.descricao, p_quantidade: item.quantidade, p_valor_unitario_centavos: item.valorUnitarioCentavos });
-    if (call) { const { error } = await call; if (error) return result("Não foi possível salvar os itens do orçamento."); }
+  if (saved.error) {
+    if (saved.error.code === "PGRST202" || saved.error.code === "42883") {
+      return result("Salvamento transacional indisponível neste ambiente. Avise a administração.");
+    }
+    if (saved.error.code === "42501") return result("Você não tem permissão para salvar este orçamento.");
+    if (saved.error.code === "23514") return result("O orçamento contém dados ou uma transição de status inválidos.");
+    return result("Não foi possível concluir o orçamento. Nenhuma alteração parcial foi confirmada.");
   }
-  if (desiredStatus === "enviado") { const { error } = await supabase.rpc("set_budget_status", { p_orcamento_id: id, p_status: "enviado" }); if (error) return result("O orçamento foi salvo como rascunho, mas não pôde ser enviado."); }
+  const id = typeof saved.data === "string" && isValidUuid(saved.data) ? saved.data : null;
+  if (!id) return result("Não foi possível confirmar o salvamento. Consulte a lista antes de tentar novamente.");
   revalidatePath("/orcamentos"); revalidatePath(`/orcamentos/${id}`); revalidatePath(`/pacientes/${patientId}`);
   if (!budgetId) redirect(`/orcamentos/${id}`);
   return result(null);
