@@ -5,7 +5,7 @@ import { Download, FilePlus2 } from "lucide-react";
 import { initialBudgetActionState, type BudgetPdfVersion } from "@/lib/budgets/types";
 import { issueBudgetPdf } from "./actions";
 
-export function BudgetPdfVersions({ budgetId, versions }: { budgetId: string; versions: BudgetPdfVersion[] }) {
+export function BudgetPdfVersions({ budgetId, versions, storageConfigured }: { budgetId: string; versions: BudgetPdfVersion[]; storageConfigured: boolean }) {
   const [state, action, pending] = useActionState(issueBudgetPdf, initialBudgetActionState);
   return (
     <section className="rounded-lg border bg-card p-5">
@@ -13,9 +13,10 @@ export function BudgetPdfVersions({ budgetId, versions }: { budgetId: string; ve
         <div><h3 className="font-medium">PDFs emitidos</h3><p className="mt-1 text-sm text-muted-foreground">Cada versão é privada, imutável e preserva exatamente os dados existentes na emissão.</p></div>
         <form action={action}>
           <input type="hidden" name="budgetId" value={budgetId} />
-          <button disabled={pending} className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground disabled:opacity-60"><FilePlus2 className="h-4 w-4" />{pending ? "Emitindo..." : versions.length ? "Emitir nova versão" : "Emitir PDF"}</button>
+          <button disabled={pending || !storageConfigured} className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground disabled:opacity-60"><FilePlus2 className="h-4 w-4" />{pending ? "Emitindo..." : versions.length ? "Emitir nova versão" : "Emitir PDF"}</button>
         </form>
       </div>
+      {!storageConfigured && <p role="alert" className="mt-3 text-sm text-destructive">A emissão de PDFs está indisponível neste ambiente. A administração precisa configurar o armazenamento privado no servidor.</p>}
       {state.error && <p role="alert" className="mt-3 text-sm text-destructive">{state.error}</p>}
       {state.success && <p role="status" className="mt-3 text-sm text-emerald-700">Nova versão emitida com sucesso.</p>}
       {versions.length === 0 ? <p className="mt-4 rounded-md border border-dashed p-4 text-sm text-muted-foreground">Nenhuma versão foi emitida. O orçamento em tela ainda pode mudar.</p> : (
