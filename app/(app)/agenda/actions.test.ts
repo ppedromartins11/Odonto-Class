@@ -117,6 +117,16 @@ describe("criação consistente de agendamento", () => {
     }
   });
 
+  it("avisa sobre RPC ausente sem tentar a gravação antiga", async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: "PGRST202", message: "not found" } });
+    const result = await createAppointment(initialDomainActionState, form());
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/banco precisa de uma atualização/);
+    expect(result.error).toMatch(/Nenhum agendamento foi criado/);
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+    expect(mocks.rpc).toHaveBeenCalledWith("create_appointment_consistent", expect.any(Object));
+  });
+
   it("não inventa confirmação após resposta vazia ou erro desconhecido", async () => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: null });
     expect((await createAppointment(initialDomainActionState, form())).success).toBe(false);
